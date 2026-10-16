@@ -4,6 +4,9 @@ using AftershockIsle.Building;
 using AftershockIsle.CameraControl;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
+using AftershockIsle.DebugTools;
+using AftershockIsle.Economy;
+using AftershockIsle.Interaction;
 using AftershockIsle.Player;
 using AftershockIsle.UI;
 using UnityEditor;
@@ -56,6 +59,11 @@ namespace AftershockIsle.EditorTools
             var dayCycle = systems.AddComponent<DayCycle>();
             SetRef(dayCycle, "config", LoadOrCreateAsset<DayCycleConfig>($"{DataFolder}/DayCycleConfig.asset"));
 
+            systems.AddComponent<StructuralIntegrity>();
+            systems.AddComponent<ResourceStorage>();
+            var session = systems.AddComponent<GameSession>();
+            SetRef(session, "timeManager", timeManager);
+
             var commands = systems.AddComponent<CommandController>();
             SetRef(commands, "cam", cam);
             SetRef(commands, "building", building);
@@ -65,13 +73,16 @@ namespace AftershockIsle.EditorTools
             SetRef(hud, "dayCycle", dayCycle);
             SetRef(hud, "commands", commands);
             SetRef(hud, "building", building);
+            SetRef(hud, "session", session);
+
+            systems.AddComponent<DebugCheats>();
 
             var survivorPrefab = CreateSurvivorPrefab(palette);
             var hero = (GameObject)PrefabUtility.InstantiatePrefab(survivorPrefab);
             hero.name = "Ana Karakter";
             hero.transform.SetPositionAndRotation(building.Point(2, 0f), Quaternion.Euler(0f, 180f, 0f));
             SetRef(hero.GetComponent<CharacterMover>(), "building", building);
-            SetString(hero.GetComponent<Survivor>(), "displayName", "Ana Karakter");
+            Configure(hero.GetComponent<Survivor>(), ("displayName", "Ana Karakter"));
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             AddSceneToBuildSettings(ScenePath);
@@ -192,6 +203,7 @@ namespace AftershockIsle.EditorTools
             return layout;
         }
 
+        // Merdivenler x = -6 (0↔1), +6 (1↔2), -6 (2↔3). Objeler merdiven önlerini kapatmayacak şekilde dizildi.
         static void CreateProps(Transform root, BuildingLayout layout, Palette p)
         {
             var props = new GameObject("Props").transform;
@@ -199,21 +211,59 @@ namespace AftershockIsle.EditorTools
             float h = layout.FloorHeight;
             float backZ = layout.Depth * 0.5f;
 
-            // Kat 0: Bodrum
-            Prop("Patlak Şebeke Borusu", props, new Vector3(-2f, 0 * h + 2.7f, backZ - 0.3f), new Vector3(3f, 0.25f, 0.25f), p.Water);
-            Prop("Su Tulumbası", props, new Vector3(4f, 0 * h + 0.6f, backZ - 0.5f), new Vector3(1f, 1.2f, 0.8f), p.Water);
+            // Taşıyıcı kolonlar: bodrum, giriş ve yaşam katlarında ikişer. Yaşam katındakiler çatıyı taşır.
+            var cracked = new[] { (1, -3f), (2, 3f) };
+            for (int floor = 0; floor < layout.FloorCount - 1; floor++)
+            {
+                foreach (float x in new[] { -3f, 3f })
+                {
+                    float height = h - SlabThickness;
+                    var column = Box($"Kolon_{floor}_{(x < 0 ? "Sol" : "Sağ")}", props,
+                        new Vector3(x, floor * h + height * 0.5f, backZ - 0.45f), new Vector3(0.5f, height, 0.5f), p.Column);
+                    var component = column.AddComponent<SupportColumn>();
+                    Configure(component, ("displayName", "Taşıyıcı Kolon"), ("workDuration", 4f));
+                    if (System.Array.IndexOf(cracked, (floor, x)) >= 0)
+                        Configure(component, ("state", (int)ColumnState.Cracked));
+                }
+            }
 
-            // Kat 1: Giriş katı
-            Prop("Ana Şalter Panosu", props, new Vector3(-3.5f, 1 * h + 1.4f, backZ - 0.2f), new Vector3(0.8f, 1.2f, 0.3f), p.Electric);
+            // Kat 0: Bodrum
+            Prop("Patlak Şebeke Borusu", props, new Vector3(0f, 0 * h + 2.7f, backZ - 0.3f), new Vector3(2.4f, 0.25f, 0.25f), p.Water);
+            Prop("Su Tulumbası", props, new Vector3(5.5f, 0 * h + 0.6f, backZ - 0.5f), new Vector3(1f, 1.2f, 0.8f), p.Water);
+            FurnitureProp("Dolap", props, new Vector3(1.5f, 0 * h + 0.8f, backZ - 0.45f), new Vector3(1.2f, 1.6f, 0.7f), p.Furniture);
+            Rubble("Moloz", props, new Vector3(-4.5f, 0 * h, backZ - 0.9f), new Vector3(1.1f, 0.6f, 1f), p.Rubble, 3, false);
+
+            // Kat 1: Giriş katı. Dış kapının önü yıkıntıyla kapalı.
+            Prop("Ana Şalter Panosu", props, new Vector3(-4.5f, 1 * h + 1.4f, backZ - 0.2f), new Vector3(0.8f, 1.2f, 0.3f), p.Electric);
+            FurnitureProp("Masa", props, new Vector3(0f, 1 * h + 0.4f, backZ - 0.8f), new Vector3(1.6f, 0.8f, 0.9f), p.Furniture);
+            Rubble("Yıkıntı (Kapı Önü)", props, new Vector3(7.7f, 1 * h, 0f), new Vector3(1.4f, 1.1f, 1.8f), p.Rubble, 5, true);
 
             // Kat 2: Yaşam / Tezgah
-            Prop("Çalışma Tezgahı", props, new Vector3(-3f, 2 * h + 0.5f, backZ - 0.6f), new Vector3(2.2f, 1f, 1f), p.Craft);
-            Prop("Ortak Sandık", props, new Vector3(0.8f, 2 * h + 0.4f, backZ - 0.5f), new Vector3(1.2f, 0.8f, 0.8f), p.Storage);
-            Prop("Yataklar", props, new Vector3(3.5f, 2 * h + 0.25f, backZ - 0.6f), new Vector3(2f, 0.5f, 1f), p.Furniture);
+            Prop("Çalışma Tezgahı", props, new Vector3(-1f, 2 * h + 0.5f, backZ - 0.6f), new Vector3(2.2f, 1f, 1f), p.Craft);
+            var chest = Box("Ortak Sandık", props, new Vector3(1.4f, 2 * h + 0.4f, backZ - 0.5f), new Vector3(1.2f, 0.8f, 0.8f), p.Storage);
+            Configure(chest.AddComponent<StorageChest>(), ("displayName", "Ortak Sandık"), ("workDuration", 0.5f));
+            FurnitureProp("Yataklar", props, new Vector3(4.6f, 2 * h + 0.25f, backZ - 0.6f), new Vector3(2f, 0.5f, 1f), p.Furniture);
+            Rubble("Moloz", props, new Vector3(-4.6f, 2 * h, backZ - 0.9f), new Vector3(1f, 0.5f, 1f), p.Rubble, 2, false);
 
-            // Kat 3: Çatı
+            // Kat 3: Çatı. Tahliye alanı yıkıntıyla kapalı; zafer için temizlenmesi gerekecek.
             Prop("Telsiz İstasyonu", props, new Vector3(-3.5f, 3 * h + 0.7f, backZ - 0.6f), new Vector3(1.2f, 1.4f, 1f), p.Electric);
-            Prop("Helikopter Tahliye Alanı", props, new Vector3(4f, 3 * h + 0.03f, 0f), new Vector3(5f, 0.05f, 3f), p.Helipad);
+            Prop("Helikopter Tahliye Alanı", props, new Vector3(4.5f, 3 * h + 0.03f, 0f), new Vector3(5f, 0.05f, 3f), p.Helipad);
+            Rubble("Çatı Yıkıntısı", props, new Vector3(1.2f, 3 * h, 0f), new Vector3(1.4f, 1f, 1.8f), p.Rubble, 4, true);
+            Rubble("Moloz", props, new Vector3(5f, 3 * h, 0.6f), new Vector3(1.2f, 0.6f, 1.2f), p.Rubble, 3, false);
+        }
+
+        static void FurnitureProp(string name, Transform parent, Vector3 center, Vector3 size, Material material)
+        {
+            var go = Box(name, parent, center, size, material);
+            Configure(go.AddComponent<Furniture>(), ("displayName", name), ("workDuration", 6f));
+        }
+
+        /// <summary>floorBase: yığının oturduğu zemin noktası.</summary>
+        static void Rubble(string name, Transform parent, Vector3 floorBase, Vector3 size, Material material, int digs, bool blocksPath)
+        {
+            var go = Box(name, parent, floorBase + Vector3.up * (size.y * 0.5f), size, material);
+            Configure(go.AddComponent<RubblePile>(),
+                ("displayName", name), ("workDuration", 5f), ("digCount", digs), ("blocksPath", blocksPath));
         }
 
         static GameObject CreateSurvivorPrefab(Palette p)
@@ -221,6 +271,11 @@ namespace AftershockIsle.EditorTools
             var root = new GameObject("Survivor");
             root.AddComponent<CharacterMover>();
             var survivor = root.AddComponent<Survivor>();
+            root.AddComponent<TaskRunner>();
+
+            var carried = Box("CarriedItem", root.transform, new Vector3(0f, 1.1f, 0.42f), new Vector3(0.5f, 0.35f, 0.35f), p.Carry);
+            Object.DestroyImmediate(carried.GetComponent<Collider>());
+            SetRef(survivor, "carriedVisual", carried.GetComponent<Renderer>());
 
             var body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             body.name = "Body";
@@ -280,10 +335,29 @@ namespace AftershockIsle.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        static void SetString(Object target, string field, string value)
+        /// <summary>Private [SerializeField] alanlarına değer yazar (string, int/enum, float, bool).</summary>
+        static void Configure(Object target, params (string field, object value)[] values)
         {
             var so = new SerializedObject(target);
-            so.FindProperty(field).stringValue = value;
+            foreach (var (field, value) in values)
+            {
+                var prop = so.FindProperty(field);
+                if (prop == null)
+                {
+                    Debug.LogError($"{target.GetType().Name} üzerinde '{field}' alanı bulunamadı.", target);
+                    continue;
+                }
+
+                switch (value)
+                {
+                    case string s: prop.stringValue = s; break;
+                    case bool b: prop.boolValue = b; break;
+                    case float f: prop.floatValue = f; break;
+                    case int i when prop.propertyType == SerializedPropertyType.Enum: prop.enumValueIndex = i; break;
+                    case int i: prop.intValue = i; break;
+                    default: Debug.LogError($"'{field}' için desteklenmeyen tür: {value?.GetType().Name}"); break;
+                }
+            }
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
@@ -332,6 +406,9 @@ namespace AftershockIsle.EditorTools
             public readonly Material Survivor = Get("Survivor", new Color(0.95f, 0.55f, 0.2f));
             public readonly Material Visor = Get("Visor", new Color(0.15f, 0.15f, 0.18f));
             public readonly Material Selection = Get("Selection", new Color(0.3f, 1f, 0.4f));
+            public readonly Material Column = Get("Column", new Color(0.62f, 0.62f, 0.6f));
+            public readonly Material Rubble = Get("Rubble", new Color(0.45f, 0.42f, 0.38f));
+            public readonly Material Carry = Get("Carry", Color.white);
 
             static Material Get(string name, Color color)
             {

@@ -36,9 +36,21 @@ namespace AftershockIsle.Building
     /// <summary>
     /// Binanın kesit ölçüleri ve kat/merdiven grafiği. Hareket X (kat içi) ve Y (merdiven)
     /// ekseninde kilitlidir; Z sabit yürüme çizgisidir. Kat 0 bodrumdur.
+    /// Yol kapatan moloz gibi engeller kat çizgisinin bir aralığını geçilmez yapar.
     /// </summary>
     public class BuildingLayout : MonoBehaviour
     {
+        struct NavBlocker
+        {
+            public UnityEngine.Object Owner;
+            public int Floor;
+            public float MinX;
+            public float MaxX;
+        }
+
+        /// <summary>Engelin önünde durulacak mesafe; çalışma noktası da burasıdır.</summary>
+        public const float BlockerStandOff = 0.4f;
+
         [SerializeField] float floorHeight = 3.5f;
         [SerializeField] float width = 18f;
         [SerializeField] float depth = 4f;
@@ -54,6 +66,9 @@ namespace AftershockIsle.Building
             new LadderDef(1, 6f),
             new LadderDef(2, -6f),
         };
+
+        readonly List<NavBlocker> blockers = new List<NavBlocker>();
+        readonly List<Waypoint> scratchPath = new List<Waypoint>();
 
         public float FloorHeight => floorHeight;
         public float Width => width;
@@ -81,9 +96,10 @@ namespace AftershockIsle.Building
 
         /// <summary>
         /// Bir noktadan diğerine yürüme/tırmanma noktalarını üretir. Katlar dikey yığın olduğu için
-        /// yol, her kat geçişinde mevcut konuma en yakın merdivenin seçilmesiyle bulunur.
+        /// yol, her kat geçişinde mevcut konumdan ulaşılabilen en yakın merdivenin seçilmesiyle bulunur.
+        /// Hedefe engel yüzünden ulaşılamıyorsa gidilebilen en yakın noktaya kadar yol üretir ve false döner.
         /// </summary>
-        public void FindPath(int fromFloor, float fromX, int toFloor, float toX, List<Waypoint> result)
+        public bool FindPath(int fromFloor, float fromX, int toFloor, float toX, List<Waypoint> result)
         {
             result.Clear();
             toFloor = ClampFloor(toFloor);
@@ -97,11 +113,7 @@ namespace AftershockIsle.Building
                 int step = toFloor > floor ? 1 : -1;
                 int lowerFloor = step > 0 ? floor : floor - 1;
 
-                if (!TryFindNearestLadder(lowerFloor, x, out float ladderX))
-                {
-                    Debug.LogWarning($"{GetFloorName(lowerFloor)} ile üst katı arasında merdiven yok.", this);
-                    break;
-                }
+                if (!TryFindNearestLadder(lowerFloor, floor, x, out float ladderX)) break;
 
                 result.Add(new Waypoint(Point(floor, ladderX), false, floor));
                 result.Add(new Waypoint(Point(floor + step, ladderX), true, floor + step));
@@ -109,10 +121,68 @@ namespace AftershockIsle.Building
                 x = ladderX;
             }
 
-            result.Add(new Waypoint(Point(floor, toX), false, floor));
+            bool reachesTarget = floor == toFloor;
+            float finalX = toX;
+            if (TryFindObstacle(floor, x, toX, out float stopX))
+            {
+                finalX = stopX;
+                reachesTarget = false;
+            }
+
+            result.Add(new Waypoint(Point(floor, finalX), false, floor));
+            return reachesTarget;
         }
 
-        bool TryFindNearestLadder(int lowerFloor, float nearX, out float ladderX)
+        /// <summary>Karakterin hedef kata hangi X noktasından gireceği (aynı kattaysa kendi X'i).</summary>
+        public float ArrivalX(int fromFloor, float fromX, int toFloor)
+        {
+            FindPath(fromFloor, fromX, toFloor, fromX, scratchPath);
+            foreach (var waypoint in scratchPath)
+                if (waypoint.Floor == toFloor) return waypoint.Position.x;
+            return fromX;
+        }
+
+        public void AddBlocker(UnityEngine.Object owner, int floor, float minX, float maxX)
+        {
+            blockers.Add(new NavBlocker { Owner = owner, Floor = floor, MinX = minX, MaxX = maxX });
+        }
+
+        public void RemoveBlocker(UnityEngine.Object owner) => blockers.RemoveAll(b => b.Owner == owner);
+
+        /// <summary>fromX'ten toX'e yürürken ilk engel varsa önünde durulacak X'i verir.</summary>
+        bool TryFindObstacle(int floor, float fromX, float toX, out float stopX)
+        {
+            stopX = toX;
+            bool found = false;
+            float bestDistance = float.MaxValue;
+            const float epsilon = 0.01f;
+
+            foreach (var blocker in blockers)
+            {
+                if (blocker.Floor != floor) continue;
+
+                if (toX > fromX && blocker.MinX >= fromX - epsilon && blocker.MinX < toX)
+                {
+                    float distance = blocker.MinX - fromX;
+                    if (distance >= bestDistance) continue;
+                    bestDistance = distance;
+                    stopX = Mathf.Max(fromX, blocker.MinX - BlockerStandOff);
+                    found = true;
+                }
+                else if (toX < fromX && blocker.MaxX <= fromX + epsilon && blocker.MaxX > toX)
+                {
+                    float distance = fromX - blocker.MaxX;
+                    if (distance >= bestDistance) continue;
+                    bestDistance = distance;
+                    stopX = Mathf.Min(fromX, blocker.MaxX + BlockerStandOff);
+                    found = true;
+                }
+            }
+
+            return found;
+        }
+
+        bool TryFindNearestLadder(int lowerFloor, int currentFloor, float nearX, out float ladderX)
         {
             ladderX = 0f;
             float bestDistance = float.MaxValue;
@@ -123,7 +193,7 @@ namespace AftershockIsle.Building
 
                 float worldX = transform.position.x + ladder.x;
                 float distance = Mathf.Abs(worldX - nearX);
-                if (distance >= bestDistance) continue;
+                if (distance >= bestDistance || TryFindObstacle(currentFloor, nearX, worldX, out _)) continue;
 
                 bestDistance = distance;
                 ladderX = worldX;

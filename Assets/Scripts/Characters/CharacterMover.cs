@@ -18,6 +18,7 @@ namespace AftershockIsle.Characters
 
         /// <summary>Taşıma yükü, tükenmişlik ve yetenekler bu çarpanı değiştirir.</summary>
         public float SpeedMultiplier { get; set; } = 1f;
+        public BuildingLayout Building => building;
         public int CurrentFloor { get; private set; }
         public bool IsMoving => pathIndex < path.Count;
         public bool IsClimbing => IsMoving && path[pathIndex].IsClimb;
@@ -32,24 +33,30 @@ namespace AftershockIsle.Characters
             CurrentFloor = building.FloorAtHeight(transform.position.y + 0.1f);
         }
 
-        public void MoveTo(int floor, float x)
+        /// <summary>Hedefe yol başlatır. Engel yüzünden tam ulaşılamıyorsa en yakın noktaya gider ve false döner.</summary>
+        public bool MoveTo(int floor, float x)
         {
+            bool reachable;
             if (IsClimbing)
             {
                 // Merdivenin ortasında yön değiştirmek yerine tırmanışı bitirip yeni yola geç.
                 var climb = path[pathIndex];
-                building.FindPath(climb.Floor, climb.Position.x, floor, x, buffer);
+                reachable = building.FindPath(climb.Floor, climb.Position.x, floor, x, buffer);
                 path.Clear();
                 path.Add(climb);
                 path.AddRange(buffer);
             }
             else
             {
-                building.FindPath(CurrentFloor, transform.position.x, floor, x, path);
+                reachable = building.FindPath(CurrentFloor, transform.position.x, floor, x, path);
             }
 
             pathIndex = 0;
+            return reachable;
         }
+
+        /// <summary>Durduğu yerde verilen yöne döner (ör. çalışırken nesneye bakmak için).</summary>
+        public void FaceDirection(Vector3 direction) => Face(direction, Time.deltaTime);
 
         void Update()
         {

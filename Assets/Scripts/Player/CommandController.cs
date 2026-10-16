@@ -1,13 +1,15 @@
 using AftershockIsle.Building;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
+using AftershockIsle.Interaction;
 using UnityEngine;
 
 namespace AftershockIsle.Player
 {
     /// <summary>
-    /// Sol tık: karakter seç (boşa tıklamak seçimi kaldırır). Sağ tık: seçili karakteri oraya gönder.
-    /// Duraklatmada da emir verilebilir; karakter zaman akınca yürümeye başlar.
+    /// Sol tık: karakter seç (boşa tıklamak seçimi kaldırır).
+    /// Sağ tık: nesne üzerindeyse iş ver (Shift ile sıraya ekle), boşluktaysa oraya yürü.
+    /// Duraklatmada da emir verilebilir; karakter zaman akınca harekete geçer.
     /// </summary>
     public class CommandController : MonoBehaviour
     {
@@ -15,9 +17,11 @@ namespace AftershockIsle.Player
         [SerializeField] BuildingLayout building;
         [SerializeField] float maxRayDistance = 200f;
 
-        readonly RaycastHit[] hits = new RaycastHit[16];
+        readonly RaycastHit[] hits = new RaycastHit[32];
+        int hitCount;
 
         public Survivor Selected { get; private set; }
+        public Interactable Hovered { get; private set; }
 
         void Awake()
         {
@@ -27,8 +31,11 @@ namespace AftershockIsle.Player
 
         void Update()
         {
-            if (GameInput.SelectPressed) Select(PickSurvivor());
-            if (GameInput.CommandPressed && Selected != null) IssueMoveOrder();
+            hitCount = Physics.RaycastNonAlloc(PointerRay(), hits, maxRayDistance);
+            Hovered = Closest<Interactable>();
+
+            if (GameInput.SelectPressed) Select(Closest<Survivor>());
+            if (GameInput.CommandPressed && Selected != null) IssueOrder();
         }
 
         public void Select(Survivor survivor)
@@ -42,36 +49,42 @@ namespace AftershockIsle.Player
             EventBus.Publish(new SurvivorSelected(Selected));
         }
 
-        Survivor PickSurvivor()
+        void IssueOrder()
         {
-            var ray = cam.ScreenPointToRay(GameInput.PointerPosition);
-            int count = Physics.RaycastNonAlloc(ray, hits, maxRayDistance);
-
-            // Bina geometrisi de collider taşıdığı için ilk isabet yerine en yakın kazazedeyi ara.
-            Survivor closest = null;
-            float closestDistance = float.MaxValue;
-            for (int i = 0; i < count; i++)
+            if (Hovered != null)
             {
-                var survivor = hits[i].collider.GetComponentInParent<Survivor>();
-                if (survivor == null || hits[i].distance >= closestDistance) continue;
-
-                closest = survivor;
-                closestDistance = hits[i].distance;
+                Selected.Tasks.Assign(Hovered, GameInput.QueueModifierHeld);
+                return;
             }
 
-            return closest;
-        }
-
-        void IssueMoveOrder()
-        {
-            var ray = cam.ScreenPointToRay(GameInput.PointerPosition);
+            var ray = PointerRay();
             if (Mathf.Abs(ray.direction.z) < 0.0001f) return;
 
             float t = (building.WalkPlaneZ - ray.origin.z) / ray.direction.z;
             if (t < 0f) return;
 
             Vector3 point = ray.GetPoint(t);
+            Selected.Tasks.CancelAll();
             Selected.Mover.MoveTo(building.FloorAtHeight(point.y), point.x);
+        }
+
+        Ray PointerRay() => cam.ScreenPointToRay(GameInput.PointerPosition);
+
+        // Bina geometrisi de collider taşıdığı için ilk isabet yerine aranan türün en yakınını seç.
+        T Closest<T>() where T : Component
+        {
+            T closest = null;
+            float closestDistance = float.MaxValue;
+            for (int i = 0; i < hitCount; i++)
+            {
+                var candidate = hits[i].collider.GetComponentInParent<T>();
+                if (candidate == null || hits[i].distance >= closestDistance) continue;
+
+                closest = candidate;
+                closestDistance = hits[i].distance;
+            }
+
+            return closest;
         }
     }
 }

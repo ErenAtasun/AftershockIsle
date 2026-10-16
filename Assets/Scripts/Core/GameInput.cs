@@ -21,6 +21,14 @@ namespace AftershockIsle.Core
             Keys != null && (Keys.digit2Key.wasPressedThisFrame || Keys.numpad2Key.wasPressedThisFrame);
 
         public static bool FocusPressed => Keys != null && Keys.fKey.wasPressedThisFrame;
+        public static bool RestartPressed => Keys != null && Keys.rKey.wasPressedThisFrame;
+
+        /// <summary>Basılıyken verilen emir mevcut işleri iptal etmez, sıraya eklenir.</summary>
+        public static bool QueueModifierHeld => Keys != null && Keys.shiftKey.isPressed;
+
+        public static bool DebugDamagePressed => Keys != null && Keys.f9Key.wasPressedThisFrame;
+        public static bool DebugCrackPressed => Keys != null && Keys.f10Key.wasPressedThisFrame;
+        public static bool DebugResourcesPressed => Keys != null && Keys.f11Key.wasPressedThisFrame;
 
         public static Vector2 PanAxis
         {

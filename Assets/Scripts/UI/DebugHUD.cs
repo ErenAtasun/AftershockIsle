@@ -1,6 +1,7 @@
 using AftershockIsle.Building;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
+using AftershockIsle.Crisis;
 using AftershockIsle.Economy;
 using AftershockIsle.Player;
 using UnityEngine;
@@ -34,12 +35,34 @@ namespace AftershockIsle.UI
             cam = Camera.main;
         }
 
-        void OnEnable() => EventBus.Subscribe<TaskNotice>(OnTaskNotice);
-        void OnDisable() => EventBus.Unsubscribe<TaskNotice>(OnTaskNotice);
-
-        void OnTaskNotice(TaskNotice evt)
+        void OnEnable()
         {
-            notice = $"{evt.Survivor.DisplayName}: {evt.Message}";
+            EventBus.Subscribe<TaskNotice>(OnTaskNotice);
+            EventBus.Subscribe<AftershockImpact>(OnAftershockImpact);
+            EventBus.Subscribe<SurvivorDied>(OnSurvivorDied);
+        }
+
+        void OnDisable()
+        {
+            EventBus.Unsubscribe<TaskNotice>(OnTaskNotice);
+            EventBus.Unsubscribe<AftershockImpact>(OnAftershockImpact);
+            EventBus.Unsubscribe<SurvivorDied>(OnSurvivorDied);
+        }
+
+        void OnTaskNotice(TaskNotice evt) => ShowNotice($"{evt.Survivor.DisplayName}: {evt.Message}");
+
+        void OnAftershockImpact(AftershockImpact evt)
+        {
+            string columns = evt.BrokenColumns > 0 ? $", {evt.BrokenColumns} kırık kolon" : "";
+            string exposed = evt.ExposedSurvivors > 0 ? $", {evt.ExposedSurvivors} kişi açıkta yakalandı" : "";
+            ShowNotice($"Artçı sarsıntı! Bina -%{evt.Damage:0.#}{columns}{exposed}");
+        }
+
+        void OnSurvivorDied(SurvivorDied evt) => ShowNotice($"{evt.Survivor.DisplayName} öldü. {evt.Cause}");
+
+        void ShowNotice(string message)
+        {
+            notice = message;
             noticeUntil = Time.unscaledTime + NoticeDuration;
         }
 
@@ -48,14 +71,32 @@ namespace AftershockIsle.UI
             EnsureStyles();
             DrawInfoPanel();
             DrawTopBar();
-            DrawWorkProgress();
+            DrawSurvivorOverlays();
             DrawHoverInfo();
 
             if (Time.unscaledTime < noticeUntil)
                 GUI.Label(new Rect(0, Screen.height - 70, Screen.width, 24), notice, centeredStyle);
 
             if (session.Outcome != GameOutcome.None) DrawEndBanner();
-            else if (timeManager.IsPaused) GUI.Label(new Rect(0, 70, Screen.width, 40), "DURAKLATILDI", bannerStyle);
+            else
+            {
+                if (timeManager.IsPaused) GUI.Label(new Rect(0, 70, Screen.width, 40), "DURAKLATILDI", bannerStyle);
+                DrawQuakeWarning();
+            }
+        }
+
+        void DrawQuakeWarning()
+        {
+            var quake = AftershockSystem.Instance;
+            if (quake == null || quake.Phase != QuakePhase.Warning) return;
+
+            var previous = GUI.color;
+            GUI.color = new Color(1f, 0.35f, 0.25f);
+            GUI.Label(new Rect(0, 110, Screen.width, 40),
+                $"ARTÇI SARSINTI GELİYOR: {Mathf.CeilToInt(quake.PhaseRemaining)}", bannerStyle);
+            GUI.color = previous;
+            GUI.Label(new Rect(0, 148, Screen.width, 24),
+                "Space ile durdur, karakterleri yeşil Yaşam Üçgeni alanlarına gönder.", centeredStyle);
         }
 
         void DrawInfoPanel()
@@ -67,7 +108,7 @@ namespace AftershockIsle.UI
             var selected = commands.Selected;
             if (selected != null)
             {
-                GUILayout.Label($"Seçili: {selected.DisplayName} ({building.GetFloorName(selected.Mover.CurrentFloor)})");
+                GUILayout.Label($"Seçili: {selected.DisplayName} ({building.GetFloorName(selected.Mover.CurrentFloor)})  HP {selected.Health:0}/{selected.MaxHealth:0}");
                 GUILayout.Label($"Görev: {TaskLabel(selected.Tasks)}");
                 GUILayout.Label($"Elinde: {(selected.IsCarrying ? selected.Carried.ToString() : "—")}");
             }
@@ -79,7 +120,7 @@ namespace AftershockIsle.UI
             GUILayout.Space(6);
             GUILayout.Label("Sol tık: seç   Sağ tık: git / iş ver   Shift+Sağ: sıraya ekle");
             GUILayout.Label("Space: duraklat   1/2: hız   WASD: kaydır   F: odakla");
-            GUILayout.Label("Test: F9 hasar   F10 kolon çatlat   F11 +5 kaynak");
+            GUILayout.Label("Test: F8 sarsıntı  F9 hasar  F10 kolon çatlat  F11 +5 kaynak");
             GUILayout.EndArea();
         }
 
@@ -106,20 +147,38 @@ namespace AftershockIsle.UI
             GUI.Label(new Rect(0, 38, Screen.width, 22), resources, centeredStyle);
         }
 
-        void DrawWorkProgress()
+        // Her kazazedenin başının üstünde: can barı, iş ilerlemesi, enkaz altında uyarısı.
+        void DrawSurvivorOverlays()
         {
             foreach (var survivor in Survivor.All)
             {
-                float progress = survivor.Tasks.Progress01;
-                if (progress <= 0f) continue;
+                if (survivor.IsDead) continue;
 
                 Vector3 screen = cam.WorldToScreenPoint(survivor.transform.position + Vector3.up * 2.2f);
                 if (screen.z < 0f) continue;
 
-                var rect = new Rect(screen.x - 30, Screen.height - screen.y, 60, 8);
-                GUI.Box(rect, GUIContent.none);
-                GUI.DrawTexture(new Rect(rect.x + 1, rect.y + 1, (rect.width - 2) * progress, rect.height - 2), Texture2D.whiteTexture);
+                float x = screen.x - 30;
+                float y = Screen.height - screen.y;
+
+                float health = survivor.Health / survivor.MaxHealth;
+                DrawBar(new Rect(x, y, 60, 6), health, Color.Lerp(Color.red, Color.green, health));
+
+                float progress = survivor.Tasks.Progress01;
+                if (progress > 0f) DrawBar(new Rect(x, y + 8, 60, 6), progress, Color.white);
+
+                if (survivor.IsTrapped)
+                    GUI.Label(new Rect(x - 40, y - 22, 140, 20),
+                        $"ENKAZ ALTINDA {Mathf.CeilToInt(survivor.TrappedRemaining)} sn", centeredStyle);
             }
+        }
+
+        static void DrawBar(Rect rect, float fill, Color color)
+        {
+            GUI.Box(rect, GUIContent.none);
+            var previous = GUI.color;
+            GUI.color = color;
+            GUI.DrawTexture(new Rect(rect.x + 1, rect.y + 1, (rect.width - 2) * Mathf.Clamp01(fill), rect.height - 2), Texture2D.whiteTexture);
+            GUI.color = previous;
         }
 
         void DrawHoverInfo()

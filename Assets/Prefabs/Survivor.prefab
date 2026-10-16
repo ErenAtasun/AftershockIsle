@@ -364,6 +364,7 @@ MonoBehaviour:
   selectionIndicator: {fileID: 7806124693499061223}
   carriedVisual: {fileID: 5477436850934469399}
   heavyCarrySpeed: 0.75
+  maxHealth: 100
 --- !u!114 &2546579053852945183
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -1,0 +1,47 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 470acccd05290e34797aaef7f909525c, type: 3}
+  m_Name: DisasterSchedule
+  m_EditorClassIdentifier: Assembly-CSharp::AftershockIsle.Crisis.DisasterSchedule
+  entries:
+  - day: 2
+    phase: 2
+    atSecond: 10
+    type: 0
+  - day: 4
+    phase: 0
+    atSecond: 45
+    type: 0
+  - day: 4
+    phase: 2
+    atSecond: 15
+    type: 0
+  - day: 5
+    phase: 2
+    atSecond: 20
+    type: 0
+  - day: 6
+    phase: 0
+    atSecond: 30
+    type: 0
+  - day: 6
+    phase: 2
+    atSecond: 10
+    type: 0
+  - day: 7
+    phase: 0
+    atSecond: 40
+    type: 0
+  - day: 7
+    phase: 2
+    atSecond: 10
+    type: 0

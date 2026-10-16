@@ -18,6 +18,8 @@ namespace AftershockIsle.Characters
 
         /// <summary>Taşıma yükü, tükenmişlik ve yetenekler bu çarpanı değiştirir.</summary>
         public float SpeedMultiplier { get; set; } = 1f;
+        /// <summary>True iken yol korunur ama karakter yerinden kıpırdamaz (enkaz altında, ölü).</summary>
+        public bool Frozen { get; set; }
         public BuildingLayout Building => building;
         public int CurrentFloor { get; private set; }
         public bool IsMoving => pathIndex < path.Count;
@@ -58,9 +60,25 @@ namespace AftershockIsle.Characters
         /// <summary>Durduğu yerde verilen yöne döner (ör. çalışırken nesneye bakmak için).</summary>
         public void FaceDirection(Vector3 direction) => Face(direction, Time.deltaTime);
 
+        /// <summary>Yolu iptal eder. Merdivendeyse en yakın kata oturtulur.</summary>
+        public void Halt()
+        {
+            if (IsClimbing)
+            {
+                float y = transform.position.y + building.FloorHeight * 0.5f;
+                CurrentFloor = building.FloorAtHeight(y);
+                var position = transform.position;
+                position.y = building.FloorY(CurrentFloor);
+                transform.position = position;
+            }
+
+            path.Clear();
+            pathIndex = 0;
+        }
+
         void Update()
         {
-            if (!IsMoving) return;
+            if (!IsMoving || Frozen) return;
 
             float dt = Time.deltaTime;
             if (dt <= 0f) return;

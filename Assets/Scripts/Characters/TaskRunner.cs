@@ -64,7 +64,7 @@ namespace AftershockIsle.Characters
 
         void Update()
         {
-            if (Time.deltaTime <= 0f) return;
+            if (Time.deltaTime <= 0f || !survivor.CanAct) return;
 
             // Üzerinde çalışılan nesne yok olmuş olabilir (ör. başka sebeple temizlenen moloz).
             if (State != TaskState.Idle && Current == null) State = TaskState.Idle;

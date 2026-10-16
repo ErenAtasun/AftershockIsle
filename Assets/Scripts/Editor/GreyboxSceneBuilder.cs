@@ -4,6 +4,7 @@ using AftershockIsle.Building;
 using AftershockIsle.CameraControl;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
+using AftershockIsle.Crisis;
 using AftershockIsle.DebugTools;
 using AftershockIsle.Economy;
 using AftershockIsle.Interaction;
@@ -74,6 +75,15 @@ namespace AftershockIsle.EditorTools
             SetRef(hud, "commands", commands);
             SetRef(hud, "building", building);
             SetRef(hud, "session", session);
+
+            var aftershocks = systems.AddComponent<AftershockSystem>();
+            SetRef(aftershocks, "debrisPrefab", CreateDebrisPrefab(palette));
+            SetRef(aftershocks, "debrisParent", building.transform.Find("Props"));
+            SetRef(aftershocks, "shelterMaterial", palette.Shelter);
+
+            var director = systems.AddComponent<DisasterDirector>();
+            SetRef(director, "schedule", LoadOrCreateAsset<DisasterSchedule>($"{DataFolder}/DisasterSchedule.asset"));
+            SetRef(director, "dayCycle", dayCycle);
 
             systems.AddComponent<DebugCheats>();
 
@@ -266,6 +276,18 @@ namespace AftershockIsle.EditorTools
                 ("displayName", name), ("workDuration", 5f), ("digCount", digs), ("blocksPath", blocksPath));
         }
 
+        /// <summary>Kırılan kolonun önüne düşen enkaz. Kolon yeniden dikilmeden önce kazılmalı.</summary>
+        static RubblePile CreateDebrisPrefab(Palette p)
+        {
+            var go = Box("Enkaz", null, Vector3.zero, new Vector3(1.3f, 0.6f, 1.2f), p.Rubble);
+            Configure(go.AddComponent<RubblePile>(),
+                ("displayName", "Enkaz"), ("workDuration", 4f), ("digCount", 2), ("blocksPath", false));
+
+            var prefab = PrefabUtility.SaveAsPrefabAsset(go, $"{PrefabFolder}/Debris.prefab");
+            Object.DestroyImmediate(go);
+            return prefab.GetComponent<RubblePile>();
+        }
+
         static GameObject CreateSurvivorPrefab(Palette p)
         {
             var root = new GameObject("Survivor");
@@ -409,6 +431,7 @@ namespace AftershockIsle.EditorTools
             public readonly Material Column = Get("Column", new Color(0.62f, 0.62f, 0.6f));
             public readonly Material Rubble = Get("Rubble", new Color(0.45f, 0.42f, 0.38f));
             public readonly Material Carry = Get("Carry", Color.white);
+            public readonly Material Shelter = Get("Shelter", new Color(0.2f, 1f, 0.35f));
 
             static Material Get(string name, Color color)
             {

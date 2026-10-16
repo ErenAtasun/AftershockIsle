@@ -1,6 +1,7 @@
 using AftershockIsle.Building;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
+using AftershockIsle.Crisis;
 using UnityEngine;
 
 namespace AftershockIsle.CameraControl
@@ -22,8 +23,11 @@ namespace AftershockIsle.CameraControl
         [SerializeField] float panSpeed = 12f;
         [SerializeField] float smoothTime = 0.25f;
         [SerializeField] float targetHeightOffset = 1.2f;
+        [SerializeField] float shakeAmplitude = 0.35f;
 
         Survivor selected;
+        float shakeRemaining;
+        float shakeDuration = 1f;
         bool following;
         Vector3 focus;
         Vector3 smoothedFocus;
@@ -41,8 +45,23 @@ namespace AftershockIsle.CameraControl
             targetDistance = distance;
         }
 
-        void OnEnable() => EventBus.Subscribe<SurvivorSelected>(OnSurvivorSelected);
-        void OnDisable() => EventBus.Unsubscribe<SurvivorSelected>(OnSurvivorSelected);
+        void OnEnable()
+        {
+            EventBus.Subscribe<SurvivorSelected>(OnSurvivorSelected);
+            EventBus.Subscribe<AftershockImpact>(OnAftershockImpact);
+        }
+
+        void OnDisable()
+        {
+            EventBus.Unsubscribe<SurvivorSelected>(OnSurvivorSelected);
+            EventBus.Unsubscribe<AftershockImpact>(OnAftershockImpact);
+        }
+
+        void OnAftershockImpact(AftershockImpact evt)
+        {
+            shakeDuration = evt.ShakeDuration;
+            shakeRemaining = evt.ShakeDuration;
+        }
 
         void OnSurvivorSelected(SurvivorSelected evt)
         {
@@ -76,7 +95,17 @@ namespace AftershockIsle.CameraControl
             smoothedFocus = Vector3.SmoothDamp(smoothedFocus, focus, ref velocity, smoothTime, Mathf.Infinity, dt);
             distance = Mathf.Lerp(distance, targetDistance, 1f - Mathf.Exp(-10f * dt));
 
-            transform.position = smoothedFocus - Vector3.forward * distance;
+            transform.position = smoothedFocus - Vector3.forward * distance + ShakeOffset();
+        }
+
+        // Sarsıntı oyun zamanıyla söner; duraklatınca görüntü sabitlenir.
+        Vector3 ShakeOffset()
+        {
+            if (shakeRemaining <= 0f || Time.deltaTime <= 0f) return Vector3.zero;
+
+            shakeRemaining -= Time.deltaTime;
+            float strength = shakeAmplitude * Mathf.Clamp01(shakeRemaining / shakeDuration);
+            return (Vector3)(Random.insideUnitCircle * strength);
         }
 
         Vector3 ClampToBuilding(Vector3 point)

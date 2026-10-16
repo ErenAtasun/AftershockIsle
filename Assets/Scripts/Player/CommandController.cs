@@ -34,7 +34,14 @@ namespace AftershockIsle.Player
             hitCount = Physics.RaycastNonAlloc(PointerRay(), hits, maxRayDistance);
             Hovered = Closest<Interactable>();
 
-            if (GameInput.SelectPressed) Select(Closest<Survivor>());
+            if (Selected != null && Selected.IsDead) Select(null);
+
+            if (GameInput.SelectPressed)
+            {
+                var clicked = Closest<Survivor>();
+                Select(clicked != null && !clicked.IsDead ? clicked : null);
+            }
+
             if (GameInput.CommandPressed && Selected != null) IssueOrder();
         }
 

@@ -1,4 +1,5 @@
 using AftershockIsle.Building;
+using AftershockIsle.Characters;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -31,8 +32,22 @@ namespace AftershockIsle.Core
             if (timeManager == null) timeManager = FindFirstObjectByType<TimeManager>();
         }
 
-        void OnEnable() => EventBus.Subscribe<BuildingCollapsed>(OnBuildingCollapsed);
-        void OnDisable() => EventBus.Unsubscribe<BuildingCollapsed>(OnBuildingCollapsed);
+        void OnEnable()
+        {
+            EventBus.Subscribe<BuildingCollapsed>(OnBuildingCollapsed);
+            EventBus.Subscribe<SurvivorDied>(OnSurvivorDied);
+        }
+
+        void OnDisable()
+        {
+            EventBus.Unsubscribe<BuildingCollapsed>(OnBuildingCollapsed);
+            EventBus.Unsubscribe<SurvivorDied>(OnSurvivorDied);
+        }
+
+        void OnSurvivorDied(SurvivorDied evt)
+        {
+            if (Survivor.AliveCount == 0) End(GameOutcome.Defeat, "Sığınaktaki tüm kazazedeler öldü.");
+        }
 
         void Update()
         {

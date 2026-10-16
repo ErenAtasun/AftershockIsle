@@ -26,6 +26,7 @@ namespace AftershockIsle.Core
         /// <summary>Basılıyken verilen emir mevcut işleri iptal etmez, sıraya eklenir.</summary>
         public static bool QueueModifierHeld => Keys != null && Keys.shiftKey.isPressed;
 
+        public static bool DebugQuakePressed => Keys != null && Keys.f8Key.wasPressedThisFrame;
         public static bool DebugDamagePressed => Keys != null && Keys.f9Key.wasPressedThisFrame;
         public static bool DebugCrackPressed => Keys != null && Keys.f10Key.wasPressedThisFrame;
         public static bool DebugResourcesPressed => Keys != null && Keys.f11Key.wasPressedThisFrame;

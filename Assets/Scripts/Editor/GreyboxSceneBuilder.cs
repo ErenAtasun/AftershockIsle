@@ -1,0 +1,356 @@
+using System.Collections.Generic;
+using System.Linq;
+using AftershockIsle.Building;
+using AftershockIsle.CameraControl;
+using AftershockIsle.Characters;
+using AftershockIsle.Core;
+using AftershockIsle.Player;
+using AftershockIsle.UI;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.Rendering;
+
+namespace AftershockIsle.EditorTools
+{
+    /// <summary>
+    /// GDD'deki 4 katlı kesit binayı gri kutularla kurar ve Main.unity olarak kaydeder.
+    /// Ölçüler BuildingLayout'tan okunur; ölçü değişirse menüden tekrar çalıştırmak yeterli.
+    /// </summary>
+    public static class GreyboxSceneBuilder
+    {
+        const string ScenePath = "Assets/Scenes/Main.unity";
+        const string MaterialFolder = "Assets/Art/Materials/Greybox";
+        const string DataFolder = "Assets/Data";
+        const string PrefabFolder = "Assets/Prefabs";
+
+        const float SlabThickness = 0.3f;
+        const float LadderOpening = 1.4f;
+        const float ParapetHeight = 1f;
+        const float DoorHeight = 2.4f;
+        const float LadderZ = 0.45f;
+
+        [MenuItem("Aftershock/Greybox Sahnesini Oluştur")]
+        public static void Build()
+        {
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) != null &&
+                !EditorUtility.DisplayDialog("Greybox Sahnesi",
+                    $"{ScenePath} zaten var. Üzerine yazılsın mı?", "Üzerine yaz", "İptal"))
+                return;
+
+            EnsureFolder(MaterialFolder);
+            EnsureFolder(DataFolder);
+            EnsureFolder(PrefabFolder);
+
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            var palette = new Palette();
+
+            CreateLighting();
+            var building = CreateBuilding(palette);
+            var cam = CreateCamera(building);
+
+            var systems = new GameObject("[Systems]");
+            var timeManager = systems.AddComponent<TimeManager>();
+            var dayCycle = systems.AddComponent<DayCycle>();
+            SetRef(dayCycle, "config", LoadOrCreateAsset<DayCycleConfig>($"{DataFolder}/DayCycleConfig.asset"));
+
+            var commands = systems.AddComponent<CommandController>();
+            SetRef(commands, "cam", cam);
+            SetRef(commands, "building", building);
+
+            var hud = systems.AddComponent<DebugHUD>();
+            SetRef(hud, "timeManager", timeManager);
+            SetRef(hud, "dayCycle", dayCycle);
+            SetRef(hud, "commands", commands);
+            SetRef(hud, "building", building);
+
+            var survivorPrefab = CreateSurvivorPrefab(palette);
+            var hero = (GameObject)PrefabUtility.InstantiatePrefab(survivorPrefab);
+            hero.name = "Ana Karakter";
+            hero.transform.SetPositionAndRotation(building.Point(2, 0f), Quaternion.Euler(0f, 180f, 0f));
+            SetRef(hero.GetComponent<CharacterMover>(), "building", building);
+            SetString(hero.GetComponent<Survivor>(), "displayName", "Ana Karakter");
+
+            EditorSceneManager.SaveScene(scene, ScenePath);
+            AddSceneToBuildSettings(ScenePath);
+            Selection.activeGameObject = hero;
+
+            Debug.Log($"Greybox sahnesi kuruldu: {ScenePath}. Play'e basıp deneyebilirsin.");
+        }
+
+        // ---------------------------------------------------------------- Sahne parçaları
+
+        static void CreateLighting()
+        {
+            var sun = new GameObject("Sun").AddComponent<Light>();
+            sun.type = LightType.Directional;
+            sun.intensity = 1.2f;
+            sun.shadows = LightShadows.Soft;
+            sun.transform.rotation = Quaternion.Euler(35f, 20f, 0f);
+
+            RenderSettings.ambientMode = AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.35f, 0.36f, 0.4f);
+        }
+
+        static Camera CreateCamera(BuildingLayout building)
+        {
+            var go = new GameObject("Main Camera") { tag = "MainCamera" };
+            var cam = go.AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = new Color(0.12f, 0.13f, 0.16f);
+            cam.nearClipPlane = 0.3f;
+            cam.farClipPlane = 200f;
+            go.AddComponent<AudioListener>();
+
+            go.transform.position = new Vector3(0f, building.FloorY(2) + 1.2f, building.WalkPlaneZ - 24f);
+            SetRef(go.AddComponent<SideViewCamera>(), "building", building);
+            return cam;
+        }
+
+        static BuildingLayout CreateBuilding(Palette p)
+        {
+            var root = new GameObject("Building");
+            var layout = root.AddComponent<BuildingLayout>();
+            var geo = new GameObject("Geometry").transform;
+            geo.SetParent(root.transform, false);
+
+            float h = layout.FloorHeight;
+            float w = layout.Width;
+            float d = layout.Depth;
+            float t = layout.WallThickness;
+            int floors = layout.FloorCount;
+            float outerWidth = w + 2f * t;
+
+            // Döşemeler: her katın zemini, üstteki merdiven boşlukları kesilmiş olarak.
+            for (int floor = 0; floor < floors; floor++)
+            {
+                var openings = layout.Ladders.Where(l => l.lowerFloor == floor - 1).Select(l => l.x).OrderBy(x => x);
+                float start = -outerWidth * 0.5f;
+                int segment = 0;
+
+                foreach (float x in openings.Append(outerWidth * 0.5f + LadderOpening * 0.5f))
+                {
+                    float end = x - LadderOpening * 0.5f;
+                    if (end - start > 0.01f)
+                    {
+                        Box($"Slab_{floor}_{segment++}", geo,
+                            new Vector3((start + end) * 0.5f, floor * h - SlabThickness * 0.5f, 0f),
+                            new Vector3(end - start, SlabThickness, d), p.Concrete);
+                    }
+                    start = x + LadderOpening * 0.5f;
+                }
+            }
+
+            // Arka duvarlar: katları ayırt etmek için dönüşümlü ton. Çatının arka duvarı yok.
+            for (int floor = 0; floor < floors - 1; floor++)
+            {
+                Box($"BackWall_{floor}", geo,
+                    new Vector3(0f, floor * h + h * 0.5f, d * 0.5f + t * 0.5f),
+                    new Vector3(outerWidth, h, t), floor % 2 == 0 ? p.WallA : p.WallB);
+            }
+
+            // Yan duvarlar çatıda korkuluk olarak devam eder. Sağ duvarda giriş katı kapısı.
+            float wallTop = (floors - 1) * h + ParapetHeight;
+            float wallX = w * 0.5f + t * 0.5f;
+            WallSegment("Wall_L", geo, -wallX, -SlabThickness, wallTop, t, d, p.Concrete);
+
+            float doorBottom = 1 * h;
+            float doorTop = doorBottom + DoorHeight;
+            WallSegment("Wall_R_Lower", geo, wallX, -SlabThickness, doorBottom, t, d, p.Concrete);
+            WallSegment("Wall_R_Upper", geo, wallX, doorTop, wallTop, t, d, p.Concrete);
+            Box("Dış Çıkış Kapısı", geo,
+                new Vector3(wallX, (doorBottom + doorTop) * 0.5f, 0f),
+                new Vector3(t * 0.6f, DoorHeight, 1.4f), p.Exit);
+
+            // Zemin: bodrum yer altında, giriş katı sokak seviyesinde.
+            float groundY = 1 * h;
+            const float earthDepthBelow = 3f;
+            const float earthBack = 24f;
+            float earthHeight = groundY + earthDepthBelow;
+            float earthCenterY = groundY - earthHeight * 0.5f;
+            float earthCenterZ = -d * 0.5f + earthBack * 0.5f;
+            const float sideEarthWidth = 40f;
+
+            Box("Earth_L", geo, new Vector3(-outerWidth * 0.5f - sideEarthWidth * 0.5f, earthCenterY, earthCenterZ),
+                new Vector3(sideEarthWidth, earthHeight, earthBack), p.Earth);
+            Box("Earth_R", geo, new Vector3(outerWidth * 0.5f + sideEarthWidth * 0.5f, earthCenterY, earthCenterZ),
+                new Vector3(sideEarthWidth, earthHeight, earthBack), p.Earth);
+            Box("Earth_Below", geo,
+                new Vector3(0f, -SlabThickness - earthDepthBelow * 0.5f, earthCenterZ),
+                new Vector3(outerWidth, earthDepthBelow, earthBack), p.Earth);
+
+            foreach (var ladder in layout.Ladders)
+            {
+                Box($"Ladder_{ladder.lowerFloor}_{ladder.lowerFloor + 1}", geo,
+                    new Vector3(ladder.x, ladder.lowerFloor * h + h * 0.5f, LadderZ),
+                    new Vector3(0.8f, h, 0.08f), p.Ladder);
+            }
+
+            CreateProps(root.transform, layout, p);
+            return layout;
+        }
+
+        static void CreateProps(Transform root, BuildingLayout layout, Palette p)
+        {
+            var props = new GameObject("Props").transform;
+            props.SetParent(root, false);
+            float h = layout.FloorHeight;
+            float backZ = layout.Depth * 0.5f;
+
+            // Kat 0: Bodrum
+            Prop("Patlak Şebeke Borusu", props, new Vector3(-2f, 0 * h + 2.7f, backZ - 0.3f), new Vector3(3f, 0.25f, 0.25f), p.Water);
+            Prop("Su Tulumbası", props, new Vector3(4f, 0 * h + 0.6f, backZ - 0.5f), new Vector3(1f, 1.2f, 0.8f), p.Water);
+
+            // Kat 1: Giriş katı
+            Prop("Ana Şalter Panosu", props, new Vector3(-3.5f, 1 * h + 1.4f, backZ - 0.2f), new Vector3(0.8f, 1.2f, 0.3f), p.Electric);
+
+            // Kat 2: Yaşam / Tezgah
+            Prop("Çalışma Tezgahı", props, new Vector3(-3f, 2 * h + 0.5f, backZ - 0.6f), new Vector3(2.2f, 1f, 1f), p.Craft);
+            Prop("Ortak Sandık", props, new Vector3(0.8f, 2 * h + 0.4f, backZ - 0.5f), new Vector3(1.2f, 0.8f, 0.8f), p.Storage);
+            Prop("Yataklar", props, new Vector3(3.5f, 2 * h + 0.25f, backZ - 0.6f), new Vector3(2f, 0.5f, 1f), p.Furniture);
+
+            // Kat 3: Çatı
+            Prop("Telsiz İstasyonu", props, new Vector3(-3.5f, 3 * h + 0.7f, backZ - 0.6f), new Vector3(1.2f, 1.4f, 1f), p.Electric);
+            Prop("Helikopter Tahliye Alanı", props, new Vector3(4f, 3 * h + 0.03f, 0f), new Vector3(5f, 0.05f, 3f), p.Helipad);
+        }
+
+        static GameObject CreateSurvivorPrefab(Palette p)
+        {
+            var root = new GameObject("Survivor");
+            root.AddComponent<CharacterMover>();
+            var survivor = root.AddComponent<Survivor>();
+
+            var body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            body.name = "Body";
+            body.transform.SetParent(root.transform, false);
+            body.transform.localPosition = new Vector3(0f, 0.9f, 0f);
+            body.transform.localScale = new Vector3(0.6f, 0.9f, 0.6f);
+            body.GetComponent<Renderer>().sharedMaterial = p.Survivor;
+
+            // Yüz yönünü göstermek için vizör.
+            var visor = Box("Visor", root.transform, new Vector3(0f, 1.55f, 0.25f), new Vector3(0.35f, 0.12f, 0.12f), p.Visor);
+            Object.DestroyImmediate(visor.GetComponent<Collider>());
+
+            var ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            ring.name = "SelectionRing";
+            ring.transform.SetParent(root.transform, false);
+            ring.transform.localPosition = new Vector3(0f, 0.02f, 0f);
+            ring.transform.localScale = new Vector3(1.1f, 0.01f, 1.1f);
+            ring.GetComponent<Renderer>().sharedMaterial = p.Selection;
+            Object.DestroyImmediate(ring.GetComponent<Collider>());
+
+            SetRef(survivor, "selectionIndicator", ring);
+
+            var prefab = PrefabUtility.SaveAsPrefabAsset(root, $"{PrefabFolder}/Survivor.prefab");
+            Object.DestroyImmediate(root);
+            return prefab;
+        }
+
+        // ---------------------------------------------------------------- Yardımcılar
+
+        static GameObject Box(string name, Transform parent, Vector3 localCenter, Vector3 size, Material material)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.name = name;
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = localCenter;
+            go.transform.localScale = size;
+            go.GetComponent<Renderer>().sharedMaterial = material;
+            return go;
+        }
+
+        static void Prop(string name, Transform parent, Vector3 localCenter, Vector3 size, Material material) =>
+            Box(name, parent, localCenter, size, material);
+
+        static void WallSegment(string name, Transform parent, float x, float bottom, float top, float thickness, float depth, Material material) =>
+            Box(name, parent, new Vector3(x, (bottom + top) * 0.5f, 0f), new Vector3(thickness, top - bottom, depth), material);
+
+        static void SetRef(Object target, string field, Object value)
+        {
+            var so = new SerializedObject(target);
+            var prop = so.FindProperty(field);
+            if (prop == null)
+            {
+                Debug.LogError($"{target.GetType().Name} üzerinde '{field}' alanı bulunamadı.", target);
+                return;
+            }
+            prop.objectReferenceValue = value;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        static void SetString(Object target, string field, string value)
+        {
+            var so = new SerializedObject(target);
+            so.FindProperty(field).stringValue = value;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        static T LoadOrCreateAsset<T>(string path) where T : ScriptableObject
+        {
+            var asset = AssetDatabase.LoadAssetAtPath<T>(path);
+            if (asset != null) return asset;
+
+            asset = ScriptableObject.CreateInstance<T>();
+            AssetDatabase.CreateAsset(asset, path);
+            return asset;
+        }
+
+        static void EnsureFolder(string path)
+        {
+            if (AssetDatabase.IsValidFolder(path)) return;
+
+            int slash = path.LastIndexOf('/');
+            string parent = path.Substring(0, slash);
+            EnsureFolder(parent);
+            AssetDatabase.CreateFolder(parent, path.Substring(slash + 1));
+        }
+
+        static void AddSceneToBuildSettings(string path)
+        {
+            var scenes = new List<EditorBuildSettingsScene> { new EditorBuildSettingsScene(path, true) };
+            scenes.AddRange(EditorBuildSettings.scenes.Where(s => s.path != path));
+            EditorBuildSettings.scenes = scenes.ToArray();
+        }
+
+        /// <summary>Greybox malzemeleri. Varsa mevcut asset'i kullanır ve rengini günceller.</summary>
+        class Palette
+        {
+            public readonly Material Concrete = Get("Concrete", new Color(0.55f, 0.55f, 0.55f));
+            public readonly Material WallA = Get("WallA", new Color(0.42f, 0.40f, 0.38f));
+            public readonly Material WallB = Get("WallB", new Color(0.36f, 0.35f, 0.34f));
+            public readonly Material Earth = Get("Earth", new Color(0.27f, 0.21f, 0.16f));
+            public readonly Material Ladder = Get("Ladder", new Color(0.55f, 0.38f, 0.2f));
+            public readonly Material Exit = Get("Exit", new Color(0.75f, 0.2f, 0.18f));
+            public readonly Material Water = Get("Water", new Color(0.2f, 0.45f, 0.8f));
+            public readonly Material Electric = Get("Electric", new Color(0.9f, 0.75f, 0.15f));
+            public readonly Material Craft = Get("Craft", new Color(0.3f, 0.65f, 0.35f));
+            public readonly Material Storage = Get("Storage", new Color(0.6f, 0.45f, 0.25f));
+            public readonly Material Furniture = Get("Furniture", new Color(0.5f, 0.35f, 0.3f));
+            public readonly Material Helipad = Get("Helipad", new Color(0.85f, 0.85f, 0.8f));
+            public readonly Material Survivor = Get("Survivor", new Color(0.95f, 0.55f, 0.2f));
+            public readonly Material Visor = Get("Visor", new Color(0.15f, 0.15f, 0.18f));
+            public readonly Material Selection = Get("Selection", new Color(0.3f, 1f, 0.4f));
+
+            static Material Get(string name, Color color)
+            {
+                string path = $"{MaterialFolder}/{name}.mat";
+                var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+                if (mat == null)
+                {
+                    var shader = GraphicsSettings.currentRenderPipeline != null
+                        ? GraphicsSettings.currentRenderPipeline.defaultShader
+                        : Shader.Find("Standard");
+                    mat = new Material(shader);
+                    AssetDatabase.CreateAsset(mat, path);
+                }
+
+                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
+                else mat.color = color;
+                EditorUtility.SetDirty(mat);
+                return mat;
+            }
+        }
+    }
+}

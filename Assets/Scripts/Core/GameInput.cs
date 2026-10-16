@@ -26,6 +26,11 @@ namespace AftershockIsle.Core
         /// <summary>Basılıyken verilen emir mevcut işleri iptal etmez, sıraya eklenir.</summary>
         public static bool QueueModifierHeld => Keys != null && Keys.shiftKey.isPressed;
 
+        /// <summary>Manuel tulumba ritim mini-oyunu: Q ve E dönüşümlü basılır.</summary>
+        public static bool PumpLeftPressed => Keys != null && Keys.qKey.wasPressedThisFrame;
+        public static bool PumpRightPressed => Keys != null && Keys.eKey.wasPressedThisFrame;
+
+        public static bool DebugFloodPressed => Keys != null && Keys.f7Key.wasPressedThisFrame;
         public static bool DebugQuakePressed => Keys != null && Keys.f8Key.wasPressedThisFrame;
         public static bool DebugDamagePressed => Keys != null && Keys.f9Key.wasPressedThisFrame;
         public static bool DebugCrackPressed => Keys != null && Keys.f10Key.wasPressedThisFrame;

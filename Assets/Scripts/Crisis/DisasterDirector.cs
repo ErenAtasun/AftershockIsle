@@ -36,6 +36,8 @@ namespace AftershockIsle.Crisis
         public static bool Fire(DisasterType type) => type switch
         {
             DisasterType.Aftershock => AftershockSystem.Instance != null && AftershockSystem.Instance.Trigger(),
+            // Boru zaten patlaksa kayıt tüketilir; yeniden denemenin anlamı yok.
+            DisasterType.PipeBurst => FloodSystem.Instance == null || FloodSystem.Instance.TryBurstPipe() || FloodSystem.Instance.IsPipeBurst,
             _ => false,
         };
     }

@@ -18,7 +18,11 @@ namespace AftershockIsle.Economy
     /// <summary>Ortak Sandık'a bırakılan malzemelerin global sayacı. Üretim ve tamir buradan harcar.</summary>
     public class ResourceStorage : MonoBehaviour
     {
-        [SerializeField] ResourceAmount[] startingAmounts = { new ResourceAmount(ResourceType.Scrap, 2) };
+        [SerializeField] ResourceAmount[] startingAmounts =
+        {
+            new ResourceAmount(ResourceType.Scrap, 2),
+            new ResourceAmount(ResourceType.Metal, 1),
+        };
 
         readonly int[] counts = new int[ResourceTypes.Count];
 

@@ -48,6 +48,8 @@ namespace AftershockIsle.Crisis
         [SerializeField] float brokenColumnMultiplier = 2f;
         [SerializeField] float maxDamageMultiplier = 8f;
         [SerializeField, Range(0f, 1f)] float intactCrackChance = 0.25f;
+        [Tooltip("Sarsıntının sağlam şebeke borusunu patlatma ihtimali (kriz zinciri)")]
+        [SerializeField, Range(0f, 1f)] float pipeBurstChance = 0.2f;
 
         [Header("Kazazedeler")]
         [SerializeField] float exposedDamage = 35f;
@@ -158,6 +160,9 @@ namespace AftershockIsle.Crisis
 
             StructuralIntegrity.Instance.ApplyDamage(damage, DamageSource.Aftershock);
             EventBus.Publish(new AftershockImpact(damage, broken, exposed, shakeDuration));
+
+            if (FloodSystem.Instance != null && Random.value < pipeBurstChance)
+                FloodSystem.Instance.TryBurstPipe();
         }
 
         void SpawnDebris(SupportColumn column)

@@ -17,10 +17,18 @@ MonoBehaviour:
     phase: 2
     atSecond: 10
     type: 0
+  - day: 3
+    phase: 0
+    atSecond: 20
+    type: 1
   - day: 4
     phase: 0
     atSecond: 45
     type: 0
+  - day: 6
+    phase: 0
+    atSecond: 10
+    type: 1
   - day: 4
     phase: 2
     atSecond: 15

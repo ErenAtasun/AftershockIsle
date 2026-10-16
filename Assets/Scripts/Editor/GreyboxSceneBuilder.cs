@@ -81,8 +81,20 @@ namespace AftershockIsle.EditorTools
             SetRef(aftershocks, "debrisParent", building.transform.Find("Props"));
             SetRef(aftershocks, "shelterMaterial", palette.Shelter);
 
+            var power = systems.AddComponent<PowerGrid>();
+            var lights = building.GetComponentsInChildren<Light>();
+            var lightsProp = new SerializedObject(power);
+            var array = lightsProp.FindProperty("interiorLights");
+            array.arraySize = lights.Length;
+            for (int i = 0; i < lights.Length; i++) array.GetArrayElementAtIndex(i).objectReferenceValue = lights[i];
+            lightsProp.ApplyModifiedPropertiesWithoutUndo();
+
+            var flood = systems.AddComponent<FloodSystem>();
+            SetRef(flood, "pipe", building.GetComponentInChildren<BurstPipe>());
+            SetRef(flood, "waterVisual", building.transform.Find("Props/Bodrum Suyu"));
+
             var director = systems.AddComponent<DisasterDirector>();
-            SetRef(director, "schedule", LoadOrCreateAsset<DisasterSchedule>($"{DataFolder}/DisasterSchedule.asset"));
+            SetRef(director, "schedule", LoadDefaultSchedule());
             SetRef(director, "dayCycle", dayCycle);
 
             systems.AddComponent<DebugCheats>();
@@ -99,6 +111,22 @@ namespace AftershockIsle.EditorTools
             Selection.activeGameObject = hero;
 
             Debug.Log($"Greybox sahnesi kuruldu: {ScenePath}. Play'e basıp deneyebilirsin.");
+        }
+
+        /// <summary>
+        /// Greybox aşamasında takvimin doğru kaynağı koddaki varsayılanlardır; yeni afet türleri
+        /// eklendikçe asset de güncel kalsın diye her kurulumda sıfırlanır.
+        /// </summary>
+        static DisasterSchedule LoadDefaultSchedule()
+        {
+            var schedule = LoadOrCreateAsset<DisasterSchedule>($"{DataFolder}/DisasterSchedule.asset");
+            var defaults = ScriptableObject.CreateInstance<DisasterSchedule>();
+            schedule.entries = defaults.entries;
+            Object.DestroyImmediate(defaults);
+            EditorUtility.SetDirty(schedule);
+            AssetDatabase.SaveAssets();
+            Debug.Log("DisasterSchedule varsayılan takvime sıfırlandı.");
+            return schedule;
         }
 
         // ---------------------------------------------------------------- Sahne parçaları
@@ -209,6 +237,20 @@ namespace AftershockIsle.EditorTools
                     new Vector3(0.8f, h, 0.08f), p.Ladder);
             }
 
+            // İç lambalar (çatı hariç): şalter inince söner.
+            var lights = new GameObject("Lights").transform;
+            lights.SetParent(root.transform, false);
+            for (int floor = 0; floor < floors - 1; floor++)
+            {
+                var lamp = new GameObject($"Lamba_{floor}").AddComponent<Light>();
+                lamp.transform.SetParent(lights, false);
+                lamp.transform.localPosition = new Vector3(0f, floor * h + h - 0.6f, 0.2f);
+                lamp.type = LightType.Point;
+                lamp.color = new Color(1f, 0.85f, 0.6f);
+                lamp.range = 12f;
+                lamp.intensity = 4f;
+            }
+
             CreateProps(root.transform, layout, p);
             return layout;
         }
@@ -238,13 +280,30 @@ namespace AftershockIsle.EditorTools
             }
 
             // Kat 0: Bodrum
-            Prop("Patlak Şebeke Borusu", props, new Vector3(0f, 0 * h + 2.7f, backZ - 0.3f), new Vector3(2.4f, 0.25f, 0.25f), p.Water);
-            Prop("Su Tulumbası", props, new Vector3(5.5f, 0 * h + 0.6f, backZ - 0.5f), new Vector3(1f, 1.2f, 0.8f), p.Water);
+            var pipe = Box("Şebeke Borusu", props, new Vector3(0f, 0 * h + 2.7f, backZ - 0.3f), new Vector3(2.4f, 0.25f, 0.25f), p.Water);
+            var spray = Box("Su Fışkırması", props, new Vector3(0f, 0 * h + 1.3f, backZ - 0.3f), new Vector3(0.25f, 2.6f, 0.25f), p.WaterSurface);
+            Object.DestroyImmediate(spray.GetComponent<Collider>());
+            var pipeComponent = pipe.AddComponent<BurstPipe>();
+            Configure(pipeComponent, ("displayName", "Şebeke Borusu"), ("workDuration", 6f));
+            SetRef(pipeComponent, "sprayVisual", spray);
+
+            var pump = Box("Su Tulumbası", props, new Vector3(5.5f, 0 * h + 0.6f, backZ - 0.5f), new Vector3(1f, 1.2f, 0.8f), p.Water);
+            Configure(pump.AddComponent<ManualPump>(), ("displayName", "Manuel Su Tulumbası"), ("workDuration", 1f));
+
+            // Su, karakterleri ve objeleri kapatmasın diye yarı saydam; tıklamaları engellemesin diye collider'sız.
+            var water = Box("Bodrum Suyu", props, new Vector3(0f, 0 * h + 0.01f, 0f),
+                new Vector3(layout.Width, 0.02f, layout.Depth), p.WaterSurface);
+            Object.DestroyImmediate(water.GetComponent<Collider>());
             FurnitureProp("Dolap", props, new Vector3(1.5f, 0 * h + 0.8f, backZ - 0.45f), new Vector3(1.2f, 1.6f, 0.7f), p.Furniture);
             Rubble("Moloz", props, new Vector3(-4.5f, 0 * h, backZ - 0.9f), new Vector3(1.1f, 0.6f, 1f), p.Rubble, 3, false);
 
             // Kat 1: Giriş katı. Dış kapının önü yıkıntıyla kapalı.
-            Prop("Ana Şalter Panosu", props, new Vector3(-4.5f, 1 * h + 1.4f, backZ - 0.2f), new Vector3(0.8f, 1.2f, 0.3f), p.Electric);
+            var breaker = Box("Ana Şalter Panosu", props, new Vector3(-4.5f, 1 * h + 1.4f, backZ - 0.2f), new Vector3(0.8f, 1.2f, 0.3f), p.Electric);
+            Configure(breaker.AddComponent<BreakerPanel>(), ("displayName", "Ana Şalter Panosu"), ("workDuration", 1.5f));
+
+            var radiator = Box("Eski Radyatör", props, new Vector3(1.8f, 1 * h + 0.45f, backZ - 0.3f), new Vector3(0.9f, 0.9f, 0.3f), p.Metal);
+            Configure(radiator.AddComponent<Furniture>(), ("displayName", "Eski Radyatör"), ("workDuration", 6f),
+                ("providesShelter", false), ("salvage.type", (int)ResourceType.Metal), ("salvage.amount", 2));
             FurnitureProp("Masa", props, new Vector3(0f, 1 * h + 0.4f, backZ - 0.8f), new Vector3(1.6f, 0.8f, 0.9f), p.Furniture);
             Rubble("Yıkıntı (Kapı Önü)", props, new Vector3(7.7f, 1 * h, 0f), new Vector3(1.4f, 1.1f, 1.8f), p.Rubble, 5, true);
 
@@ -432,6 +491,25 @@ namespace AftershockIsle.EditorTools
             public readonly Material Rubble = Get("Rubble", new Color(0.45f, 0.42f, 0.38f));
             public readonly Material Carry = Get("Carry", Color.white);
             public readonly Material Shelter = Get("Shelter", new Color(0.2f, 1f, 0.35f));
+            public readonly Material Metal = Get("Metal", new Color(0.55f, 0.6f, 0.68f));
+            public readonly Material WaterSurface = MakeTransparent(Get("WaterSurface", new Color(0.2f, 0.45f, 0.85f, 0.55f)));
+
+            // URP Lit'i saydam yüzeye çevirir (Inspector'daki Surface Type: Transparent ile aynı).
+            static Material MakeTransparent(Material mat)
+            {
+                mat.SetFloat("_Surface", 1f);
+                mat.SetFloat("_Blend", 0f);
+                mat.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+                mat.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+                mat.SetFloat("_SrcBlendAlpha", (float)BlendMode.One);
+                mat.SetFloat("_DstBlendAlpha", (float)BlendMode.OneMinusSrcAlpha);
+                mat.SetFloat("_ZWrite", 0f);
+                mat.SetOverrideTag("RenderType", "Transparent");
+                mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                mat.renderQueue = (int)RenderQueue.Transparent;
+                EditorUtility.SetDirty(mat);
+                return mat;
+            }
 
             static Material Get(string name, Color color)
             {

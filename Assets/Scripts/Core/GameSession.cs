@@ -55,8 +55,13 @@ namespace AftershockIsle.Core
                 SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
 
-        void OnBuildingCollapsed(BuildingCollapsed evt) =>
-            End(GameOutcome.Defeat, "Yapısal bütünlük tükendi, bina çöktü.");
+        void OnBuildingCollapsed(BuildingCollapsed evt) => End(GameOutcome.Defeat, evt.Source switch
+        {
+            DamageSource.Flood => "Bina su baskınına dayanamadı ve temelden kaydı.",
+            DamageSource.Fire => "Yangın taşıyıcı kirişleri yaktı, bina çöktü.",
+            DamageSource.Aftershock => "Artçı sarsıntı binayı yıktı.",
+            _ => "Yapısal bütünlük tükendi, bina çöktü.",
+        });
 
         public void End(GameOutcome outcome, string reason)
         {

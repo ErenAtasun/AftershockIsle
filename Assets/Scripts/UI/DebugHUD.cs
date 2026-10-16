@@ -3,6 +3,7 @@ using AftershockIsle.Characters;
 using AftershockIsle.Core;
 using AftershockIsle.Crisis;
 using AftershockIsle.Economy;
+using AftershockIsle.Interaction;
 using AftershockIsle.Player;
 using UnityEngine;
 
@@ -20,6 +21,7 @@ namespace AftershockIsle.UI
         [SerializeField] GameSession session;
 
         Camera cam;
+        ManualPump[] pumps;
         GUIStyle bannerStyle;
         GUIStyle centeredStyle;
         string notice;
@@ -33,6 +35,7 @@ namespace AftershockIsle.UI
             if (building == null) building = FindFirstObjectByType<BuildingLayout>();
             if (session == null) session = FindFirstObjectByType<GameSession>();
             cam = Camera.main;
+            pumps = FindObjectsByType<ManualPump>(FindObjectsSortMode.None);
         }
 
         void OnEnable()
@@ -40,6 +43,9 @@ namespace AftershockIsle.UI
             EventBus.Subscribe<TaskNotice>(OnTaskNotice);
             EventBus.Subscribe<AftershockImpact>(OnAftershockImpact);
             EventBus.Subscribe<SurvivorDied>(OnSurvivorDied);
+            EventBus.Subscribe<PipeBurst>(OnPipeBurst);
+            EventBus.Subscribe<ElectrocutionStarted>(OnElectrocution);
+            EventBus.Subscribe<PowerChanged>(OnPowerChanged);
         }
 
         void OnDisable()
@@ -47,7 +53,14 @@ namespace AftershockIsle.UI
             EventBus.Unsubscribe<TaskNotice>(OnTaskNotice);
             EventBus.Unsubscribe<AftershockImpact>(OnAftershockImpact);
             EventBus.Unsubscribe<SurvivorDied>(OnSurvivorDied);
+            EventBus.Unsubscribe<PipeBurst>(OnPipeBurst);
+            EventBus.Unsubscribe<ElectrocutionStarted>(OnElectrocution);
+            EventBus.Unsubscribe<PowerChanged>(OnPowerChanged);
         }
+
+        void OnPipeBurst(PipeBurst evt) => ShowNotice("Bodrumdaki şebeke borusu patladı! Su dolmaya başladı.");
+        void OnElectrocution(ElectrocutionStarted evt) => ShowNotice($"{evt.Survivor.DisplayName} elektrik çarpıyor! Sudan çıkar ya da şalteri indir.");
+        void OnPowerChanged(PowerChanged evt) => ShowNotice(evt.IsOn ? "Şalter kaldırıldı, elektrik geldi." : "Şalter indirildi, bina karanlıkta.");
 
         void OnTaskNotice(TaskNotice evt) => ShowNotice($"{evt.Survivor.DisplayName}: {evt.Message}");
 
@@ -80,8 +93,9 @@ namespace AftershockIsle.UI
             if (session.Outcome != GameOutcome.None) DrawEndBanner();
             else
             {
-                if (timeManager.IsPaused) GUI.Label(new Rect(0, 70, Screen.width, 40), "DURAKLATILDI", bannerStyle);
+                if (timeManager.IsPaused) GUI.Label(new Rect(0, 80, Screen.width, 40), "DURAKLATILDI", bannerStyle);
                 DrawQuakeWarning();
+                DrawFloodWarnings();
             }
         }
 
@@ -120,7 +134,7 @@ namespace AftershockIsle.UI
             GUILayout.Space(6);
             GUILayout.Label("Sol tık: seç   Sağ tık: git / iş ver   Shift+Sağ: sıraya ekle");
             GUILayout.Label("Space: duraklat   1/2: hız   WASD: kaydır   F: odakla");
-            GUILayout.Label("Test: F8 sarsıntı  F9 hasar  F10 kolon çatlat  F11 +5 kaynak");
+            GUILayout.Label("Test: F7 boru  F8 sarsıntı  F9 hasar  F10 kolon  F11 +5 kaynak");
             GUILayout.EndArea();
         }
 
@@ -144,7 +158,47 @@ namespace AftershockIsle.UI
             string resources = "";
             foreach (var type in ResourceTypes.All)
                 resources += $"{type.ToDisplayName()}: {storage.Get(type)}     ";
+            resources += $"Elektrik: {(PowerGrid.IsOn ? "Açık" : "Kapalı")}";
             GUI.Label(new Rect(0, 38, Screen.width, 22), resources, centeredStyle);
+
+            var flood = FloodSystem.Instance;
+            if (flood != null && (flood.Level > 0.01f || flood.IsPipeBurst))
+            {
+                string pipe = flood.IsPipeBurst ? "  — boru patlak!" : "";
+                GUI.Label(new Rect(0, 58, Screen.width, 22), $"Bodrum suyu: %{flood.Level:0}{pipe}", centeredStyle);
+            }
+        }
+
+        void DrawFloodWarnings()
+        {
+            var flood = FloodSystem.Instance;
+            if (flood == null) return;
+
+            var previous = GUI.color;
+            float y = 190;
+            if (flood.IsFull)
+            {
+                GUI.color = new Color(1f, 0.35f, 0.25f);
+                GUI.Label(new Rect(0, y, Screen.width, 40),
+                    $"TEMEL KAYIYOR: {Mathf.CeilToInt(flood.CollapseCountdown)} sn — suyu pompala!", bannerStyle);
+                y += 40;
+            }
+
+            if (flood.IsElectrified)
+            {
+                GUI.color = new Color(1f, 0.9f, 0.3f);
+                GUI.Label(new Rect(0, y, Screen.width, 24),
+                    "ELEKTRİK KAÇAĞI: bodrumdaki su elektrikli. Suya girmeden önce şalteri indir.", centeredStyle);
+            }
+            GUI.color = previous;
+
+            foreach (var pump in pumps)
+            {
+                if (pump == null || !pump.IsBeingOperated) continue;
+                GUI.Label(new Rect(0, Screen.height - 100, Screen.width, 24),
+                    "Pompalanıyor — Q / E tuşlarına dönüşümlü bas!", centeredStyle);
+                break;
+            }
         }
 
         // Her kazazedenin başının üstünde: can barı, iş ilerlemesi, enkaz altında uyarısı.

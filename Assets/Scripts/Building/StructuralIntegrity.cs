@@ -93,6 +93,13 @@ namespace AftershockIsle.Building
             EventBus.Publish(new BuildingCollapsed(source));
         }
 
+        /// <summary>Barın değerinden bağımsız anında çöküş (ör. temelin su baskınıyla kayması).</summary>
+        public void ForceCollapse(DamageSource source)
+        {
+            if (IsCollapsed) return;
+            ApplyDamage(Current, source);
+        }
+
         public void SetDrain(Object owner, float perSecond, DamageSource source) =>
             drains[owner] = (perSecond, source);
 

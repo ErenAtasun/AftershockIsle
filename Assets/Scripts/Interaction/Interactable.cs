@@ -4,6 +4,9 @@ using UnityEngine;
 
 namespace AftershockIsle.Interaction
 {
+    /// <summary>İşin türü; yetenekler ve durumlar çalışma hızını türe göre değiştirir.</summary>
+    public enum WorkCategory { Dig, Repair, Dismantle, Search, Haul, Operate, Firefight }
+
     /// <summary>
     /// Bir karaktere iş olarak verilebilen nesne. Karakter çalışma noktasına yürür,
     /// WorkDuration kadar çalışır, sonra Complete çağrılır. Aynı anda tek karakter çalışabilir.
@@ -22,6 +25,8 @@ namespace AftershockIsle.Interaction
 
         /// <summary>"Kaz", "Parçala" gibi sağ tık eylemi.</summary>
         public abstract string ActionLabel { get; }
+
+        public virtual WorkCategory Category => WorkCategory.Operate;
 
         /// <summary>Üzerine gelince gösterilecek ek bilgi (durum, maliyet, kalan miktar).</summary>
         public virtual string StatusText => null;

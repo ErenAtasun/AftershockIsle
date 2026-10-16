@@ -306,6 +306,7 @@ GameObject:
   - component: {fileID: 8886204764474854567}
   - component: {fileID: 3985205580429983586}
   - component: {fileID: 2546579053852945183}
+  - component: {fileID: 2605728803489219801}
   m_Layer: 0
   m_Name: Survivor
   m_TagString: Untagged
@@ -361,7 +362,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AftershockIsle.Characters.Survivor
   displayName: Kazazede
+  branch: 0
   selectionIndicator: {fileID: 7806124693499061223}
+  body: {fileID: 4060615655526739555}
   carriedVisual: {fileID: 5477436850934469399}
   heavyCarrySpeed: 0.75
   maxHealth: 100
@@ -378,6 +381,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AftershockIsle.Characters.TaskRunner
   arriveTolerance: 0.15
+--- !u!114 &2605728803489219801
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7782536611251594686}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3ee9c3738c9e62046a529a3abe94b98a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AftershockIsle.Characters.SurvivorCondition
+  maxStress: 100
+  panicDuration: 15
+  stressAfterPanic: 60
+  darkWorkStressPerSecond: 1
+  calmRecoveryPerSecond: 0.4
+  exhaustedSpeed: 0.5
 --- !u!1 &7806124693499061223
 GameObject:
   m_ObjectHideFlags: 0

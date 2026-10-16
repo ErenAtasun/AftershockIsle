@@ -9,6 +9,7 @@ namespace AftershockIsle.Interaction
         public static StorageChest Main { get; private set; }
 
         public override string ActionLabel => "Bırak";
+        public override WorkCategory Category => WorkCategory.Haul;
         public override string StatusText => "Taşınan malzeme buraya bırakılınca depoya eklenir.";
 
         protected override void Awake()

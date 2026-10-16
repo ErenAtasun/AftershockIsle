@@ -3,6 +3,7 @@ using AftershockIsle.Building;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
 using AftershockIsle.Interaction;
+using AftershockIsle.Skills;
 using UnityEngine;
 
 namespace AftershockIsle.Crisis
@@ -56,6 +57,7 @@ namespace AftershockIsle.Crisis
         [Header("Kazazedeler")]
         [SerializeField] float exposedDamage = 35f;
         [SerializeField] float trappedDuration = 8f;
+        [SerializeField] float exposedStress = 25f;
 
         [Header("Görsel")]
         [SerializeField] RubblePile debrisPrefab;
@@ -128,6 +130,9 @@ namespace AftershockIsle.Crisis
                 if (survivor.IsDead || ShelterZones.IsSheltered(survivor, zones)) continue;
 
                 exposed++;
+                survivor.Condition.AddStress(exposedStress);
+                if (SkillTree.QuakeImmunity) continue;
+
                 survivor.TakeDamage(exposedDamage, "Artçı sarsıntıda açıkta yakalandı.");
                 survivor.Trap(trappedDuration);
             }
@@ -138,19 +143,7 @@ namespace AftershockIsle.Crisis
             int broken = 0;
             foreach (var column in columns)
             {
-                switch (column.State)
-                {
-                    case ColumnState.Cracked:
-                        column.SetState(ColumnState.Broken);
-                        SpawnDebris(column);
-                        break;
-                    case ColumnState.Supported:
-                        column.SetState(ColumnState.Cracked);
-                        break;
-                    case ColumnState.Intact:
-                        if (Random.value < intactCrackChance) column.SetState(ColumnState.Cracked);
-                        break;
-                }
+                if (column.ApplyShock(intactCrackChance)) SpawnDebris(column);
 
                 if (column.State == ColumnState.Reinforced) reinforced++;
                 if (column.State == ColumnState.Broken) broken++;

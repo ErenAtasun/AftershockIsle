@@ -57,6 +57,7 @@ namespace AftershockIsle.Crisis
         [SerializeField] float ventPerSecond = 15f;
         [SerializeField] float smokeBlockThreshold = 50f;
         [SerializeField] float smokeDamagePerSecond = 5f;
+        [SerializeField] float smokeStressPerSecond = 6f;
 
         [Header("Tavan çöküşü")]
         [SerializeField] float collapseDamage = 20f;
@@ -85,6 +86,7 @@ namespace AftershockIsle.Crisis
         public bool IsAtFullBurn => Intensity >= 100f;
 
         public override string ActionLabel => "Söndür";
+        public override WorkCategory Category => WorkCategory.Firefight;
         public override bool RepeatAfterComplete => IsBurning;
         public override string StatusText =>
             $"Yangın %{Intensity:0}  duman %{Smoke:0}. Kova suyu gerekir (her kova -%{extinguishPerBucket:0}).";
@@ -211,6 +213,7 @@ namespace AftershockIsle.Crisis
                 if (survivor.IsDead || survivor.Mover.CurrentFloor != Floor || survivor.Mover.IsClimbing) continue;
 
                 survivor.TakeDamage(smokeDamagePerSecond * dt, "Dumandan zehirlendi.");
+                survivor.Condition.AddStress(smokeStressPerSecond * dt);
 
                 // Pencere kıran kalır; geçen (yürüyen) dokunulmaz; duran/çalışan öksürerek kaçar.
                 if (!survivor.CanAct || survivor.Mover.IsMoving || survivor.Tasks.Current is SmokeWindow) continue;

@@ -20,6 +20,7 @@ namespace AftershockIsle.Interaction
         public bool IsBurst { get; private set; }
 
         public override string ActionLabel => "Kaynakla";
+        public override WorkCategory Category => WorkCategory.Repair;
         public override bool RequiresEmptyHands => true;
         public override string StatusText => IsBurst
             ? $"PATLAK — bodruma su doluyor. Tamir: {repairCost}"

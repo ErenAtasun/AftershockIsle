@@ -3,6 +3,7 @@ using AftershockIsle.Characters;
 using AftershockIsle.Core;
 using AftershockIsle.Crisis;
 using AftershockIsle.Interaction;
+using AftershockIsle.UI;
 using UnityEngine;
 
 namespace AftershockIsle.Player
@@ -36,6 +37,11 @@ namespace AftershockIsle.Player
             Hovered = Closest<Interactable>();
 
             if (Selected != null && Selected.IsDead) Select(null);
+            if (UIBlocker.IsPointerOver(GameInput.PointerPosition))
+            {
+                Hovered = null;
+                return;
+            }
 
             if (GameInput.SelectPressed)
             {
@@ -59,6 +65,12 @@ namespace AftershockIsle.Player
 
         void IssueOrder()
         {
+            if (Selected.Condition.IsPanicking)
+            {
+                EventBus.Publish(new TaskNotice(Selected, "Panik halinde, emir dinlemiyor."));
+                return;
+            }
+
             if (Hovered != null)
             {
                 Selected.Tasks.Assign(Hovered, GameInput.QueueModifierHeld);

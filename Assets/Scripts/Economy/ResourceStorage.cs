@@ -22,6 +22,7 @@ namespace AftershockIsle.Economy
         {
             new ResourceAmount(ResourceType.Scrap, 2),
             new ResourceAmount(ResourceType.Metal, 1),
+            new ResourceAmount(ResourceType.Supplies, 3),
         };
 
         readonly int[] counts = new int[ResourceTypes.Count];

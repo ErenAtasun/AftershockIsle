@@ -3,6 +3,7 @@ using AftershockIsle.Characters;
 using AftershockIsle.Core;
 using AftershockIsle.Economy;
 using AftershockIsle.Interaction;
+using AftershockIsle.Skills;
 using UnityEngine;
 
 namespace AftershockIsle.Building
@@ -48,6 +49,7 @@ namespace AftershockIsle.Building
         [SerializeField] Renderer body;
 
         MaterialPropertyBlock block;
+        int supportHitsRemaining;
 
         public static IReadOnlyList<SupportColumn> All => all;
 
@@ -56,9 +58,12 @@ namespace AftershockIsle.Building
         ResourceAmount RepairCost => state == ColumnState.Broken ? rebuildCost : supportCost;
 
         public override string ActionLabel => state == ColumnState.Broken ? "Yeniden Dik" : "Destekle";
+        public override WorkCategory Category => WorkCategory.Repair;
         public override string StatusText => NeedsRepair
             ? $"Durum: {state.ToDisplayName()}  — {ActionLabel.ToLowerInvariant()}: {RepairCost}"
-            : $"Durum: {state.ToDisplayName()}";
+            : state == ColumnState.Supported
+                ? $"Durum: {state.ToDisplayName()} ({supportHitsRemaining} sarsıntı daha dayanır)"
+                : $"Durum: {state.ToDisplayName()}";
 
         protected override void Awake()
         {
@@ -101,7 +106,31 @@ namespace AftershockIsle.Building
         {
             // Çalışma sırasında malzeme başka işe harcanmış olabilir.
             if (!ResourceStorage.Instance.TrySpend(RepairCost)) return;
+            supportHitsRemaining = SkillTree.SupportDurability;
             SetState(ColumnState.Supported);
+        }
+
+        /// <summary>
+        /// Sarsıntının bu kolona etkisi: çatlak kırılır, ahşap destek bir darbe emer (dayanıklılığı bitince
+        /// çatlağa döner), sağlam kolon ihtimalle çatlar, çelik etkilenmez. Bu sarsıntıda kırıldıysa true.
+        /// </summary>
+        public bool ApplyShock(float intactCrackChance)
+        {
+            switch (state)
+            {
+                case ColumnState.Cracked:
+                    SetState(ColumnState.Broken);
+                    return true;
+                case ColumnState.Supported:
+                    supportHitsRemaining--;
+                    if (supportHitsRemaining <= 0) SetState(ColumnState.Cracked);
+                    return false;
+                case ColumnState.Intact:
+                    if (Random.value < intactCrackChance) SetState(ColumnState.Cracked);
+                    return false;
+                default:
+                    return false;
+            }
         }
 
         public void SetState(ColumnState newState)

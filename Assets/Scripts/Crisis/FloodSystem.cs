@@ -37,6 +37,7 @@ namespace AftershockIsle.Crisis
         [Tooltip("Bu seviyenin altında karakterin ayağı suya değmez")]
         [SerializeField] float wadingThreshold = 3f;
         [SerializeField] float shockDamagePerSecond = 15f;
+        [SerializeField] float shockStressPerSecond = 8f;
 
         [Header("Görsel")]
         [SerializeField] Transform waterVisual;
@@ -127,6 +128,7 @@ namespace AftershockIsle.Crisis
 
                 if (shocked.Add(survivor)) EventBus.Publish(new ElectrocutionStarted(survivor));
                 survivor.TakeDamage(shockDamagePerSecond * dt, "Elektrikli suya girdi.");
+                survivor.Condition.AddStress(shockStressPerSecond * dt);
             }
         }
 

@@ -3,6 +3,7 @@ using AftershockIsle.Core;
 using AftershockIsle.Crisis;
 using AftershockIsle.Economy;
 using AftershockIsle.Interaction;
+using AftershockIsle.Skills;
 using UnityEngine;
 
 namespace AftershockIsle.Characters
@@ -196,7 +197,7 @@ namespace AftershockIsle.Characters
             Vector3 toTarget = Current.transform.position - transform.position;
             mover.FaceDirection(Mathf.Abs(toTarget.x) > 0.3f ? toTarget : Vector3.forward);
 
-            progress += Time.deltaTime * WorkSpeedMultiplier;
+            progress += Time.deltaTime * WorkSpeedMultiplier * SkillTree.WorkSpeedBonus(Current.Category);
             if (progress < Current.WorkDuration) return;
 
             var done = Current;

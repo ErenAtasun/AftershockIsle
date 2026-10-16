@@ -30,6 +30,7 @@ namespace AftershockIsle.Interaction
         public float HalfWidth => fullScale.x * 0.5f;
 
         public override string ActionLabel => "Kaz";
+        public override WorkCategory Category => WorkCategory.Dig;
         public override bool RequiresEmptyHands => true;
         public override bool RepeatAfterComplete => remaining > 0;
         public override string StatusText =>

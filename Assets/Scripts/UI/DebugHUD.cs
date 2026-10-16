@@ -5,6 +5,7 @@ using AftershockIsle.Crisis;
 using AftershockIsle.Economy;
 using AftershockIsle.Interaction;
 using AftershockIsle.Player;
+using AftershockIsle.Skills;
 using UnityEngine;
 
 namespace AftershockIsle.UI
@@ -50,7 +51,20 @@ namespace AftershockIsle.UI
             EventBus.Subscribe<FireExtinguished>(OnFireExtinguished);
             EventBus.Subscribe<CeilingCollapsed>(OnCeilingCollapsed);
             EventBus.Subscribe<SmokeEvacuation>(OnSmokeEvacuation);
+            EventBus.Subscribe<UpkeepResolved>(OnUpkeep);
+            EventBus.Subscribe<SurvivorPanicked>(OnPanicked);
+            EventBus.Subscribe<SurvivorJoined>(OnJoined);
+            EventBus.Subscribe<SkillPointsGained>(OnSkillPoints);
+            EventBus.Subscribe<SkillUnlocked>(OnSkillUnlocked);
         }
+
+        void OnUpkeep(UpkeepResolved evt) => ShowNotice(evt.Hungry == 0
+            ? $"Gece: {evt.Fed} kişi Yaşam Kiti ile doydu."
+            : $"Gece: {evt.Fed} kişi doydu, {evt.Hungry} kişi aç kaldı (Tükenmiş: yarı hız).");
+        void OnPanicked(SurvivorPanicked evt) => ShowNotice($"{evt.Survivor.DisplayName} PANİKLEDİ! Bir süre emir dinlemeyecek.");
+        void OnJoined(SurvivorJoined evt) => ShowNotice($"{evt.Survivor.DisplayName} sığınağa katıldı ({evt.Survivor.Branch.ToDisplayName()} uzmanı).");
+        void OnSkillPoints(SkillPointsGained evt) => ShowNotice($"Yeni gün: +1 yetenek puanı (toplam {evt.Total}). K ile yetenek ağacını aç.");
+        void OnSkillUnlocked(SkillUnlocked evt) => ShowNotice($"Yetenek açıldı: {SkillCatalog.Get(evt.Id).Name}");
 
         void OnFireStarted(FireStarted evt) => ShowNotice($"YANGIN çıktı: {building.GetFloorName(evt.Fire.Floor)}! Kova suyuyla söndür.");
         void OnFireExtinguished(FireExtinguished evt) => ShowNotice($"{building.GetFloorName(evt.Fire.Floor)} yangını söndürüldü.");
@@ -69,7 +83,15 @@ namespace AftershockIsle.UI
             EventBus.Unsubscribe<FireExtinguished>(OnFireExtinguished);
             EventBus.Unsubscribe<CeilingCollapsed>(OnCeilingCollapsed);
             EventBus.Unsubscribe<SmokeEvacuation>(OnSmokeEvacuation);
+            EventBus.Unsubscribe<UpkeepResolved>(OnUpkeep);
+            EventBus.Unsubscribe<SurvivorPanicked>(OnPanicked);
+            EventBus.Unsubscribe<SurvivorJoined>(OnJoined);
+            EventBus.Unsubscribe<SkillPointsGained>(OnSkillPoints);
+            EventBus.Unsubscribe<SkillUnlocked>(OnSkillUnlocked);
         }
+
+        // Paneller alanlarını OnGUI'de yeniden bildirir; LateUpdate OnGUI'den önce çalışır.
+        void LateUpdate() => UIBlocker.Clear();
 
         void OnPipeBurst(PipeBurst evt) => ShowNotice("Bodrumdaki şebeke borusu patladı! Su dolmaya başladı.");
         void OnElectrocution(ElectrocutionStarted evt) => ShowNotice($"{evt.Survivor.DisplayName} elektrik çarpıyor! Sudan çıkar ya da şalteri indir.");
@@ -128,14 +150,18 @@ namespace AftershockIsle.UI
 
         void DrawInfoPanel()
         {
-            GUILayout.BeginArea(new Rect(12, 12, 360, 260), GUI.skin.box);
+            var rect = new Rect(12, 12, 380, 290);
+            UIBlocker.Add(rect);
+            GUILayout.BeginArea(rect, GUI.skin.box);
             GUILayout.Label($"Gün {dayCycle.Day} — {dayCycle.Phase.ToDisplayName()} ({Mathf.CeilToInt(dayCycle.PhaseRemaining)} sn)");
-            GUILayout.Label($"Hız: {SpeedLabel(timeManager.Speed)}");
+            GUILayout.Label($"Hız: {SpeedLabel(timeManager.Speed)}   Nüfus: {Survivor.AliveCount}");
 
             var selected = commands.Selected;
             if (selected != null)
             {
-                GUILayout.Label($"Seçili: {selected.DisplayName} ({building.GetFloorName(selected.Mover.CurrentFloor)})  HP {selected.Health:0}/{selected.MaxHealth:0}");
+                var condition = selected.Condition;
+                GUILayout.Label($"Seçili: {selected.DisplayName} [{selected.Branch.ToDisplayName()}] ({building.GetFloorName(selected.Mover.CurrentFloor)})");
+                GUILayout.Label($"HP {selected.Health:0}/{selected.MaxHealth:0}   Stres %{condition.Stress:0}   Açlık {condition.Hunger}/{SurvivorCondition.MaxHunger}{(condition.IsExhausted ? "  (Tükenmiş)" : "")}");
                 GUILayout.Label($"Görev: {TaskLabel(selected.Tasks)}");
                 GUILayout.Label($"Elinde: {(selected.IsCarrying ? selected.Carried.ToString() : "—")}");
             }
@@ -146,8 +172,9 @@ namespace AftershockIsle.UI
 
             GUILayout.Space(6);
             GUILayout.Label("Sol tık: seç   Sağ tık: git / iş ver   Shift+Sağ: sıraya ekle");
-            GUILayout.Label("Space: duraklat   1/2: hız   WASD: kaydır   F: odakla");
-            GUILayout.Label("Test: F6 yangın F7 boru F8 sarsıntı F9 hasar F10 kolon F11 kaynak");
+            GUILayout.Label("Space: duraklat  1/2: hız  WASD: kaydır  F: odakla  K: yetenekler");
+            GUILayout.Label("Test: F6 yangın F7 boru F8 sarsıntı F9 hasar F10 kolon");
+            GUILayout.Label("      F11 kaynak+puan  F12 kazazede ekle");
             GUILayout.EndArea();
         }
 
@@ -244,12 +271,17 @@ namespace AftershockIsle.UI
                 float health = survivor.Health / survivor.MaxHealth;
                 DrawBar(new Rect(x, y, 60, 6), health, Color.Lerp(Color.red, Color.green, health));
 
-                float progress = survivor.Tasks.Progress01;
-                if (progress > 0f) DrawBar(new Rect(x, y + 8, 60, 6), progress, Color.white);
+                var condition = survivor.Condition;
+                DrawBar(new Rect(x, y + 7, 60, 4), condition.Stress / condition.MaxStress, new Color(0.75f, 0.35f, 0.9f));
 
-                if (survivor.IsTrapped)
-                    GUI.Label(new Rect(x - 40, y - 22, 140, 20),
-                        $"ENKAZ ALTINDA {Mathf.CeilToInt(survivor.TrappedRemaining)} sn", centeredStyle);
+                float progress = survivor.Tasks.Progress01;
+                if (progress > 0f) DrawBar(new Rect(x, y + 13, 60, 6), progress, Color.white);
+
+                string status = survivor.IsTrapped ? $"ENKAZ ALTINDA {Mathf.CeilToInt(survivor.TrappedRemaining)} sn"
+                    : condition.IsPanicking ? $"PANİK {Mathf.CeilToInt(condition.PanicRemaining)} sn"
+                    : condition.IsExhausted ? "Tükenmiş"
+                    : null;
+                if (status != null) GUI.Label(new Rect(x - 40, y - 22, 140, 20), status, centeredStyle);
             }
         }
 

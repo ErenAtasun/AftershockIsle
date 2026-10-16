@@ -9,6 +9,7 @@ using AftershockIsle.DebugTools;
 using AftershockIsle.Economy;
 using AftershockIsle.Interaction;
 using AftershockIsle.Player;
+using AftershockIsle.Skills;
 using AftershockIsle.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -97,14 +98,19 @@ namespace AftershockIsle.EditorTools
             SetRef(director, "schedule", LoadDefaultSchedule());
             SetRef(director, "dayCycle", dayCycle);
 
+            systems.AddComponent<SkillTree>();
+            systems.AddComponent<UpkeepSystem>();
+            systems.AddComponent<SkillTreeWindow>();
             systems.AddComponent<DebugCheats>();
 
             var survivorPrefab = CreateSurvivorPrefab(palette);
+            SetRef(systems.AddComponent<SurvivorRoster>(), "survivorPrefab", survivorPrefab.GetComponent<Survivor>());
+
             var hero = (GameObject)PrefabUtility.InstantiatePrefab(survivorPrefab);
             hero.name = "Ana Karakter";
             hero.transform.SetPositionAndRotation(building.Point(2, 0f), Quaternion.Euler(0f, 180f, 0f));
             SetRef(hero.GetComponent<CharacterMover>(), "building", building);
-            Configure(hero.GetComponent<Survivor>(), ("displayName", "Ana Karakter"));
+            Configure(hero.GetComponent<Survivor>(), ("displayName", "Ana Karakter"), ("branch", (int)SkillBranch.Construction));
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             AddSceneToBuildSettings(ScenePath);
@@ -294,7 +300,8 @@ namespace AftershockIsle.EditorTools
             var water = Box("Bodrum Suyu", props, new Vector3(0f, 0 * h + 0.01f, 0f),
                 new Vector3(layout.Width, 0.02f, layout.Depth), p.WaterSurface);
             Object.DestroyImmediate(water.GetComponent<Collider>());
-            FurnitureProp("Dolap", props, new Vector3(1.5f, 0 * h + 0.8f, backZ - 0.45f), new Vector3(1.2f, 1.6f, 0.7f), p.Furniture);
+            var cabinet = FurnitureProp("Dolap", props, new Vector3(1.5f, 0 * h + 0.8f, backZ - 0.45f), new Vector3(1.2f, 1.6f, 0.7f), p.Furniture);
+            Configure(cabinet, ("hasSearchLoot", true), ("searchLoot.type", (int)ResourceType.Supplies), ("searchLoot.amount", 2));
             Rubble("Moloz", props, new Vector3(-4.5f, 0 * h, backZ - 0.9f), new Vector3(1.1f, 0.6f, 1f), p.Rubble, 3, false);
 
             // Kat 1: Giriş katı. Dış kapının önü yıkıntıyla kapalı.
@@ -304,6 +311,12 @@ namespace AftershockIsle.EditorTools
             var radiator = Box("Eski Radyatör", props, new Vector3(1.8f, 1 * h + 0.45f, backZ - 0.3f), new Vector3(0.9f, 0.9f, 0.3f), p.Metal);
             Configure(radiator.AddComponent<Furniture>(), ("displayName", "Eski Radyatör"), ("workDuration", 6f),
                 ("providesShelter", false), ("salvage.type", (int)ResourceType.Metal), ("salvage.amount", 2));
+
+            var firstAid = Box("İlk Yardım Dolabı", props, new Vector3(4.5f, 1 * h + 1.5f, backZ - 0.15f), new Vector3(0.7f, 0.6f, 0.25f), p.Supplies);
+            Configure(firstAid.AddComponent<Furniture>(), ("displayName", "İlk Yardım Dolabı"), ("workDuration", 3f),
+                ("providesShelter", false), ("salvage.amount", 1),
+                ("hasSearchLoot", true), ("searchLoot.type", (int)ResourceType.Supplies), ("searchLoot.amount", 1));
+
             FurnitureProp("Masa", props, new Vector3(0f, 1 * h + 0.4f, backZ - 0.8f), new Vector3(1.6f, 0.8f, 0.9f), p.Furniture);
             Rubble("Yıkıntı (Kapı Önü)", props, new Vector3(7.7f, 1 * h, 0f), new Vector3(1.4f, 1.1f, 1.8f), p.Rubble, 5, true);
 
@@ -392,10 +405,12 @@ namespace AftershockIsle.EditorTools
             return prefab.GetComponent<RubblePile>();
         }
 
-        static void FurnitureProp(string name, Transform parent, Vector3 center, Vector3 size, Material material)
+        static Furniture FurnitureProp(string name, Transform parent, Vector3 center, Vector3 size, Material material)
         {
             var go = Box(name, parent, center, size, material);
-            Configure(go.AddComponent<Furniture>(), ("displayName", name), ("workDuration", 6f));
+            var furniture = go.AddComponent<Furniture>();
+            Configure(furniture, ("displayName", name), ("workDuration", 6f));
+            return furniture;
         }
 
         /// <summary>floorBase: yığının oturduğu zemin noktası.</summary>
@@ -424,6 +439,7 @@ namespace AftershockIsle.EditorTools
             root.AddComponent<CharacterMover>();
             var survivor = root.AddComponent<Survivor>();
             root.AddComponent<TaskRunner>();
+            root.AddComponent<SurvivorCondition>();
 
             var carried = Box("CarriedItem", root.transform, new Vector3(0f, 1.1f, 0.42f), new Vector3(0.5f, 0.35f, 0.35f), p.Carry);
             Object.DestroyImmediate(carried.GetComponent<Collider>());
@@ -435,6 +451,7 @@ namespace AftershockIsle.EditorTools
             body.transform.localPosition = new Vector3(0f, 0.9f, 0f);
             body.transform.localScale = new Vector3(0.6f, 0.9f, 0.6f);
             body.GetComponent<Renderer>().sharedMaterial = p.Survivor;
+            SetRef(survivor, "body", body.GetComponent<Renderer>());
 
             // Yüz yönünü göstermek için vizör.
             var visor = Box("Visor", root.transform, new Vector3(0f, 1.55f, 0.25f), new Vector3(0.35f, 0.12f, 0.12f), p.Visor);
@@ -568,6 +585,7 @@ namespace AftershockIsle.EditorTools
             public readonly Material Smoke = MakeTransparent(Get("Smoke", new Color(0.12f, 0.12f, 0.12f, 0.6f)));
             public readonly Material Glass = MakeTransparent(Get("Glass", new Color(0.7f, 0.85f, 0.95f, 0.45f)));
             public readonly Material WindowFrame = Get("WindowFrame", new Color(0.2f, 0.2f, 0.22f));
+            public readonly Material Supplies = Get("Supplies", new Color(0.9f, 0.9f, 0.88f));
 
             // URP Lit'i saydam yüzeye çevirir (Inspector'daki Surface Type: Transparent ile aynı).
             static Material MakeTransparent(Material mat)

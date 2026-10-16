@@ -142,6 +142,32 @@ namespace AftershockIsle.Building
             return fromX;
         }
 
+        /// <summary>Bulunulan kattan ulaşılabilen en yakın merdiveni ve onun götürdüğü katı verir (kaçış için).</summary>
+        public bool TryGetNearestExit(int floor, float x, out int otherFloor, out float ladderX)
+        {
+            otherFloor = floor;
+            ladderX = x;
+            float bestDistance = float.MaxValue;
+
+            foreach (var ladder in ladders)
+            {
+                int other;
+                if (ladder.lowerFloor == floor) other = floor + 1;
+                else if (ladder.lowerFloor == floor - 1) other = floor - 1;
+                else continue;
+
+                float worldX = transform.position.x + ladder.x;
+                float distance = Mathf.Abs(worldX - x);
+                if (distance >= bestDistance || TryFindObstacle(floor, x, worldX, out _)) continue;
+
+                bestDistance = distance;
+                otherFloor = other;
+                ladderX = worldX;
+            }
+
+            return bestDistance < float.MaxValue;
+        }
+
         public void AddBlocker(UnityEngine.Object owner, int floor, float minX, float maxX)
         {
             blockers.Add(new NavBlocker { Owner = owner, Floor = floor, MinX = minX, MaxX = maxX });

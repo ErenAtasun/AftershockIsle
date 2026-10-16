@@ -38,6 +38,8 @@ namespace AftershockIsle.Crisis
             DisasterType.Aftershock => AftershockSystem.Instance != null && AftershockSystem.Instance.Trigger(),
             // Boru zaten patlaksa kayıt tüketilir; yeniden denemenin anlamı yok.
             DisasterType.PipeBurst => FloodSystem.Instance == null || FloodSystem.Instance.TryBurstPipe() || FloodSystem.Instance.IsPipeBurst,
+            // Yakılacak odak kalmadıysa (hepsi yanıyor/çökmüş) kayıt tüketilir.
+            DisasterType.Fire => FireSpot.TryIgniteRandom() || true,
             _ => false,
         };
     }

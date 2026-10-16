@@ -50,6 +50,8 @@ namespace AftershockIsle.Crisis
         [SerializeField, Range(0f, 1f)] float intactCrackChance = 0.25f;
         [Tooltip("Sarsıntının sağlam şebeke borusunu patlatma ihtimali (kriz zinciri)")]
         [SerializeField, Range(0f, 1f)] float pipeBurstChance = 0.2f;
+        [Tooltip("Elektrik açıkken sarsıntının kıvılcımla yangın çıkarma ihtimali")]
+        [SerializeField, Range(0f, 1f)] float sparkFireChance = 0.15f;
 
         [Header("Kazazedeler")]
         [SerializeField] float exposedDamage = 35f;
@@ -163,6 +165,9 @@ namespace AftershockIsle.Crisis
 
             if (FloodSystem.Instance != null && Random.value < pipeBurstChance)
                 FloodSystem.Instance.TryBurstPipe();
+
+            if (PowerGrid.IsOn && Random.value < sparkFireChance)
+                FireSpot.TryIgniteRandom();
         }
 
         void SpawnDebris(SupportColumn column)

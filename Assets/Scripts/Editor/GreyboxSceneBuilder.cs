@@ -82,7 +82,7 @@ namespace AftershockIsle.EditorTools
             SetRef(aftershocks, "shelterMaterial", palette.Shelter);
 
             var power = systems.AddComponent<PowerGrid>();
-            var lights = building.GetComponentsInChildren<Light>();
+            var lights = building.transform.Find("Lights").GetComponentsInChildren<Light>();
             var lightsProp = new SerializedObject(power);
             var array = lightsProp.FindProperty("interiorLights");
             array.arraySize = lights.Length;
@@ -314,11 +314,82 @@ namespace AftershockIsle.EditorTools
             FurnitureProp("Yataklar", props, new Vector3(4.6f, 2 * h + 0.25f, backZ - 0.6f), new Vector3(2f, 0.5f, 1f), p.Furniture);
             Rubble("Moloz", props, new Vector3(-4.6f, 2 * h, backZ - 0.9f), new Vector3(1f, 0.5f, 1f), p.Rubble, 2, false);
 
+            var bucketSpot = Box("Kova (Bodrum Suyu)", props, new Vector3(4.3f, 0 * h + 0.25f, backZ - 0.9f), new Vector3(0.45f, 0.5f, 0.45f), p.Metal);
+            Configure(bucketSpot.AddComponent<WaterSource>(), ("displayName", "Kova (Bodrum Suyu)"), ("workDuration", 2f), ("usesFloodWater", true));
+
+            var tank = Box("Su Bidonu", props, new Vector3(2.3f, 2 * h + 0.45f, backZ - 0.6f), new Vector3(0.5f, 0.9f, 0.5f), p.Water);
+            Configure(tank.AddComponent<WaterSource>(), ("displayName", "Su Bidonu"), ("workDuration", 2f),
+                ("usesFloodWater", false), ("charges", 3));
+
+            // Yangın odakları ve dış pencereler: giriş ve yaşam katları.
+            var collapseRubble = CreateCollapseRubblePrefab(p);
+            foreach (var (floor, fireX) in new[] { (1, -2f), (2, 4.6f) })
+            {
+                CreateFireSpot(props, layout, floor, fireX, collapseRubble, p);
+                CreateWindow(props, layout, floor, p);
+            }
+
             // Kat 3: Çatı. Tahliye alanı yıkıntıyla kapalı; zafer için temizlenmesi gerekecek.
             Prop("Telsiz İstasyonu", props, new Vector3(-3.5f, 3 * h + 0.7f, backZ - 0.6f), new Vector3(1.2f, 1.4f, 1f), p.Electric);
             Prop("Helikopter Tahliye Alanı", props, new Vector3(4.5f, 3 * h + 0.03f, 0f), new Vector3(5f, 0.05f, 3f), p.Helipad);
             Rubble("Çatı Yıkıntısı", props, new Vector3(1.2f, 3 * h, 0f), new Vector3(1.4f, 1f, 1.8f), p.Rubble, 4, true);
             Rubble("Moloz", props, new Vector3(5f, 3 * h, 0.6f), new Vector3(1.2f, 0.6f, 1.2f), p.Rubble, 3, false);
+        }
+
+        static void CreateFireSpot(Transform parent, BuildingLayout layout, int floor, float x, RubblePile collapseRubble, Palette p)
+        {
+            float floorY = floor * layout.FloorHeight;
+            var root = new GameObject($"Yangın Odağı_{floor}");
+            root.transform.SetParent(parent, false);
+            root.transform.localPosition = new Vector3(x, floorY + 0.05f, 0.3f);
+
+            var flame = Box("Alev", root.transform, new Vector3(0f, 0.8f, 0f), new Vector3(1.6f, 1.6f, 1.2f), p.Fire);
+            var flameLight = new GameObject("Alev Işığı").AddComponent<Light>();
+            flameLight.transform.SetParent(root.transform, false);
+            flameLight.transform.localPosition = new Vector3(0f, 1.2f, -0.8f);
+            flameLight.type = LightType.Point;
+            flameLight.color = new Color(1f, 0.5f, 0.15f);
+            flameLight.range = 7f;
+
+            // Duman tüm katı kaplar; tıklamayı engellememesi için collider'sız.
+            float smokeHeight = layout.FloorHeight - SlabThickness;
+            var smoke = Box($"Duman_{floor}", parent, new Vector3(0f, floorY + smokeHeight * 0.5f, 0f),
+                new Vector3(layout.Width, smokeHeight, layout.Depth), p.Smoke);
+            Object.DestroyImmediate(smoke.GetComponent<Collider>());
+
+            var fire = root.AddComponent<FireSpot>();
+            Configure(fire, ("displayName", $"Yangın ({layout.GetFloorName(floor)})"), ("workDuration", 1.5f));
+            SetRef(fire, "flame", flame);
+            SetRef(fire, "flameLight", flameLight);
+            SetRef(fire, "smokeVisual", smoke.GetComponent<Renderer>());
+            SetRef(fire, "collapseRubblePrefab", collapseRubble);
+        }
+
+        // Kesit kamerası yan duvarları kenarından gördüğü için pencere arka dış duvarda.
+        static void CreateWindow(Transform parent, BuildingLayout layout, int floor, Palette p)
+        {
+            const float x = -7.5f;
+            float backZ = layout.Depth * 0.5f;
+            float y = floor * layout.FloorHeight + 1.7f;
+            var frame = Box($"Dış Pencere_{floor}", parent, new Vector3(x, y, backZ - 0.03f), new Vector3(1.4f, 1.2f, 0.06f), p.WindowFrame);
+            var glass = Box($"Cam_{floor}", parent, new Vector3(x, y, backZ - 0.08f), new Vector3(1.2f, 1f, 0.04f), p.Glass);
+            Object.DestroyImmediate(glass.GetComponent<Collider>());
+
+            var window = frame.AddComponent<SmokeWindow>();
+            Configure(window, ("displayName", "Dış Pencere"), ("workDuration", 3f));
+            SetRef(window, "glass", glass);
+        }
+
+        /// <summary>Yangının çökerttiği tavanın bıraktığı, yolu kapatan büyük yıkıntı.</summary>
+        static RubblePile CreateCollapseRubblePrefab(Palette p)
+        {
+            var go = Box("Çökmüş Tavan", null, Vector3.zero, new Vector3(2.4f, 1.6f, 2f), p.Rubble);
+            Configure(go.AddComponent<RubblePile>(),
+                ("displayName", "Çökmüş Tavan"), ("workDuration", 5f), ("digCount", 8), ("blocksPath", true));
+
+            var prefab = PrefabUtility.SaveAsPrefabAsset(go, $"{PrefabFolder}/CollapsedCeiling.prefab");
+            Object.DestroyImmediate(go);
+            return prefab.GetComponent<RubblePile>();
         }
 
         static void FurnitureProp(string name, Transform parent, Vector3 center, Vector3 size, Material material)
@@ -493,6 +564,10 @@ namespace AftershockIsle.EditorTools
             public readonly Material Shelter = Get("Shelter", new Color(0.2f, 1f, 0.35f));
             public readonly Material Metal = Get("Metal", new Color(0.55f, 0.6f, 0.68f));
             public readonly Material WaterSurface = MakeTransparent(Get("WaterSurface", new Color(0.2f, 0.45f, 0.85f, 0.55f)));
+            public readonly Material Fire = Get("Fire", new Color(1f, 0.45f, 0.1f));
+            public readonly Material Smoke = MakeTransparent(Get("Smoke", new Color(0.12f, 0.12f, 0.12f, 0.6f)));
+            public readonly Material Glass = MakeTransparent(Get("Glass", new Color(0.7f, 0.85f, 0.95f, 0.45f)));
+            public readonly Material WindowFrame = Get("WindowFrame", new Color(0.2f, 0.2f, 0.22f));
 
             // URP Lit'i saydam yüzeye çevirir (Inspector'daki Surface Type: Transparent ile aynı).
             static Material MakeTransparent(Material mat)

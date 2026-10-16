@@ -24,8 +24,20 @@ namespace AftershockIsle.Interaction
 
         public override bool CanStart(Survivor worker, out string reason)
         {
-            reason = worker.IsCarrying ? null : "Elinde taşıdığı bir şey yok.";
-            return worker.IsCarrying;
+            if (!worker.IsCarrying)
+            {
+                reason = "Elinde taşıdığı bir şey yok.";
+                return false;
+            }
+
+            if (!worker.Carried.type.IsStorable())
+            {
+                reason = $"{worker.Carried.type.ToDisplayName()} sandığa konmaz.";
+                return false;
+            }
+
+            reason = null;
+            return true;
         }
 
         public override void Complete(Survivor worker)

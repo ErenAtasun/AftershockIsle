@@ -1,6 +1,7 @@
 using AftershockIsle.Building;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
+using AftershockIsle.Crisis;
 using AftershockIsle.Interaction;
 using UnityEngine;
 
@@ -71,8 +72,15 @@ namespace AftershockIsle.Player
             if (t < 0f) return;
 
             Vector3 point = ray.GetPoint(t);
+            int floor = building.FloorAtHeight(point.y);
+            if (FireSpot.IsSmokeBlocked(floor) && floor != Selected.Mover.CurrentFloor)
+            {
+                EventBus.Publish(new TaskNotice(Selected, $"Duman yüzünden {building.GetFloorName(floor)} katına girilemiyor."));
+                return;
+            }
+
             Selected.Tasks.CancelAll();
-            Selected.Mover.MoveTo(building.FloorAtHeight(point.y), point.x);
+            Selected.Mover.MoveTo(floor, point.x);
         }
 
         Ray PointerRay() => cam.ScreenPointToRay(GameInput.PointerPosition);

@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using AftershockIsle.Core;
+using AftershockIsle.Crisis;
+using AftershockIsle.Economy;
 using AftershockIsle.Interaction;
 using UnityEngine;
 
@@ -21,15 +23,25 @@ namespace AftershockIsle.Characters
 
     /// <summary>
     /// Karakterin iş kuyruğu: sıradaki işe yürür, çalışır, tamamlar.
-    /// Elde yük varken boş el isteyen işten önce sandığa taşıma işi araya girer;
-    /// tekrarlı işler (moloz) taşıma bitince kendiliğinden devam eder.
+    /// Bir işin ön koşulu varsa (elde yük varken boş el isteyen iş → sandığa taşı,
+    /// yangın → kova doldur) ön koşul araya girer; ön koşul başarısız olursa bağlı iş de düşer.
+    /// Tekrarlı işler (moloz, tulumba, yangın) kendiliğinden devam eder.
     /// </summary>
     [RequireComponent(typeof(Survivor))]
     public class TaskRunner : MonoBehaviour
     {
+        struct QueuedTask
+        {
+            public Interactable Target;
+            /// <summary>True ise ardındaki iş için araya girmiştir; başarısız olursa o iş de düşer.</summary>
+            public bool IsPrerequisite;
+        }
+
+        const int MaxResolveSteps = 16;
+
         [SerializeField] float arriveTolerance = 0.15f;
 
-        readonly List<Interactable> queue = new List<Interactable>();
+        readonly List<QueuedTask> queue = new List<QueuedTask>();
         Survivor survivor;
         CharacterMover mover;
         float progress;
@@ -52,8 +64,8 @@ namespace AftershockIsle.Characters
         public void Assign(Interactable target, bool append)
         {
             if (!append) CancelAll();
-            if (target == Current || queue.Contains(target)) return;
-            queue.Add(target);
+            if (target == Current || queue.Exists(q => q.Target == target)) return;
+            queue.Add(new QueuedTask { Target = target });
         }
 
         public void CancelAll()
@@ -79,51 +91,81 @@ namespace AftershockIsle.Characters
 
         void TryStartNext()
         {
-            while (queue.Count > 0)
+            for (int step = 0; step < MaxResolveSteps && queue.Count > 0; step++)
             {
-                var next = queue[0];
-                queue.RemoveAt(0);
-                if (next == null) continue;
-
-                var chest = StorageChest.Main;
-                bool haulFirst = next.RequiresEmptyHands && survivor.IsCarrying && chest != null;
-                if (haulFirst)
+                var target = queue[0].Target;
+                if (target == null)
                 {
-                    queue.Insert(0, next);
-                    next = chest;
-                }
-
-                if (!next.CanStart(survivor, out string reason))
-                {
-                    Fail(reason, haulFirst);
+                    FailFront(null);
                     continue;
                 }
 
-                if (!next.TryClaim(survivor))
+                var prerequisite = ResolvePrerequisite(target);
+                if (prerequisite != null)
                 {
-                    Fail($"{next.DisplayName} üzerinde başkası çalışıyor.", haulFirst);
+                    queue.Insert(0, new QueuedTask { Target = prerequisite, IsPrerequisite = true });
                     continue;
                 }
 
-                Current = next;
-                workX = mover.Building.ClampX(next.GetWorkX(mover.CurrentFloor, transform.position.x));
-                if (!mover.MoveTo(next.Floor, workX))
+                if (!target.AllowedInSmoke && FireSpot.IsSmokeBlocked(target.Floor))
+                {
+                    FailFront($"Duman yüzünden {mover.Building.GetFloorName(target.Floor)} katına girilemiyor.");
+                    continue;
+                }
+
+                if (!target.CanStart(survivor, out string reason))
+                {
+                    FailFront(reason);
+                    continue;
+                }
+
+                if (!target.TryClaim(survivor))
+                {
+                    FailFront($"{target.DisplayName} üzerinde başkası çalışıyor.");
+                    continue;
+                }
+
+                Current = target;
+                workX = mover.Building.ClampX(target.GetWorkX(mover.CurrentFloor, transform.position.x));
+                if (!mover.MoveTo(target.Floor, workX))
                 {
                     ReleaseCurrent();
-                    Fail($"{next.DisplayName} noktasına ulaşılamıyor.", haulFirst);
+                    FailFront($"{target.DisplayName} noktasına ulaşılamıyor.");
                     continue;
                 }
 
+                queue.RemoveAt(0);
                 State = TaskState.Moving;
                 return;
             }
         }
 
-        /// <summary>Taşıma başarısızsa ardındaki boş el isteyen iş de yapılamaz; onu da düşür.</summary>
-        void Fail(string reason, bool droppedHaul)
+        Interactable ResolvePrerequisite(Interactable target)
+        {
+            if (target.RequiresEmptyHands && survivor.IsCarrying)
+            {
+                // Depolanabilir yük sandığa gider; kova gibi depolanamayan yük yere boşaltılır.
+                var chest = StorageChest.Main;
+                if (survivor.Carried.type.IsStorable() && chest != null && target != chest) return chest;
+                if (!survivor.Carried.type.IsStorable() && survivor.TryTakeCarried(out var dumped))
+                    Notify($"{dumped.type.ToDisplayName()} boşaltıldı.");
+            }
+
+            return target.RequiredBefore(survivor);
+        }
+
+        /// <summary>Öndeki işi düşürür; o iş bir ön koşulsa ona bağlı işleri de düşürür.</summary>
+        void FailFront(string reason)
         {
             Notify(reason);
-            if (droppedHaul && queue.Count > 0) queue.RemoveAt(0);
+
+            var failed = queue[0];
+            queue.RemoveAt(0);
+            while (failed.IsPrerequisite && queue.Count > 0)
+            {
+                failed = queue[0];
+                queue.RemoveAt(0);
+            }
         }
 
         void UpdateMoving()
@@ -161,17 +203,12 @@ namespace AftershockIsle.Characters
             ReleaseCurrent();
             done.Complete(survivor);
 
-            bool repeat = done != null && done.RepeatAfterComplete;
+            // Tekrarlı işin ön koşulları (taşıma, kova) sıradaki çözümlemede yeniden araya girer.
             var chest = StorageChest.Main;
-            if (survivor.IsCarrying && chest != null && done != chest)
-            {
-                queue.Insert(0, chest);
-                if (repeat) queue.Insert(1, done);
-            }
-            else if (repeat)
-            {
-                queue.Insert(0, done);
-            }
+            if (done.RepeatAfterComplete)
+                queue.Insert(0, new QueuedTask { Target = done });
+            else if (survivor.IsCarrying && survivor.Carried.type.IsStorable() && chest != null && done != chest)
+                queue.Insert(0, new QueuedTask { Target = chest });
         }
 
         void ReleaseCurrent()

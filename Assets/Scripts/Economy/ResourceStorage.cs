@@ -51,7 +51,10 @@ namespace AftershockIsle.Economy
             return true;
         }
 
-        public void Add(ResourceAmount amount) => Change(amount.type, amount.amount);
+        public void Add(ResourceAmount amount)
+        {
+            if (amount.type.IsStorable()) Change(amount.type, amount.amount);
+        }
 
         void Change(ResourceType type, int delta)
         {

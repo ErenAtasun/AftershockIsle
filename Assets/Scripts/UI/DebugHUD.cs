@@ -46,7 +46,16 @@ namespace AftershockIsle.UI
             EventBus.Subscribe<PipeBurst>(OnPipeBurst);
             EventBus.Subscribe<ElectrocutionStarted>(OnElectrocution);
             EventBus.Subscribe<PowerChanged>(OnPowerChanged);
+            EventBus.Subscribe<FireStarted>(OnFireStarted);
+            EventBus.Subscribe<FireExtinguished>(OnFireExtinguished);
+            EventBus.Subscribe<CeilingCollapsed>(OnCeilingCollapsed);
+            EventBus.Subscribe<SmokeEvacuation>(OnSmokeEvacuation);
         }
+
+        void OnFireStarted(FireStarted evt) => ShowNotice($"YANGIN çıktı: {building.GetFloorName(evt.Fire.Floor)}! Kova suyuyla söndür.");
+        void OnFireExtinguished(FireExtinguished evt) => ShowNotice($"{building.GetFloorName(evt.Fire.Floor)} yangını söndürüldü.");
+        void OnCeilingCollapsed(CeilingCollapsed evt) => ShowNotice($"{building.GetFloorName(evt.Fire.Floor)} tavanı yangından çöktü!");
+        void OnSmokeEvacuation(SmokeEvacuation evt) => ShowNotice($"{evt.Survivor.DisplayName} öksürerek dumandan kaçıyor.");
 
         void OnDisable()
         {
@@ -56,6 +65,10 @@ namespace AftershockIsle.UI
             EventBus.Unsubscribe<PipeBurst>(OnPipeBurst);
             EventBus.Unsubscribe<ElectrocutionStarted>(OnElectrocution);
             EventBus.Unsubscribe<PowerChanged>(OnPowerChanged);
+            EventBus.Unsubscribe<FireStarted>(OnFireStarted);
+            EventBus.Unsubscribe<FireExtinguished>(OnFireExtinguished);
+            EventBus.Unsubscribe<CeilingCollapsed>(OnCeilingCollapsed);
+            EventBus.Unsubscribe<SmokeEvacuation>(OnSmokeEvacuation);
         }
 
         void OnPipeBurst(PipeBurst evt) => ShowNotice("Bodrumdaki şebeke borusu patladı! Su dolmaya başladı.");
@@ -134,7 +147,7 @@ namespace AftershockIsle.UI
             GUILayout.Space(6);
             GUILayout.Label("Sol tık: seç   Sağ tık: git / iş ver   Shift+Sağ: sıraya ekle");
             GUILayout.Label("Space: duraklat   1/2: hız   WASD: kaydır   F: odakla");
-            GUILayout.Label("Test: F7 boru  F8 sarsıntı  F9 hasar  F10 kolon  F11 +5 kaynak");
+            GUILayout.Label("Test: F6 yangın F7 boru F8 sarsıntı F9 hasar F10 kolon F11 kaynak");
             GUILayout.EndArea();
         }
 
@@ -189,6 +202,20 @@ namespace AftershockIsle.UI
                 GUI.color = new Color(1f, 0.9f, 0.3f);
                 GUI.Label(new Rect(0, y, Screen.width, 24),
                     "ELEKTRİK KAÇAĞI: bodrumdaki su elektrikli. Suya girmeden önce şalteri indir.", centeredStyle);
+            }
+            GUI.color = previous;
+
+            foreach (var fire in FireSpot.All)
+            {
+                if (!fire.IsBurning && !fire.IsSmokeBlockedHere) continue;
+
+                string floorName = building.GetFloorName(fire.Floor);
+                string collapse = fire.IsAtFullBurn ? $" — TAVAN ÇÖKÜYOR: {Mathf.CeilToInt(fire.CollapseCountdown)} sn" : "";
+                string smoke = fire.IsSmokeBlockedHere ? " — dumandan girilemiyor, pencereyi kır" : "";
+                GUI.color = new Color(1f, 0.55f, 0.2f);
+                string label = fire.IsBurning ? $"YANGIN: {floorName} %{fire.Intensity:0}" : $"DUMAN: {floorName}";
+                GUI.Label(new Rect(0, y + 26, Screen.width, 24), $"{label}{collapse}{smoke}", centeredStyle);
+                y += 24;
             }
             GUI.color = previous;
 

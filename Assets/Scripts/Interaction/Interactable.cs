@@ -32,6 +32,12 @@ namespace AftershockIsle.Interaction
         /// <summary>True ise iş bitince (ve gerekirse taşıma sonrası) karakter aynı işe geri döner.</summary>
         public virtual bool RepeatAfterComplete => false;
 
+        /// <summary>True ise dumanla dolu katta da yapılabilir (ör. pencere kırmak).</summary>
+        public virtual bool AllowedInSmoke => false;
+
+        /// <summary>Bu işten önce yapılması gereken iş (ör. yangından önce kova doldurmak). Yoksa null.</summary>
+        public virtual Interactable RequiredBefore(Survivor worker) => null;
+
         protected virtual void Awake()
         {
             Building = FindFirstObjectByType<BuildingLayout>();

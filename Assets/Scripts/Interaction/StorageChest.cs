@@ -3,14 +3,16 @@ using AftershockIsle.Economy;
 
 namespace AftershockIsle.Interaction
 {
-    /// <summary>Ortak Sandık: elde taşınan malzeme buraya bırakılınca global sayaca eklenir.</summary>
+    /// <summary>
+    /// Ortak Sandık: elde taşınan malzeme ve sefer çantası buraya bırakılınca global sayaca eklenir.
+    /// </summary>
     public class StorageChest : Interactable
     {
         public static StorageChest Main { get; private set; }
 
         public override string ActionLabel => "Bırak";
         public override WorkCategory Category => WorkCategory.Haul;
-        public override string StatusText => "Taşınan malzeme buraya bırakılınca depoya eklenir.";
+        public override string StatusText => "Taşınan malzeme ve sefer çantası buraya bırakılınca depoya eklenir.";
 
         protected override void Awake()
         {
@@ -25,26 +27,28 @@ namespace AftershockIsle.Interaction
 
         public override bool CanStart(Survivor worker, out string reason)
         {
-            if (!worker.IsCarrying)
+            bool storableInHand = worker.IsCarrying && worker.Carried.type.IsStorable();
+            if (storableInHand || worker.HasBag)
             {
-                reason = "Elinde taşıdığı bir şey yok.";
-                return false;
+                reason = null;
+                return true;
             }
 
-            if (!worker.Carried.type.IsStorable())
-            {
-                reason = $"{worker.Carried.type.ToDisplayName()} sandığa konmaz.";
-                return false;
-            }
-
-            reason = null;
-            return true;
+            reason = worker.IsCarrying
+                ? $"{worker.Carried.type.ToDisplayName()} sandığa konmaz."
+                : "Elinde taşıdığı bir şey yok.";
+            return false;
         }
 
         public override void Complete(Survivor worker)
         {
-            if (worker.TryTakeCarried(out var item))
-                ResourceStorage.Instance.Add(item);
+            var storage = ResourceStorage.Instance;
+
+            if (worker.IsCarrying && worker.Carried.type.IsStorable() && worker.TryTakeCarried(out var item))
+                storage.Add(item);
+
+            foreach (var loot in worker.EmptyBag())
+                storage.Add(loot);
         }
     }
 }

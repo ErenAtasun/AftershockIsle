@@ -1,8 +1,11 @@
 using AftershockIsle.Building;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
+using AftershockIsle.Crafting;
 using AftershockIsle.Crisis;
 using AftershockIsle.Economy;
+using AftershockIsle.Endgame;
+using AftershockIsle.Expedition;
 using AftershockIsle.Interaction;
 using AftershockIsle.Player;
 using AftershockIsle.Skills;
@@ -56,6 +59,30 @@ namespace AftershockIsle.UI
             EventBus.Subscribe<SurvivorJoined>(OnJoined);
             EventBus.Subscribe<SkillPointsGained>(OnSkillPoints);
             EventBus.Subscribe<SkillUnlocked>(OnSkillUnlocked);
+            EventBus.Subscribe<ExpeditionStarted>(OnExpeditionStarted);
+            EventBus.Subscribe<ExpeditionReturned>(OnExpeditionReturned);
+            EventBus.Subscribe<RecipeCrafted>(OnRecipeCrafted);
+            EventBus.Subscribe<PumpBroke>(OnPumpBroke);
+            EventBus.Subscribe<RadioRepaired>(OnRadioRepaired);
+            EventBus.Subscribe<SignalInterrupted>(OnSignalInterrupted);
+            EventBus.Subscribe<HelicopterInbound>(OnHelicopterInbound);
+        }
+
+        void OnRecipeCrafted(RecipeCrafted evt) => ShowNotice($"Tezgah: {RecipeCatalog.Get(evt.Id).Name} tamamlandı.");
+        void OnPumpBroke(PumpBroke evt) => ShowNotice("Elektrikli pompa bozuldu! Tamir için 1 Boru & Metal gerekli.");
+        void OnRadioRepaired(RadioRepaired evt) => ShowNotice("Telsiz tamir edildi. Şartlar sağlanınca sinyal gönderilebilir.");
+        void OnSignalInterrupted(SignalInterrupted evt) => ShowNotice(evt.Reason, 5f);
+        void OnHelicopterInbound(HelicopterInbound evt) => ShowNotice("SİNYAL ULAŞTI! Tahliye helikopteri yolda.", 6f);
+
+        void OnExpeditionStarted(ExpeditionStarted evt) =>
+            ShowNotice($"{evt.Explorer.DisplayName} {evt.Site.name} için yola çıktı ({evt.Site.duration:0} sn).");
+
+        void OnExpeditionReturned(ExpeditionReturned evt)
+        {
+            string message = $"{evt.Explorer.DisplayName} döndü. Çanta: {LootText(evt.Loot)}.";
+            if (evt.HazardReport != null) message += $" {evt.HazardReport}";
+            if (evt.Rescued != null) message += $" {evt.Rescued.DisplayName} kurtarıldı!";
+            ShowNotice(message, 6f);
         }
 
         void OnUpkeep(UpkeepResolved evt) => ShowNotice(evt.Hungry == 0
@@ -88,6 +115,13 @@ namespace AftershockIsle.UI
             EventBus.Unsubscribe<SurvivorJoined>(OnJoined);
             EventBus.Unsubscribe<SkillPointsGained>(OnSkillPoints);
             EventBus.Unsubscribe<SkillUnlocked>(OnSkillUnlocked);
+            EventBus.Unsubscribe<ExpeditionStarted>(OnExpeditionStarted);
+            EventBus.Unsubscribe<ExpeditionReturned>(OnExpeditionReturned);
+            EventBus.Unsubscribe<RecipeCrafted>(OnRecipeCrafted);
+            EventBus.Unsubscribe<PumpBroke>(OnPumpBroke);
+            EventBus.Unsubscribe<RadioRepaired>(OnRadioRepaired);
+            EventBus.Unsubscribe<SignalInterrupted>(OnSignalInterrupted);
+            EventBus.Unsubscribe<HelicopterInbound>(OnHelicopterInbound);
         }
 
         // Paneller alanlarını OnGUI'de yeniden bildirir; LateUpdate OnGUI'den önce çalışır.
@@ -108,10 +142,10 @@ namespace AftershockIsle.UI
 
         void OnSurvivorDied(SurvivorDied evt) => ShowNotice($"{evt.Survivor.DisplayName} öldü. {evt.Cause}");
 
-        void ShowNotice(string message)
+        void ShowNotice(string message, float duration = NoticeDuration)
         {
             notice = message;
-            noticeUntil = Time.unscaledTime + NoticeDuration;
+            noticeUntil = Time.unscaledTime + duration;
         }
 
         void OnGUI()
@@ -120,6 +154,7 @@ namespace AftershockIsle.UI
             DrawInfoPanel();
             DrawTopBar();
             DrawSurvivorOverlays();
+            DrawEvacuationChecklist();
             DrawHoverInfo();
 
             if (Time.unscaledTime < noticeUntil)
@@ -150,11 +185,19 @@ namespace AftershockIsle.UI
 
         void DrawInfoPanel()
         {
-            var rect = new Rect(12, 12, 380, 290);
+            var rect = new Rect(12, 12, 400, 320);
             UIBlocker.Add(rect);
             GUILayout.BeginArea(rect, GUI.skin.box);
             GUILayout.Label($"Gün {dayCycle.Day} — {dayCycle.Phase.ToDisplayName()} ({Mathf.CeilToInt(dayCycle.PhaseRemaining)} sn)");
-            GUILayout.Label($"Hız: {SpeedLabel(timeManager.Speed)}   Nüfus: {Survivor.AliveCount}");
+            GUILayout.Label($"Hız: {SpeedLabel(timeManager.Speed)}   Nüfus: {Survivor.AliveCount + ExpeditionSystem.AwayCount}");
+
+            var away = ExpeditionSystem.AwayExplorer;
+            if (away != null)
+            {
+                var expeditions = ExpeditionSystem.Instance;
+                string rescue = expeditions.IsRescuing ? ", kazazede çıkarılıyor" : "";
+                GUILayout.Label($"Seferde: {away.DisplayName} → {expeditions.CurrentSite.name} ({Mathf.CeilToInt(expeditions.Remaining)} sn{rescue})");
+            }
 
             var selected = commands.Selected;
             if (selected != null)
@@ -163,7 +206,8 @@ namespace AftershockIsle.UI
                 GUILayout.Label($"Seçili: {selected.DisplayName} [{selected.Branch.ToDisplayName()}] ({building.GetFloorName(selected.Mover.CurrentFloor)})");
                 GUILayout.Label($"HP {selected.Health:0}/{selected.MaxHealth:0}   Stres %{condition.Stress:0}   Açlık {condition.Hunger}/{SurvivorCondition.MaxHunger}{(condition.IsExhausted ? "  (Tükenmiş)" : "")}");
                 GUILayout.Label($"Görev: {TaskLabel(selected.Tasks)}");
-                GUILayout.Label($"Elinde: {(selected.IsCarrying ? selected.Carried.ToString() : "—")}");
+                string bag = selected.HasBag ? $"   Çanta: {LootText(selected.ExpeditionBag)}" : "";
+                GUILayout.Label($"Elinde: {(selected.IsCarrying ? selected.Carried.ToString() : "—")}{bag}");
             }
             else
             {
@@ -285,6 +329,32 @@ namespace AftershockIsle.UI
             }
         }
 
+        // Sağ altta: GDD 10.1 tahliye şartları ve sinyal ilerlemesi.
+        void DrawEvacuationChecklist()
+        {
+            var radio = RadioStation.Instance;
+            if (radio == null) return;
+
+            var conditions = EvacuationConditions.Evaluate(building, radio);
+            int tier = Workbench.Instance != null ? Workbench.Instance.Tier : 1;
+
+            var rect = new Rect(Screen.width - 292, Screen.height - 190, 280, 150);
+            UIBlocker.Add(rect);
+            GUILayout.BeginArea(rect, GUI.skin.box);
+            GUILayout.Label("TAHLİYE ŞARTLARI");
+            GUILayout.Label($"{Check(conditions.WorkbenchTier3)} Tezgah Kademe 3 (şu an {tier})");
+            GUILayout.Label($"{Check(conditions.RadioRepaired)} Çatıdaki telsiz tamir edildi");
+            GUILayout.Label($"{Check(conditions.RoofRubbleLeft == 0)} Çatı molozu temiz ({conditions.RoofRubbleLeft} yığın kaldı)");
+            GUILayout.Label($"{Check(conditions.RoofColumnsTotal > 0 && conditions.RoofColumnsReinforced == conditions.RoofColumnsTotal)} Çatı kolonları çelik ({conditions.RoofColumnsReinforced}/{conditions.RoofColumnsTotal})");
+            GUILayout.Label($"{Check(conditions.PowerOn)} Ana şalter açık");
+
+            string signal = radio.SignalComplete ? "ULAŞTI" : $"%{radio.Signal01 * 100f:0}";
+            GUILayout.Label($"Kesintisiz sinyal: {signal}");
+            GUILayout.EndArea();
+        }
+
+        static string Check(bool done) => done ? "[x]" : "[  ]";
+
         static void DrawBar(Rect rect, float fill, Color color)
         {
             GUI.Box(rect, GUIContent.none);
@@ -333,6 +403,14 @@ namespace AftershockIsle.UI
             string action = tasks.State == TaskState.Moving ? "yolda" : $"%{tasks.Progress01 * 100f:0}";
             string queued = tasks.QueuedCount > 0 ? $" (+{tasks.QueuedCount} sırada)" : "";
             return $"{tasks.Current.ActionLabel}: {tasks.Current.DisplayName} — {action}{queued}";
+        }
+
+        static string LootText(System.Collections.Generic.IReadOnlyList<ResourceAmount> items)
+        {
+            if (items.Count == 0) return "boş";
+            var parts = new string[items.Count];
+            for (int i = 0; i < items.Count; i++) parts[i] = items[i].ToString();
+            return string.Join(", ", parts);
         }
 
         static string SpeedLabel(TimeSpeed speed) => speed switch

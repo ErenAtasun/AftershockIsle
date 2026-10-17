@@ -2,6 +2,7 @@ using AftershockIsle.Building;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
 using AftershockIsle.Crisis;
+using AftershockIsle.Expedition;
 using AftershockIsle.Interaction;
 using AftershockIsle.UI;
 using UnityEngine;
@@ -36,7 +37,8 @@ namespace AftershockIsle.Player
             hitCount = Physics.RaycastNonAlloc(PointerRay(), hits, maxRayDistance);
             Hovered = Closest<Interactable>();
 
-            if (Selected != null && Selected.IsDead) Select(null);
+            // Ölen ya da sefere çıkan (sahnede pasif) kazazedenin seçimi kalkar.
+            if (Selected != null && (Selected.IsDead || !Selected.isActiveAndEnabled)) Select(null);
             if (UIBlocker.IsPointerOver(GameInput.PointerPosition))
             {
                 Hovered = null;
@@ -71,9 +73,15 @@ namespace AftershockIsle.Player
                 return;
             }
 
+            if (ExpeditionSystem.Instance != null && ExpeditionSystem.Instance.IsInTransit(Selected))
+            {
+                EventBus.Publish(new TaskNotice(Selected, "Kapıdan geçiyor, emir veremezsin."));
+                return;
+            }
+
             if (Hovered != null)
             {
-                Selected.Tasks.Assign(Hovered, GameInput.QueueModifierHeld);
+                Hovered.HandleCommand(Selected, GameInput.QueueModifierHeld);
                 return;
             }
 

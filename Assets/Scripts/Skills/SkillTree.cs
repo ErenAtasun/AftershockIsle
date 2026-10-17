@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
+using AftershockIsle.Expedition;
 using AftershockIsle.Interaction;
 using UnityEngine;
 
@@ -74,7 +75,10 @@ namespace AftershockIsle.Skills
         {
             foreach (var survivor in Survivor.All)
                 if (!survivor.IsDead && survivor.Branch == branch) return true;
-            return false;
+
+            // Seferdeki kâşif sahnede pasiftir ama hâlâ takımdadır.
+            var away = ExpeditionSystem.AwayExplorer;
+            return away != null && away.Branch == branch;
         }
 
         public bool CanUnlock(SkillId id, out string reason)

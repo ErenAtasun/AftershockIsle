@@ -22,9 +22,24 @@ namespace AftershockIsle.Interaction
         [SerializeField] ResourceAmount yieldPerDig = new ResourceAmount(ResourceType.Scrap, 1);
         [SerializeField] bool blocksPath;
 
+        static readonly System.Collections.Generic.List<RubblePile> all = new System.Collections.Generic.List<RubblePile>();
+
         int remaining;
         Vector3 fullScale;
         float baseY;
+
+        public static System.Collections.Generic.IReadOnlyList<RubblePile> All => all;
+
+        public static int CountOnFloor(int floor)
+        {
+            int count = 0;
+            foreach (var pile in all)
+                if (pile.Floor == floor && pile.remaining > 0) count++;
+            return count;
+        }
+
+        void OnEnable() => all.Add(this);
+        void OnDisable() => all.Remove(this);
 
         public bool BlocksPath => blocksPath;
         public float HalfWidth => fullScale.x * 0.5f;

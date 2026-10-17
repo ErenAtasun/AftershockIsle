@@ -45,6 +45,7 @@ namespace AftershockIsle.Characters
         [SerializeField] float maxHealth = 100f;
 
         ResourceAmount carried;
+        readonly List<ResourceAmount> bag = new List<ResourceAmount>();
         MaterialPropertyBlock block;
         float trappedRemaining;
 
@@ -165,6 +166,23 @@ namespace AftershockIsle.Characters
             IsCarrying = true;
             RefreshCarry();
             return true;
+        }
+
+        /// <summary>Dış seferden dönerken taşınan çanta. Eldeki tek slottan ayrıdır; sandıkta tek hamlede boşalır.</summary>
+        public IReadOnlyList<ResourceAmount> ExpeditionBag => bag;
+        public bool HasBag => bag.Count > 0;
+
+        public void FillBag(IEnumerable<ResourceAmount> items)
+        {
+            bag.Clear();
+            bag.AddRange(items);
+        }
+
+        public List<ResourceAmount> EmptyBag()
+        {
+            var items = new List<ResourceAmount>(bag);
+            bag.Clear();
+            return items;
         }
 
         public bool TryTakeCarried(out ResourceAmount item)

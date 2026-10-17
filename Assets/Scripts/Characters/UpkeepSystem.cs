@@ -1,5 +1,6 @@
 using AftershockIsle.Core;
 using AftershockIsle.Economy;
+using AftershockIsle.Expedition;
 using UnityEngine;
 
 namespace AftershockIsle.Characters
@@ -43,7 +44,12 @@ namespace AftershockIsle.Characters
             int hungry = 0;
 
             // Liste kopyası: açlıktan ölüm SurvivorDied olayını tetikleyip listeyi değiştirebilir.
-            foreach (var survivor in new System.Collections.Generic.List<Survivor>(Survivor.All))
+            // Seferdeki kâşif sahnede pasiftir (Survivor.All'da yok) ama sığınağın stoğundan yemeye devam eder.
+            var eaters = new System.Collections.Generic.List<Survivor>(Survivor.All);
+            var away = ExpeditionSystem.AwayExplorer;
+            if (away != null) eaters.Add(away);
+
+            foreach (var survivor in eaters)
             {
                 if (survivor.IsDead) continue;
 

@@ -52,6 +52,28 @@ namespace AftershockIsle.Economy
             return true;
         }
 
+        public bool HasAll(ResourceAmount[] costs)
+        {
+            foreach (var cost in costs)
+                if (!Has(cost)) return false;
+            return true;
+        }
+
+        /// <summary>Hepsi karşılanıyorsa hepsini birden harcar; biri eksikse hiçbirini harcamaz.</summary>
+        public bool TrySpendAll(ResourceAmount[] costs)
+        {
+            if (!HasAll(costs)) return false;
+            foreach (var cost in costs) Change(cost.type, -cost.amount);
+            return true;
+        }
+
+        public static string FormatCosts(ResourceAmount[] costs)
+        {
+            var parts = new string[costs.Length];
+            for (int i = 0; i < costs.Length; i++) parts[i] = costs[i].ToString();
+            return string.Join(", ", parts);
+        }
+
         public void Add(ResourceAmount amount)
         {
             if (amount.type.IsStorable()) Change(amount.type, amount.amount);

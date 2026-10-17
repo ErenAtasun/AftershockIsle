@@ -28,6 +28,30 @@ namespace AftershockIsle.Crisis
             }
         }
 
+        [Tooltip("Takvimin son gününden sonra afetler tekrar eden bir düzenle devam eder")]
+        public bool continueAfterLastDay = true;
+
+        public int LastScheduledDay
+        {
+            get
+            {
+                int last = 0;
+                foreach (var entry in entries) last = Mathf.Max(last, entry.day);
+                return last;
+            }
+        }
+
+        /// <summary>
+        /// Takvim bittikten sonraki günler için sonsuz düzen: her gün sabah ve gece birer sarsıntı;
+        /// çift günlerde boru patlaması, tek günlerde yangın.
+        /// </summary>
+        public static Entry[] EndlessEntries(int day) => new[]
+        {
+            new Entry(day, DayPhase.Morning, 35f, DisasterType.Aftershock),
+            new Entry(day, DayPhase.Morning, day % 2 == 0 ? 10f : 15f, day % 2 == 0 ? DisasterType.PipeBurst : DisasterType.Fire),
+            new Entry(day, DayPhase.Night, 10f, DisasterType.Aftershock),
+        };
+
         // Varsayılan takvim: 1. gün öğretici (sadece çatlak kolon ve moloz), ilk deprem 2. gece,
         // ilk boru patlaması 3. sabah, ilk yangın 5. sabah, 6. gün su ve deprem birlikte.
         public Entry[] entries =

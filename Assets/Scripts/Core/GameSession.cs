@@ -1,5 +1,6 @@
 using AftershockIsle.Building;
 using AftershockIsle.Characters;
+using AftershockIsle.Expedition;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -46,7 +47,8 @@ namespace AftershockIsle.Core
 
         void OnSurvivorDied(SurvivorDied evt)
         {
-            if (Survivor.AliveCount == 0) End(GameOutcome.Defeat, "Sığınaktaki tüm kazazedeler öldü.");
+            if (Survivor.AliveCount + ExpeditionSystem.AwayCount == 0)
+                End(GameOutcome.Defeat, "Sığınaktaki tüm kazazedeler öldü.");
         }
 
         void Update()

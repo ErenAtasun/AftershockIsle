@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using AftershockIsle.Building;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
+using AftershockIsle.Crafting;
 using AftershockIsle.Interaction;
 using UnityEngine;
 
@@ -83,7 +84,9 @@ namespace AftershockIsle.Crisis
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
 
-            if (IsPipeBurst) Level = Mathf.Min(100f, Level + fillPerSecond * dt);
+            // Bypass vanası kuruluysa patlak borunun suyu bina dışına gider.
+            if (IsPipeBurst && !Workbench.Has(RecipeId.BypassValve))
+                Level = Mathf.Min(100f, Level + fillPerSecond * dt);
 
             UpdateIntegrityDrain();
             UpdateFoundation(dt);

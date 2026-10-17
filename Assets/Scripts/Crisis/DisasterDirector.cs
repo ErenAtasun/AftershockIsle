@@ -4,13 +4,19 @@ using UnityEngine;
 
 namespace AftershockIsle.Crisis
 {
-    /// <summary>DisasterSchedule'daki afetleri gün döngüsüne göre zamanı gelince tetikler.</summary>
+    /// <summary>
+    /// DisasterSchedule'daki afetleri gün döngüsüne göre zamanı gelince tetikler.
+    /// Takvim bittikten sonra (varsa) sonsuz düzen devreye girer.
+    /// </summary>
     public class DisasterDirector : MonoBehaviour
     {
         [SerializeField] DisasterSchedule schedule;
         [SerializeField] DayCycle dayCycle;
 
         readonly HashSet<int> fired = new HashSet<int>();
+        readonly HashSet<int> firedEndless = new HashSet<int>();
+        int endlessDay;
+        DisasterSchedule.Entry[] endlessToday;
 
         void Awake()
         {
@@ -23,15 +29,35 @@ namespace AftershockIsle.Crisis
             for (int i = 0; i < schedule.entries.Length; i++)
             {
                 if (fired.Contains(i)) continue;
-
-                var entry = schedule.entries[i];
-                if (entry.day != dayCycle.Day || entry.phase != dayCycle.Phase || dayCycle.PhaseElapsed < entry.atSecond)
-                    continue;
+                if (!IsDue(schedule.entries[i])) continue;
 
                 // Önceki afet sürüyorsa kaydı tüketme; bir sonraki karede tekrar dener.
-                if (Fire(entry.type)) fired.Add(i);
+                if (Fire(schedule.entries[i].type)) fired.Add(i);
+            }
+
+            UpdateEndless();
+        }
+
+        void UpdateEndless()
+        {
+            if (!schedule.continueAfterLastDay || dayCycle.Day <= schedule.LastScheduledDay) return;
+
+            if (endlessDay != dayCycle.Day)
+            {
+                endlessDay = dayCycle.Day;
+                endlessToday = DisasterSchedule.EndlessEntries(endlessDay);
+                firedEndless.Clear();
+            }
+
+            for (int i = 0; i < endlessToday.Length; i++)
+            {
+                if (firedEndless.Contains(i) || !IsDue(endlessToday[i])) continue;
+                if (Fire(endlessToday[i].type)) firedEndless.Add(i);
             }
         }
+
+        bool IsDue(DisasterSchedule.Entry entry) =>
+            entry.day == dayCycle.Day && entry.phase == dayCycle.Phase && dayCycle.PhaseElapsed >= entry.atSecond;
 
         public static bool Fire(DisasterType type) => type switch
         {

@@ -1,5 +1,6 @@
 using AftershockIsle.Building;
 using AftershockIsle.Core;
+using AftershockIsle.Expedition;
 using AftershockIsle.Skills;
 using UnityEngine;
 
@@ -21,7 +22,7 @@ namespace AftershockIsle.Characters
 
         public static SurvivorRoster Instance { get; private set; }
         public int MaxPopulation => maxPopulation;
-        public bool IsFull => Survivor.AliveCount >= maxPopulation;
+        public bool IsFull => Survivor.AliveCount + ExpeditionSystem.AwayCount >= maxPopulation;
 
         void Awake()
         {

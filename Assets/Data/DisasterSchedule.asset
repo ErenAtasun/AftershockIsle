@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 470acccd05290e34797aaef7f909525c, type: 3}
   m_Name: DisasterSchedule
   m_EditorClassIdentifier: Assembly-CSharp::AftershockIsle.Crisis.DisasterSchedule
+  continueAfterLastDay: 1
   entries:
   - day: 2
     phase: 2

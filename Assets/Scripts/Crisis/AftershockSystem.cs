@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using AftershockIsle.Building;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
+using AftershockIsle.Crafting;
 using AftershockIsle.Interaction;
 using AftershockIsle.Skills;
 using UnityEngine;
@@ -159,7 +160,7 @@ namespace AftershockIsle.Crisis
             if (FloodSystem.Instance != null && Random.value < pipeBurstChance)
                 FloodSystem.Instance.TryBurstPipe();
 
-            if (PowerGrid.IsOn && Random.value < sparkFireChance)
+            if (PowerGrid.IsOn && !Workbench.Has(RecipeId.LightningRod) && Random.value < sparkFireChance)
                 FireSpot.TryIgniteRandom();
         }
 

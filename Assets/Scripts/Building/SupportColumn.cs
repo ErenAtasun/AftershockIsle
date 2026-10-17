@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
+using AftershockIsle.Crafting;
 using AftershockIsle.Economy;
 using AftershockIsle.Interaction;
 using AftershockIsle.Skills;
@@ -46,6 +47,7 @@ namespace AftershockIsle.Building
         [SerializeField] ColumnState state = ColumnState.Intact;
         [SerializeField] ResourceAmount supportCost = new ResourceAmount(ResourceType.Scrap, 2);
         [SerializeField] ResourceAmount rebuildCost = new ResourceAmount(ResourceType.Scrap, 4);
+        [SerializeField] float reinforceDuration = 6f;
         [SerializeField] Renderer body;
 
         MaterialPropertyBlock block;
@@ -57,13 +59,26 @@ namespace AftershockIsle.Building
         public bool NeedsRepair => state == ColumnState.Cracked || state == ColumnState.Broken;
         ResourceAmount RepairCost => state == ColumnState.Broken ? rebuildCost : supportCost;
 
-        public override string ActionLabel => state == ColumnState.Broken ? "Yeniden Dik" : "Destekle";
+        /// <summary>Stokta çelik kiriş varken kırık olmayan her kolon çelikle güçlendirilebilir (önceliklidir).</summary>
+        bool WillReinforce => state != ColumnState.Broken && state != ColumnState.Reinforced &&
+                              Workbench.Instance != null && Workbench.Instance.SteelBeams > 0;
+
+        public override string ActionLabel => WillReinforce ? "Çelikle Güçlendir"
+            : state == ColumnState.Broken ? "Yeniden Dik" : "Destekle";
         public override WorkCategory Category => WorkCategory.Repair;
-        public override string StatusText => NeedsRepair
-            ? $"Durum: {state.ToDisplayName()}  — {ActionLabel.ToLowerInvariant()}: {RepairCost}"
-            : state == ColumnState.Supported
-                ? $"Durum: {state.ToDisplayName()} ({supportHitsRemaining} sarsıntı daha dayanır)"
-                : $"Durum: {state.ToDisplayName()}";
+        public override float WorkDuration => WillReinforce ? reinforceDuration : base.WorkDuration;
+        public override string StatusText
+        {
+            get
+            {
+                string text = state == ColumnState.Supported
+                    ? $"Durum: {state.ToDisplayName()} ({supportHitsRemaining} sarsıntı daha dayanır)"
+                    : $"Durum: {state.ToDisplayName()}";
+                if (WillReinforce) return $"{text}  — çelikle güçlendir: 1 çelik kiriş (stok {Workbench.Instance.SteelBeams})";
+                if (NeedsRepair) return $"{text}  — {ActionLabel.ToLowerInvariant()}: {RepairCost}";
+                return text;
+            }
+        }
 
         protected override void Awake()
         {
@@ -84,9 +99,15 @@ namespace AftershockIsle.Building
 
         public override bool CanStart(Survivor worker, out string reason)
         {
+            if (WillReinforce)
+            {
+                reason = null;
+                return true;
+            }
+
             if (!NeedsRepair)
             {
-                reason = "Kolonun desteğe ihtiyacı yok.";
+                reason = state == ColumnState.Reinforced ? "Kolon zaten çelikle güçlendirilmiş." : "Kolonun desteğe ihtiyacı yok.";
                 return false;
             }
 
@@ -100,10 +121,16 @@ namespace AftershockIsle.Building
             return true;
         }
 
-        public override bool CanContinue(Survivor worker) => NeedsRepair;
+        public override bool CanContinue(Survivor worker) => WillReinforce || NeedsRepair;
 
         public override void Complete(Survivor worker)
         {
+            if (WillReinforce)
+            {
+                if (Workbench.Instance.TryUseSteelBeam()) SetState(ColumnState.Reinforced);
+                return;
+            }
+
             // Çalışma sırasında malzeme başka işe harcanmış olabilir.
             if (!ResourceStorage.Instance.TrySpend(RepairCost)) return;
             supportHitsRemaining = SkillTree.SupportDurability;

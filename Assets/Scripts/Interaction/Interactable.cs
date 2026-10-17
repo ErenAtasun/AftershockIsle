@@ -43,6 +43,9 @@ namespace AftershockIsle.Interaction
         /// <summary>Bu işten önce yapılması gereken iş (ör. yangından önce kova doldurmak). Yoksa null.</summary>
         public virtual Interactable RequiredBefore(Survivor worker) => null;
 
+        /// <summary>Oyuncu sağ tıkladığında. Varsayılan: işi karakterin kuyruğuna ekler; tezgah gibi nesneler menü açar.</summary>
+        public virtual void HandleCommand(Survivor worker, bool append) => worker.Tasks.Assign(this, append);
+
         protected virtual void Awake()
         {
             Building = FindFirstObjectByType<BuildingLayout>();

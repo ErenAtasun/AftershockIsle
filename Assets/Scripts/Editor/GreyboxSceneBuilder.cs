@@ -4,9 +4,12 @@ using AftershockIsle.Building;
 using AftershockIsle.CameraControl;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
+using AftershockIsle.Crafting;
 using AftershockIsle.Crisis;
+using AftershockIsle.Endgame;
 using AftershockIsle.DebugTools;
 using AftershockIsle.Economy;
+using AftershockIsle.Expedition;
 using AftershockIsle.Interaction;
 using AftershockIsle.Player;
 using AftershockIsle.Skills;
@@ -101,6 +104,20 @@ namespace AftershockIsle.EditorTools
             systems.AddComponent<SkillTree>();
             systems.AddComponent<UpkeepSystem>();
             systems.AddComponent<SkillTreeWindow>();
+
+            var expeditions = systems.AddComponent<ExpeditionSystem>();
+            SetRef(expeditions, "timeManager", timeManager);
+            SetRef(expeditions, "dayCycle", dayCycle);
+            systems.AddComponent<ExpeditionWindow>();
+            systems.AddComponent<WorkbenchWindow>();
+            systems.AddComponent<TutorialHints>();
+
+            var evacuation = systems.AddComponent<EvacuationSystem>();
+            var (helicopter, rotor) = CreateHelicopter(palette);
+            SetRef(evacuation, "session", session);
+            SetRef(evacuation, "helicopter", helicopter);
+            SetRef(evacuation, "rotor", rotor);
+            SetRef(evacuation, "landingPoint", building.transform.Find("Props/İniş Noktası"));
             systems.AddComponent<DebugCheats>();
 
             var survivorPrefab = CreateSurvivorPrefab(palette);
@@ -215,9 +232,10 @@ namespace AftershockIsle.EditorTools
             float doorTop = doorBottom + DoorHeight;
             WallSegment("Wall_R_Lower", geo, wallX, -SlabThickness, doorBottom, t, d, p.Concrete);
             WallSegment("Wall_R_Upper", geo, wallX, doorTop, wallTop, t, d, p.Concrete);
-            Box("Dış Çıkış Kapısı", geo,
+            var door = Box("Dış Çıkış Kapısı", geo,
                 new Vector3(wallX, (doorBottom + doorTop) * 0.5f, 0f),
                 new Vector3(t * 0.6f, DoorHeight, 1.4f), p.Exit);
+            Configure(door.AddComponent<ExitDoor>(), ("displayName", "Dış Çıkış Kapısı"), ("workDuration", 1f));
 
             // Zemin: bodrum yer altında, giriş katı sokak seviyesinde.
             float groundY = 1 * h;
@@ -321,9 +339,15 @@ namespace AftershockIsle.EditorTools
             Rubble("Yıkıntı (Kapı Önü)", props, new Vector3(7.7f, 1 * h, 0f), new Vector3(1.4f, 1.1f, 1.8f), p.Rubble, 5, true);
 
             // Kat 2: Yaşam / Tezgah
-            Prop("Çalışma Tezgahı", props, new Vector3(-1f, 2 * h + 0.5f, backZ - 0.6f), new Vector3(2.2f, 1f, 1f), p.Craft);
+            var bench = Box("Çalışma Tezgahı", props, new Vector3(-1f, 2 * h + 0.5f, backZ - 0.6f), new Vector3(2.2f, 1f, 1f), p.Craft);
+            Configure(bench.AddComponent<Workbench>(), ("displayName", "Çalışma Tezgahı"), ("workDuration", 5f));
             var chest = Box("Ortak Sandık", props, new Vector3(1.4f, 2 * h + 0.4f, backZ - 0.5f), new Vector3(1.2f, 0.8f, 0.8f), p.Storage);
             Configure(chest.AddComponent<StorageChest>(), ("displayName", "Ortak Sandık"), ("workDuration", 0.5f));
+            // İkinci Elektronik kaynağı: sefere çıkmadan da Kademe 3 yolu açık kalsın.
+            var computer = Box("Eski Bilgisayar", props, new Vector3(-3.3f, 2 * h + 0.45f, backZ - 0.5f), new Vector3(0.8f, 0.9f, 0.6f), p.Electric);
+            Configure(computer.AddComponent<Furniture>(), ("displayName", "Eski Bilgisayar"), ("workDuration", 5f),
+                ("providesShelter", false), ("salvage.type", (int)ResourceType.Electronics), ("salvage.amount", 1));
+
             FurnitureProp("Yataklar", props, new Vector3(4.6f, 2 * h + 0.25f, backZ - 0.6f), new Vector3(2f, 0.5f, 1f), p.Furniture);
             Rubble("Moloz", props, new Vector3(-4.6f, 2 * h, backZ - 0.9f), new Vector3(1f, 0.5f, 1f), p.Rubble, 2, false);
 
@@ -343,8 +367,30 @@ namespace AftershockIsle.EditorTools
             }
 
             // Kat 3: Çatı. Tahliye alanı yıkıntıyla kapalı; zafer için temizlenmesi gerekecek.
-            Prop("Telsiz İstasyonu", props, new Vector3(-3.5f, 3 * h + 0.7f, backZ - 0.6f), new Vector3(1.2f, 1.4f, 1f), p.Electric);
+            var radio = Box("Telsiz İstasyonu", props, new Vector3(-3.5f, 3 * h + 0.7f, backZ - 0.6f), new Vector3(1.2f, 1.4f, 1f), p.Electric);
+            var radioLight = Box("Telsiz Işığı", props, new Vector3(-3.5f, 3 * h + 1.55f, backZ - 0.6f), new Vector3(0.25f, 0.25f, 0.25f), p.Supplies);
+            Object.DestroyImmediate(radioLight.GetComponent<Collider>());
+            var radioComponent = radio.AddComponent<RadioStation>();
+            Configure(radioComponent, ("displayName", "Telsiz İstasyonu"));
+            SetRef(radioComponent, "statusLight", radioLight.GetComponent<Renderer>());
+
             Prop("Helikopter Tahliye Alanı", props, new Vector3(4.5f, 3 * h + 0.03f, 0f), new Vector3(5f, 0.05f, 3f), p.Helipad);
+            var landing = new GameObject("İniş Noktası").transform;
+            landing.SetParent(props, false);
+            landing.localPosition = new Vector3(4.5f, 3 * h + 0.75f, 0f);
+
+            // Üretilene kadar gizli kalan kurulumlar.
+            var electricPump = Box("Elektrikli Pompa", props, new Vector3(-1.6f, 0 * h + 0.5f, backZ - 0.5f), new Vector3(0.9f, 1f, 0.8f), p.Metal);
+            Configure(electricPump.AddComponent<InstallableVisual>(), ("recipe", (int)RecipeId.ElectricPump));
+            Configure(electricPump.AddComponent<ElectricPump>(), ("displayName", "Elektrikli Pompa"), ("workDuration", 5f));
+
+            var valve = Box("Bypass Vanası", props, new Vector3(1.4f, 0 * h + 2.7f, backZ - 0.3f), new Vector3(0.35f, 0.45f, 0.45f), p.Exit);
+            Object.DestroyImmediate(valve.GetComponent<Collider>());
+            Configure(valve.AddComponent<InstallableVisual>(), ("recipe", (int)RecipeId.BypassValve));
+
+            var rod = Box("Paratoner", props, new Vector3(-7.5f, 3 * h + 1.5f, backZ - 0.3f), new Vector3(0.1f, 3f, 0.1f), p.Metal);
+            Object.DestroyImmediate(rod.GetComponent<Collider>());
+            Configure(rod.AddComponent<InstallableVisual>(), ("recipe", (int)RecipeId.LightningRod));
             Rubble("Çatı Yıkıntısı", props, new Vector3(1.2f, 3 * h, 0f), new Vector3(1.4f, 1f, 1.8f), p.Rubble, 4, true);
             Rubble("Moloz", props, new Vector3(5f, 3 * h, 0.6f), new Vector3(1.2f, 0.6f, 1.2f), p.Rubble, 3, false);
         }
@@ -419,6 +465,16 @@ namespace AftershockIsle.EditorTools
             var go = Box(name, parent, floorBase + Vector3.up * (size.y * 0.5f), size, material);
             Configure(go.AddComponent<RubblePile>(),
                 ("displayName", name), ("workDuration", 5f), ("digCount", digs), ("blocksPath", blocksPath));
+        }
+
+        static (Transform helicopter, Transform rotor) CreateHelicopter(Palette p)
+        {
+            var root = new GameObject("Tahliye Helikopteri").transform;
+            var body = Box("Gövde", root, Vector3.zero, new Vector3(3.6f, 1.3f, 1.8f), p.Helicopter);
+            var tail = Box("Kuyruk", root, new Vector3(-2.8f, 0.3f, 0f), new Vector3(2.4f, 0.35f, 0.35f), p.Helicopter);
+            var rotor = Box("Rotor", root, new Vector3(0f, 0.85f, 0f), new Vector3(6.5f, 0.06f, 0.35f), p.Visor);
+            foreach (var part in new[] { body, tail, rotor }) Object.DestroyImmediate(part.GetComponent<Collider>());
+            return (root, rotor.transform);
         }
 
         /// <summary>Kırılan kolonun önüne düşen enkaz. Kolon yeniden dikilmeden önce kazılmalı.</summary>
@@ -586,6 +642,7 @@ namespace AftershockIsle.EditorTools
             public readonly Material Glass = MakeTransparent(Get("Glass", new Color(0.7f, 0.85f, 0.95f, 0.45f)));
             public readonly Material WindowFrame = Get("WindowFrame", new Color(0.2f, 0.2f, 0.22f));
             public readonly Material Supplies = Get("Supplies", new Color(0.9f, 0.9f, 0.88f));
+            public readonly Material Helicopter = Get("Helicopter", new Color(0.25f, 0.35f, 0.22f));
 
             // URP Lit'i saydam yüzeye çevirir (Inspector'daki Surface Type: Transparent ile aynı).
             static Material MakeTransparent(Material mat)

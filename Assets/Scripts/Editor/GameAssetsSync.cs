@@ -47,7 +47,7 @@ namespace AftershockIsle.EditorTools
                 if (assets == null || assets.characters == null || assets.characters.prefab == null ||
                     assets.characters.guns == null || assets.characters.guns.Length == 0 ||
                     !AssetDatabase.GetAssetPath(assets.characters.prefab).Replace('\\', '/').Contains("Basic Shooter Pack") ||
-                    assets.ui == null || assets.ui.mainMenuBackground == null)
+                    assets.ui == null || assets.ui.mainMenuBackground == null || assets.ui.worldBackground == null)
                 {
                     Schedule();
                 }
@@ -91,6 +91,8 @@ namespace AftershockIsle.EditorTools
 
             EditorUtility.SetDirty(assets);
             AssetDatabase.SaveAssets();
+            if (AftershockIsle.Building.ModelManager.Instance != null)
+                AftershockIsle.Building.ModelManager.Instance.RefreshAll();
             Debug.Log("[Varlıklar] GameAssets güncellendi: karakter, saha modelleri ve arayüz görselleri. Sahneyi yeniden kurmak gerekmez.");
             return assets;
         }
@@ -129,13 +131,19 @@ namespace AftershockIsle.EditorTools
                 string file = Path.GetFileNameWithoutExtension(path);
                 string lowerFile = file.ToLowerInvariant();
 
-                if (path.Contains("/UI/") || lowerFile.Contains("anabanner") || lowerFile.Contains("anasayfa") || lowerFile.Contains("mainmenu"))
+                if (path.Contains("/UI/") || lowerFile.Contains("anabanner") || lowerFile.Contains("anasayfa") ||
+                    lowerFile.Contains("mainmenu") || lowerFile.Contains("arkaplan") || lowerFile.Contains("background"))
                 {
                     EnsureSpriteImport(path);
                     var bannerSprite = AssetDatabase.LoadAssetAtPath<Sprite>(path)
                                        ?? AssetDatabase.LoadAllAssetsAtPath(path).OfType<Sprite>().FirstOrDefault();
                     if (bannerSprite != null)
-                        skin.mainMenuBackground = bannerSprite;
+                    {
+                        if (lowerFile.Contains("arkaplan") || lowerFile.Contains("background") || lowerFile.Contains("backdrop"))
+                            skin.worldBackground = bannerSprite;
+                        else
+                            skin.mainMenuBackground = bannerSprite;
+                    }
                     continue;
                 }
 
@@ -155,6 +163,11 @@ namespace AftershockIsle.EditorTools
                     default: typeof(UiSkin).GetField(slot).SetValue(skin, sprites[0]); break;
                 }
             }
+
+            if (skin.worldBackground == null && skin.mainMenuBackground != null)
+                skin.worldBackground = skin.mainMenuBackground;
+            if (skin.mainMenuBackground == null && skin.worldBackground != null)
+                skin.mainMenuBackground = skin.worldBackground;
 
             EditorUtility.SetDirty(skin);
             return skin;

@@ -37,7 +37,7 @@ namespace AftershockIsle.Building
         [Tooltip("İşaretliyken sahnedeki eski kutu eşyaları ve mavi bodrum suyu küpünü gizler (2. resimdeki temiz bina görünümü için)")]
         [SerializeField] bool hideGreyboxProps = true;
         [Tooltip("Pencerelerin arkasına 2. resimdeki gibi kirli sarı/kehribar buğulu cam arka planı ekler")]
-        [SerializeField] bool addWarmWindowBacking = true;
+        [SerializeField] bool addWarmWindowBacking;
 
         [Header("2. Çukur Kalasları (Tahtalar)")]
         [Tooltip("Buraya tahtalar.fbx modelini bırakabilirsin")]
@@ -89,6 +89,7 @@ namespace AftershockIsle.Building
 
             runtimeMaterials.Clear();
             ApplyBuilding();
+            ApplyWorldBackdrop();
             ApplyFloorPlanks();
             ApplyWorkbench();
             ApplyWaterTank();
@@ -107,10 +108,18 @@ namespace AftershockIsle.Building
             if (geo != null)
             {
                 bool showGreybox = !useCustom || !hideGreyboxWalls;
+                float earthDepth = building.Depth + 2f * building.WallThickness;
                 foreach (var renderer in geo.GetComponentsInChildren<Renderer>(true))
                 {
                     if (renderer == null) continue;
                     renderer.enabled = showGreybox;
+                    if (renderer.name.StartsWith("Earth_"))
+                    {
+                        var lp = renderer.transform.localPosition;
+                        var ls = renderer.transform.localScale;
+                        renderer.transform.localPosition = new Vector3(lp.x, lp.y, 0f);
+                        renderer.transform.localScale = new Vector3(ls.x, ls.y, earthDepth);
+                    }
                 }
             }
 
@@ -139,8 +148,86 @@ namespace AftershockIsle.Building
             instance.transform.localRotation = Quaternion.identity;
             instance.transform.localScale = Vector3.one;
 
-            CleanBuildingInstance(instance, addWarmWindowBacking);
+            bool hasWorldBg = AftershockIsle.Core.GameAssets.Ui != null &&
+                              (AftershockIsle.Core.GameAssets.Ui.worldBackground != null || AftershockIsle.Core.GameAssets.Ui.mainMenuBackground != null);
+            CleanBuildingInstance(instance, addWarmWindowBacking && !hasWorldBg);
             FixBuildingMaterials(instance);
+        }
+
+        /// <summary>
+        /// Binanın hemen arkasına, binayla birebir aynı zemin/kat seviyesinde sabit duran şehir silüetini yerleştirir.
+        /// Kamera hareket ettiğinde arka plan hareket etmez; arkada gerçek binalar duruyormuş gibi sabit kalır.
+        /// </summary>
+        void ApplyWorldBackdrop()
+        {
+            const string BackdropName = "WorldBackdrop";
+            var oldCam = Camera.main != null ? Camera.main.transform.Find("Genel Arka Plan") : null;
+            if (oldCam != null) DestroySafe(oldCam.gameObject);
+
+            var existing = building.transform.Find(BackdropName);
+            if (existing != null) DestroySafe(existing.gameObject);
+
+            var skin = AftershockIsle.Core.GameAssets.Ui;
+            Sprite bg = skin != null ? (skin.worldBackground != null ? skin.worldBackground : skin.mainMenuBackground) : null;
+            if (bg == null) return;
+
+            if (Camera.main != null)
+                Camera.main.backgroundColor = new Color(0.553f, 0.620f, 0.667f, 1f);
+
+            var root = new GameObject(BackdropName).transform;
+            root.SetParent(building.transform, false);
+            root.localPosition = Vector3.zero;
+            root.localRotation = Quaternion.identity;
+            root.localScale = Vector3.one;
+
+            float backZ = building.Depth * 0.5f + building.WallThickness + 0.65f;
+            const float bottomY = 0f;
+            const float worldHeight = 24f;
+
+            Vector2 spriteSize = bg.bounds.size;
+            float spriteW = Mathf.Max(0.01f, spriteSize.x);
+            float spriteH = Mathf.Max(0.01f, spriteSize.y);
+            float scale = worldHeight / spriteH;
+            float panelWidth = spriteW * scale;
+            float centerY = bottomY + worldHeight * 0.5f;
+
+            // Ortada ana panel, sağ ve solda aynalanmış devam panelleri: kamera nereye kayarsa kaysın kesintisiz şehir silüeti.
+            for (int side = -1; side <= 1; side++)
+            {
+                var panel = new GameObject($"CityPanel_{side}").AddComponent<SpriteRenderer>();
+                panel.transform.SetParent(root, false);
+                panel.transform.localPosition = new Vector3(side * (panelWidth - 0.05f), centerY, backZ);
+                panel.transform.localRotation = Quaternion.identity;
+                panel.transform.localScale = new Vector3(scale, scale, 1f);
+                panel.sprite = bg;
+                panel.flipX = side != 0;
+                panel.sortingOrder = -30000;
+                panel.shadowCastingMode = ShadowCastingMode.Off;
+                panel.receiveShadows = false;
+            }
+
+            // Bodrum katının altında kalan zemin kuşağı (arka planın alt koyu silüet rengiyle bütünleşir).
+            var skirt = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            skirt.name = "UndergroundSkirt";
+            skirt.transform.SetParent(root, false);
+            const float skirtHeight = 24f;
+            skirt.transform.localPosition = new Vector3(0f, bottomY - skirtHeight * 0.5f + 0.1f, backZ + 0.02f);
+            skirt.transform.localRotation = Quaternion.identity;
+            skirt.transform.localScale = new Vector3(panelWidth * 3f, skirtHeight, 1f);
+            var col = skirt.GetComponent<Collider>();
+            if (col != null) DestroySafe(col);
+            var r = skirt.GetComponent<Renderer>();
+            if (r != null)
+            {
+                var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color") ?? Shader.Find("Sprites/Default");
+                var mat = new Material(shader) { name = "Backdrop_Underground_Unlit" };
+                Color darkGround = new Color(0.18f, 0.21f, 0.24f, 1f);
+                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", darkGround);
+                if (mat.HasProperty("_Color")) mat.SetColor("_Color", darkGround);
+                r.sharedMaterial = mat;
+                r.shadowCastingMode = ShadowCastingMode.Off;
+                r.receiveShadows = false;
+            }
         }
 
         /// <summary>

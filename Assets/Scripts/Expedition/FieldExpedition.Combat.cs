@@ -146,12 +146,14 @@ namespace AftershockIsle.Expedition
             var next = FieldWeapons.Next(weapon);
             if (next == weapon)
             {
+                AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.EmptyClick, 0.65f);
                 Say("Başka silah yok: tezgahta tabanca, pompalı veya tüfek üret.");
                 return;
             }
             weapon = next;
             RefreshAvatarWeapon();
             ViewFor(avatarRenderer)?.PlayReload();
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.Reload, 0.75f);
             Say($"Silah: {CurrentWeapon.Name}");
         }
 
@@ -170,6 +172,7 @@ namespace AftershockIsle.Expedition
                 bool freeShot = sharpshooter && Workbench.Instance != null && Workbench.Instance.Ammo > 0 && Random.value < 0.25f;
                 if (!freeShot && (Workbench.Instance == null || !Workbench.Instance.TryUseAmmo()))
                 {
+                    AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.EmptyClick, 0.85f);
                     Say("Mermi yok! Tezgahta Mermi Paketi üret ya da sapana geç.");
                     fireCooldown = 0.3f;
                     return;
@@ -178,6 +181,7 @@ namespace AftershockIsle.Expedition
 
             fireCooldown = info.Interval;
             ViewFor(avatarRenderer)?.PlayFire();
+            AftershockIsle.Effects.SoundManager.PlayWeaponFire(weapon, 0.9f);
             var from = Muzzle;
             float dmgMultiplier = sharpshooter ? 1.25f : 1f;
 
@@ -204,7 +208,11 @@ namespace AftershockIsle.Expedition
             // Vuruş hissi: geri tepme sarsıntısı ve titreşim; isabette kısa duraklama, öldürmede daha uzun.
             SideViewCamera.Kick(0.05f + info.Recoil * 0.15f, 0.12f);
             GameInput.Rumble(info.Recoil * 0.6f, 0.2f + info.Recoil * 0.4f, 0.08f + info.Recoil * 0.1f);
-            if (pelletHits.Count > 0) TimeManager.HitStop(killed ? 0.09f : 0.035f + info.Recoil * 0.03f);
+            if (pelletHits.Count > 0)
+            {
+                AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.BulletHit, 0.75f);
+                TimeManager.HitStop(killed ? 0.09f : 0.035f + info.Recoil * 0.03f);
+            }
 
             if (info.Noise > 0f) MakeNoise(AvatarFeet, info.Noise);
         }

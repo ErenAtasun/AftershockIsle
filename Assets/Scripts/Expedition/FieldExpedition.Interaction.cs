@@ -171,6 +171,7 @@ namespace AftershockIsle.Expedition
             float amount = explorer.Branch == SkillBranch.Engineering ? HealAmount * 1.5f : HealAmount;
             explorer.Heal(amount);
             healCooldown = HealCooldown;
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.CraftSuccess, 0.65f);
             Float($"+{amount:0}", avatar.position + Vector3.up * 1.6f, new Color(0.5f, 1f, 0.5f));
         }
 
@@ -190,6 +191,7 @@ namespace AftershockIsle.Expedition
             Tint(avatarRenderer, Color.white);
             flashAvatar = 0.12f;
             ViewFor(avatarRenderer)?.PlayHit();
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.PlayerHurt, 0.9f);
         }
 
         float hurtFlash;

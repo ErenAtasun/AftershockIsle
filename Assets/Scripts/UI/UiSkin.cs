@@ -12,6 +12,7 @@ namespace AftershockIsle.UI
     {
         [Header("Paneller ve yazılar")]
         public Sprite mainMenuBackground;
+        public Sprite worldBackground;
         public Sprite settingsPanel;
         public Sprite pausedTitle;
 

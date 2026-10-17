@@ -175,10 +175,12 @@ namespace AftershockIsle.Expedition
             var aim = hits ? target.AimPoint : target.AimPoint + new Vector3(Random.Range(-0.8f, 0.8f), 0.2f, Random.Range(-0.8f, 0.8f));
             var direction = (aim - from).normalized;
             ShowTracer(from, direction, Vector3.Distance(from, aim), new Color(0.6f, 0.9f, 1f));
+            AftershockIsle.Effects.SoundManager.PlayWeaponFire(WeaponKind.Smg, 0.55f);
             MakeNoise(from, noise);
 
             if (!hits) return;
             target.TakeHit(damage, shooter.Position);
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.BulletHit, 0.5f);
             Float($"-{damage:0}", target.AimPoint + Vector3.up * 0.6f, new Color(0.6f, 0.9f, 1f));
         }
 
@@ -198,6 +200,7 @@ namespace AftershockIsle.Expedition
 
             companion.Survivor.TakeDamage(amount, cause);
             companion.Hurt();
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.PlayerHurt, 0.7f);
             Float($"-{amount:0}", companion.LabelPoint, new Color(1f, 0.35f, 0.3f));
             Say(companion.IsDead ? $"{companion.Survivor.DisplayName} öldü!" : $"{companion.Survivor.DisplayName} yaralandı.");
         }
@@ -232,6 +235,7 @@ namespace AftershockIsle.Expedition
 
         public void EnemyShoot(FieldEnemy enemy, Vector3 from, Vector3 direction, float range, float damage)
         {
+            AftershockIsle.Effects.SoundManager.PlayWeaponFire(WeaponKind.AssaultRifle, 0.7f);
             float length = range;
             bool blocked = Physics.Raycast(from, direction, out var hit, range, ~0, QueryTriggerInteraction.Ignore);
             if (blocked) length = hit.distance;

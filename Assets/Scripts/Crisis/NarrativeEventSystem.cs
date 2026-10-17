@@ -189,6 +189,7 @@ namespace AftershockIsle.Crisis
             var storage = ResourceStorage.Instance;
             if (storage == null) return;
 
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.DoorKnock, 0.9f);
             var encounter = new ActiveEncounter();
 
             switch (encounterIndex)

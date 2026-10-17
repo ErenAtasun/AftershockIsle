@@ -38,6 +38,7 @@ namespace AftershockIsle.Expedition
             wall.localScale = new Vector3(0.6f, 3f, FieldDepth + 2f);
 
             BuildBounds(length, midZ);
+            BuildStreetBackdrop(length);
 
             exitPoint = new Vector3(originX + 0.6f, groundY, midZ);
             BuildExit(midZ);
@@ -50,6 +51,37 @@ namespace AftershockIsle.Expedition
             BuildEnemies(length);
             BuildAvatar(midZ);
             BuildCompanion();
+        }
+
+        void BuildStreetBackdrop(float length)
+        {
+            var skin = AftershockIsle.Core.GameAssets.Ui;
+            Sprite bg = skin != null ? (skin.worldBackground != null ? skin.worldBackground : skin.mainMenuBackground) : null;
+            if (bg == null) return;
+
+            const float worldHeight = 22f;
+            Vector2 spriteSize = bg.bounds.size;
+            float spriteW = Mathf.Max(0.01f, spriteSize.x);
+            float spriteH = Mathf.Max(0.01f, spriteSize.y);
+            float scale = worldHeight / spriteH;
+            float panelWidth = spriteW * scale;
+            float centerY = groundY - 0.5f + worldHeight * 0.5f;
+            float backZ = maxZ + 3.2f;
+            float centerX = originX + length * 0.5f;
+
+            for (int side = -1; side <= 1; side++)
+            {
+                var panel = new GameObject($"Saha Arka Plan_{side}").AddComponent<SpriteRenderer>();
+                panel.transform.SetParent(root.transform, false);
+                panel.transform.position = new Vector3(centerX + side * (panelWidth - 0.05f), centerY, backZ);
+                panel.transform.rotation = Quaternion.identity;
+                panel.transform.localScale = new Vector3(scale, scale, 1f);
+                panel.sprite = bg;
+                panel.flipX = side != 0;
+                panel.sortingOrder = -30000;
+                panel.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                panel.receiveShadows = false;
+            }
         }
 
         // Görünmez sınırlar: ön kaldırım, arka harabeler ve çıkışın gerisi.

@@ -92,9 +92,15 @@ namespace AftershockIsle.CameraControl
         void Awake()
         {
             if (building == null) building = FindFirstObjectByType<BuildingLayout>();
-            GetComponent<Camera>().fieldOfView = fieldOfView;
+            var cam = GetComponent<Camera>();
+            cam.fieldOfView = fieldOfView;
+            cam.backgroundColor = new Color(0.553f, 0.620f, 0.667f, 1f);
             pitch = GameSettings.CameraPitch;
             transform.rotation = Quaternion.Euler(pitch, 0f, 0f);
+
+            // Eski kameraya bağlı arka plan objesi kalmışsa temizle (arka plan artık binanın arkasında sabit durur).
+            var oldCamBg = transform.Find("Genel Arka Plan");
+            if (oldCamBg != null) Destroy(oldCamBg.gameObject);
 
             fieldFocus = null;
             viewField = false;

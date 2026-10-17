@@ -19,6 +19,8 @@ namespace AftershockIsle.Characters
             public int Floor;
             public Vector2 Center;
             public Vector2 Half;
+            // Yol bulma bunu yok sayar (kapı aralığı); yalnızca doğrudan yürüyüşü durdurur.
+            public bool RouteThrough;
         }
 
         const float RefreshSeconds = 0.5f;
@@ -72,7 +74,7 @@ namespace AftershockIsle.Characters
         {
             foreach (var footprint in footprints)
             {
-                if (footprint.Floor != floor) continue;
+                if (footprint.Floor != floor || footprint.RouteThrough) continue;
 
                 var offset = point - footprint.Center;
                 var closest = new Vector2(
@@ -170,6 +172,19 @@ namespace AftershockIsle.Characters
                 });
             }
 
+            // Bina modelinin duvarları, döşeme delikleri ve kapalı kapılar.
+            foreach (var blocker in WalkBlocker.All)
+            {
+                var bounds = blocker.WorldBounds;
+                footprints.Add(new Footprint
+                {
+                    Floor = building.FloorAtHeight(bounds.min.y + 0.05f),
+                    Center = new Vector2(bounds.center.x, bounds.center.z),
+                    Half = new Vector2(bounds.extents.x, bounds.extents.z),
+                    RouteThrough = blocker.PassableForRoutes,
+                });
+            }
+
             if (!SameAsPrevious()) version++;
         }
 
@@ -180,7 +195,7 @@ namespace AftershockIsle.Characters
             {
                 var a = footprints[i];
                 var b = previous[i];
-                if (a.Floor != b.Floor || (a.Center - b.Center).sqrMagnitude > 0.0001f || (a.Half - b.Half).sqrMagnitude > 0.0001f)
+                if (a.Floor != b.Floor || a.RouteThrough != b.RouteThrough || (a.Center - b.Center).sqrMagnitude > 0.0001f || (a.Half - b.Half).sqrMagnitude > 0.0001f)
                     return false;
             }
             return true;

@@ -77,7 +77,6 @@ namespace AftershockIsle.UI
         Text dayTitle;
         Text dayClock;
         Text daySub;
-        Image phaseFill;
         Image integrityFill;
         Text integrityLabel;
         Text warnings;
@@ -151,21 +150,91 @@ namespace AftershockIsle.UI
             UiFactory.Place(hint.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 6f), new Vector2(1400f, 24f));
         }
 
-        // Sol üst: tek satır gün/faz ve saat, altında hava (ve normal değilse hız), en altta ince faz çizgisi.
+        // Sol üst: kenarda dönen gece-gündüz çarkı, yanında gün sayısı ve fazın kalan süresi; altında küçük hava/sefer satırı.
         void BuildDay(Transform parent)
         {
-            var panel = UiFactory.Panel(parent, "Gün", UiFactory.Slate);
-            UiFactory.Place(panel.rectTransform, new Vector2(0f, 1f), new Vector2(Margin, -Margin), new Vector2(330f, 66f));
+            float sunWidth = BuildDayDial(parent);
+            float x = DayDialEdgeOffset + sunWidth + 14f;
+            float centerY = -(Margin + DayDialHeight * 0.5f);
 
-            dayTitle = UiFactory.Label(panel.transform, "", 22, UiFactory.Accent, TextAnchor.UpperLeft);
-            UiFactory.Place(dayTitle.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -7f), new Vector2(230f, 28f));
-            dayClock = UiFactory.Label(panel.transform, "", 22, UiFactory.Text, TextAnchor.UpperRight);
-            UiFactory.Place(dayClock.rectTransform, new Vector2(1f, 1f), new Vector2(-14f, -7f), new Vector2(90f, 28f));
-            daySub = UiFactory.Label(panel.transform, "", 15, Muted, TextAnchor.UpperLeft, FontStyle.Normal, false);
-            UiFactory.Place(daySub.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -35f), new Vector2(302f, 20f));
+            dayTitle = UiFactory.Label(parent, "", 30, UiFactory.Accent, TextAnchor.LowerLeft);
+            UiFactory.Place(dayTitle.rectTransform, new Vector2(0f, 1f), new Vector2(x, centerY + 38f), new Vector2(260f, 36f));
+            dayClock = UiFactory.Label(parent, "", 24, UiFactory.Text, TextAnchor.UpperLeft);
+            UiFactory.Place(dayClock.rectTransform, new Vector2(0f, 1f), new Vector2(x, centerY + 2f), new Vector2(260f, 30f));
+            daySub = UiFactory.Label(parent, "", 15, Muted, TextAnchor.UpperLeft, FontStyle.Normal, false);
+            UiFactory.Place(daySub.rectTransform, new Vector2(0f, 1f), new Vector2(x, centerY - 30f), new Vector2(420f, 20f));
 
-            phaseFill = UiFactory.Bar(panel.transform, "Faz", new Vector2(302f, 8f), UiFactory.Accent, out _);
-            UiFactory.Place((RectTransform)phaseFill.transform.parent, new Vector2(0.5f, 0f), new Vector2(0f, 6f), new Vector2(302f, 8f));
+            // Panel yok: yazılar karanlık sahnede okunsun diye gölgeli.
+            foreach (var label in new[] { dayTitle, dayClock, daySub })
+            {
+                var shadow = label.gameObject.AddComponent<Shadow>();
+                shadow.effectColor = new Color(0f, 0f, 0f, 0.85f);
+                shadow.effectDistance = new Vector2(1.5f, -1.5f);
+            }
+        }
+
+        // Sol kenar: yarısı ekran dışında kalan gece-gündüz çarkı (Resources/gecegunduz.png: sol yarı ay, sağ yarı güneş).
+        // Gündüz güneş yarısı görünür; gece çark 180° dönüp ay yarısını gösterir, sabah dönmeye devam edip güneşe geçer.
+        const string DayDialResource = "gecegunduz";
+        // Görselde ay ile güneşin birleştiği çizgi (piksel): çark buranın etrafında döner ve tam ekran kenarına oturur.
+        static readonly Vector2 DayDialSplitPixel = new Vector2(210.5f, 277f);
+        const float DayDialHeight = 170f;
+        const float DayDialTurnSpeed = 140f;
+        // Merkezin ekranın sol kenarına göre yeri (eksi = sola, daha çok ekran dışında).
+        const float DayDialEdgeOffset = -16f;
+
+        RectTransform dayDial;
+        float dayDialAngle;
+        float dayDialTarget;
+        bool dayDialNight;
+        bool dayDialPlaced;
+
+        /// <summary>Çarkı kurar; ekranda görünen güneş yarısının genişliğini döndürür (yazılar onun yanına dizilir).</summary>
+        float BuildDayDial(Transform parent)
+        {
+            var texture = Resources.Load<Texture2D>(DayDialResource);
+            if (texture == null) return 0f;
+
+            var pivot = new Vector2(DayDialSplitPixel.x / texture.width, 1f - DayDialSplitPixel.y / texture.height);
+            var sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), pivot, 100f);
+            sprite.name = DayDialResource;
+
+            var image = UiFactory.Image(parent, "Gece Gündüz", sprite, Color.white);
+            dayDial = image.rectTransform;
+            dayDial.anchorMin = dayDial.anchorMax = new Vector2(0f, 1f);
+            dayDial.pivot = pivot;
+            dayDial.sizeDelta = new Vector2(DayDialHeight * texture.width / texture.height, DayDialHeight);
+            // Sol üst köşe, merkezi sol kenarın biraz dışında.
+            dayDial.anchoredPosition = new Vector2(DayDialEdgeOffset, -(Margin + DayDialHeight * 0.5f));
+            return DayDialHeight * (texture.width - DayDialSplitPixel.x) / texture.height;
+        }
+
+        void UpdateDayDial()
+        {
+            if (dayDial == null || dayCycle == null) return;
+
+            bool night = dayCycle.Phase == DayPhase.Night;
+            if (!dayDialPlaced)
+            {
+                dayDialPlaced = true;
+                dayDialNight = night;
+                dayDialAngle = dayDialTarget = night ? 180f : 0f;
+            }
+            else if (night != dayDialNight)
+            {
+                // Hep aynı yöne döner: güneş batar, ay doğar; sabah ay batar, güneş doğar.
+                dayDialNight = night;
+                dayDialTarget += 180f;
+            }
+
+            dayDialAngle = Mathf.MoveTowards(dayDialAngle, dayDialTarget, DayDialTurnSpeed * Time.unscaledDeltaTime);
+            if (dayDialAngle >= 360f && dayDialTarget >= 360f)
+            {
+                dayDialAngle -= 360f;
+                dayDialTarget -= 360f;
+            }
+            // Saat yönünde: görünen yarı aşağı iner, diğeri üstten gelir.
+            dayDial.localRotation = Quaternion.Euler(0f, 0f, -dayDialAngle);
         }
 
         void BuildIntegrity(Transform parent)
@@ -361,6 +430,7 @@ namespace AftershockIsle.UI
             topGroup.SetActive(!field && !ended);
             bottomGroup.SetActive(!field && !ended);
             UpdateEnd(ended);
+            UpdateDayDial();
             UpdateNotices();
 
             if (field || ended) return;
@@ -383,8 +453,6 @@ namespace AftershockIsle.UI
 
         void UpdateBars()
         {
-            if (dayCycle != null) phaseFill.fillAmount = dayCycle.PhaseDuration > 0f ? dayCycle.PhaseElapsed / dayCycle.PhaseDuration : 0f;
-
             var integrity = StructuralIntegrity.Instance;
             if (integrity == null) return;
             integrityFill.fillAmount = integrity.Normalized;
@@ -395,7 +463,7 @@ namespace AftershockIsle.UI
         {
             if (dayCycle == null) return;
 
-            dayTitle.text = $"GÜN {dayCycle.Day} · {dayCycle.Phase.ToDisplayName().ToUpperInvariant()}";
+            dayTitle.text = $"GÜN {dayCycle.Day}";
             int seconds = Mathf.CeilToInt(dayCycle.PhaseRemaining);
             dayClock.text = $"{seconds / 60}:{seconds % 60:00}";
 

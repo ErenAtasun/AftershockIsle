@@ -9,6 +9,7 @@ using AftershockIsle.Economy;
 using AftershockIsle.Effects;
 using AftershockIsle.Expedition;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace AftershockIsle.Crisis
 {
@@ -49,8 +50,15 @@ namespace AftershockIsle.Crisis
         float raidAtNormalized;
         DayCycle dayCycle;
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        static void EnsureInstance()
+        // Oyun sahnesi ana menüden yüklendiği için yalnızca açılış sahnesine bakmak yetmez: her sahne yüklemesinde kontrol edilir.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        static void Register()
+        {
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            SceneManager.sceneLoaded += OnSceneLoaded;
+        }
+
+        static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             if (Instance != null) return;
             var existing = FindFirstObjectByType<NightDefenseSystem>();

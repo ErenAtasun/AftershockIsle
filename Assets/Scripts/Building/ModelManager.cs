@@ -64,6 +64,17 @@ namespace AftershockIsle.Building
         [Tooltip("Kolon modelinin Y eksenindeki dönüşü (hasarlı yüz kameraya baksın diye)")]
         [SerializeField] float columnYaw = 180f;
 
+        [Header("6. Arka Plan, Sis ve Toprak")]
+        [Tooltip("Arka plan görselinin binanın arka duvarından kaç metre geride durduğu")]
+        [SerializeField, Range(0f, 60f)] float backdropDistance = 18f;
+        [Tooltip("Arka plan görselinin sis rengine doğru ne kadar soldurulacağı (0 = olduğu gibi)")]
+        [SerializeField, Range(0f, 1f)] float backdropTint = 0.08f;
+        [Tooltip("Ufuk sisinin yoğunluğu (0 = sis perdesi yok)")]
+        [SerializeField, Range(0f, 1f)] float hazeDensity = 0.3f;
+        [SerializeField] Color hazeColor = new Color(0.62f, 0.68f, 0.72f, 1f);
+        [Tooltip("Giriş katı seviyesindeki toprak şeridinin rengi")]
+        [SerializeField] Color earthColor = new Color(0.34f, 0.27f, 0.2f, 1f);
+
         [Header("5. Karanlık Atmosfer (This War of Mine tarzı)")]
         [Tooltip("İşaretliyken ortam karanlık olur; ışığı pencerelerden giren gün ışığı ve odalardaki ampuller verir")]
         [SerializeField] bool enableDarkTheme = true;
@@ -142,14 +153,33 @@ namespace AftershockIsle.Building
                 foreach (var renderer in geo.GetComponentsInChildren<Renderer>(true))
                 {
                     if (renderer == null) continue;
-                    renderer.enabled = showGreybox;
-                    if (renderer.name.StartsWith("Earth_"))
+                    bool isEarth = renderer.name.StartsWith("Earth_");
+                    renderer.enabled = showGreybox || isEarth;
+                    if (!isEarth) continue;
+
+                    // Toprak giriş katı seviyesinde ufka kadar uzar; ön yüzü (kesit) yerinde kalır, arkası arka plana değer.
+                    float frontZ = -earthDepth * 0.5f;
+                    float backZ = BackdropZ() - 0.3f;
+                    var lp = renderer.transform.localPosition;
+                    var ls = renderer.transform.localScale;
+                    float x = lp.x;
+                    float width = ls.x;
+                    if (renderer.name == "Earth_L" || renderer.name == "Earth_R")
                     {
-                        var lp = renderer.transform.localPosition;
-                        var ls = renderer.transform.localScale;
-                        renderer.transform.localPosition = new Vector3(lp.x, lp.y, 0f);
-                        renderer.transform.localScale = new Vector3(ls.x, ls.y, earthDepth);
+                        // Yan toprak binaya yakın kenarını korur, dışa doğru arka planın genişliğine kadar uzar.
+                        float dir = renderer.name == "Earth_L" ? -1f : 1f;
+                        float inner = lp.x - dir * ls.x * 0.5f;
+                        width = 160f;
+                        x = inner + dir * width * 0.5f;
                     }
+                    renderer.transform.localPosition = new Vector3(x, lp.y, (frontZ + backZ) * 0.5f);
+                    renderer.transform.localScale = new Vector3(width, ls.y, backZ - frontZ);
+
+                    var block = new MaterialPropertyBlock();
+                    renderer.GetPropertyBlock(block);
+                    block.SetColor("_BaseColor", earthColor);
+                    block.SetColor("_Color", earthColor);
+                    renderer.SetPropertyBlock(block);
                 }
             }
 
@@ -185,8 +215,15 @@ namespace AftershockIsle.Building
         }
 
         /// <summary>
-        /// Binanın hemen arkasına, binayla birebir aynı zemin/kat seviyesinde sabit duran şehir silüetini yerleştirir.
-        /// Kamera hareket ettiğinde arka plan hareket etmez; arkada gerçek binalar duruyormuş gibi sabit kalır.
+        /// Arka plan görselinin dünyada durduğu derinlik (bina yerel Z). Binanın arka duvarından backdropDistance kadar geride.
+        /// Toprak şeridi de buraya kadar uzar, böylece sokak ufka doğru devam eder.
+        /// </summary>
+        float BackdropZ() => building.Depth * 0.5f + building.WallThickness + 0.65f + backdropDistance;
+
+        /// <summary>
+        /// Arka plan görselini binanın çok gerisine, dünyaya sabit olarak yerleştirir (kamera kaysa da yerinde durur, hafif paralaks verir).
+        /// Uzaklaştıkça küçülmesin diye boyutu mesafeyle orantılı büyür; altı zemin seviyesindedir (giriş katı),
+        /// önünde ufka doğru yoğunlaşan bir sis perdesi durur.
         /// </summary>
         void ApplyWorldBackdrop()
         {
@@ -201,27 +238,27 @@ namespace AftershockIsle.Building
             Sprite bg = skin != null ? (skin.worldBackground != null ? skin.worldBackground : skin.mainMenuBackground) : null;
             if (bg == null) return;
 
-            if (Camera.main != null)
-                Camera.main.backgroundColor = new Color(0.553f, 0.620f, 0.667f, 1f);
-
             var root = new GameObject(BackdropName).transform;
             root.SetParent(building.transform, false);
             root.localPosition = Vector3.zero;
             root.localRotation = Quaternion.identity;
             root.localScale = Vector3.one;
 
-            float backZ = building.Depth * 0.5f + building.WallThickness + 0.65f;
-            const float bottomY = 0f;
-            const float worldHeight = 24f;
+            // Eski (yakın) yerleşimle aynı görünür boyut: kameradan uzaklığa oranla büyüt.
+            const float nominalCameraZ = -22.5f;
+            float nearZ = building.Depth * 0.5f + building.WallThickness + 0.65f;
+            float backZ = BackdropZ();
+            float distanceScale = (backZ - nominalCameraZ) / (nearZ - nominalCameraZ);
+
+            float groundY = building.FloorHeight; // giriş katı = sokak seviyesi
+            float worldHeight = 24f * distanceScale;
 
             Vector2 spriteSize = bg.bounds.size;
-            float spriteW = Mathf.Max(0.01f, spriteSize.x);
-            float spriteH = Mathf.Max(0.01f, spriteSize.y);
-            float scale = worldHeight / spriteH;
-            float panelWidth = spriteW * scale;
-            float centerY = bottomY + worldHeight * 0.5f;
+            float scale = worldHeight / Mathf.Max(0.01f, spriteSize.y);
+            float panelWidth = Mathf.Max(0.01f, spriteSize.x) * scale;
+            float centerY = groundY + worldHeight * 0.45f;
 
-            // Ortada ana panel, sağ ve solda aynalanmış devam panelleri: kamera nereye kayarsa kaysın kesintisiz şehir silüeti.
+            // Ortada ana panel, sağ ve solda aynalanmış devam panelleri: kamera nereye kayarsa kaysın kesintisiz silüet.
             for (int side = -1; side <= 1; side++)
             {
                 var panel = new GameObject($"CityPanel_{side}").AddComponent<SpriteRenderer>();
@@ -231,17 +268,18 @@ namespace AftershockIsle.Building
                 panel.transform.localScale = new Vector3(scale, scale, 1f);
                 panel.sprite = bg;
                 panel.flipX = side != 0;
+                panel.color = Color.Lerp(Color.white, hazeColor, backdropTint);
                 panel.sortingOrder = -30000;
                 panel.shadowCastingMode = ShadowCastingMode.Off;
                 panel.receiveShadows = false;
             }
 
-            // Bodrum katının altında kalan zemin kuşağı (arka planın alt koyu silüet rengiyle bütünleşir).
+            // Zemin seviyesinin altı: görselin altından aşağı doğru dolgu (toprak/sis rengi).
             var skirt = GameObject.CreatePrimitive(PrimitiveType.Quad);
             skirt.name = "UndergroundSkirt";
             skirt.transform.SetParent(root, false);
-            const float skirtHeight = 24f;
-            skirt.transform.localPosition = new Vector3(0f, bottomY - skirtHeight * 0.5f + 0.1f, backZ + 0.02f);
+            const float skirtHeight = 60f;
+            skirt.transform.localPosition = new Vector3(0f, groundY - skirtHeight * 0.5f + 0.5f, backZ + 0.02f);
             skirt.transform.localRotation = Quaternion.identity;
             skirt.transform.localScale = new Vector3(panelWidth * 3f, skirtHeight, 1f);
             var col = skirt.GetComponent<Collider>();
@@ -251,13 +289,50 @@ namespace AftershockIsle.Building
             {
                 var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color") ?? Shader.Find("Sprites/Default");
                 var mat = new Material(shader) { name = "Backdrop_Underground_Unlit" };
-                Color darkGround = new Color(0.18f, 0.21f, 0.24f, 1f);
-                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", darkGround);
-                if (mat.HasProperty("_Color")) mat.SetColor("_Color", darkGround);
+                Color ground = new Color(0.17f, 0.14f, 0.11f, 1f);
+                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", ground);
+                if (mat.HasProperty("_Color")) mat.SetColor("_Color", ground);
                 r.sharedMaterial = mat;
                 r.shadowCastingMode = ShadowCastingMode.Off;
                 r.receiveShadows = false;
             }
+
+            CreateHaze(root, panelWidth * 3f, worldHeight, groundY, backZ - 1f);
+
+            if (Camera.main != null)
+                Camera.main.backgroundColor = Color.Lerp(new Color(0.553f, 0.620f, 0.667f, 1f), hazeColor, 0.5f);
+        }
+
+        /// <summary>Arka planın önünde, ufka doğru (alta) yoğunlaşan yarı saydam sis perdesi.</summary>
+        void CreateHaze(Transform root, float width, float height, float groundY, float z)
+        {
+            if (hazeDensity <= 0.001f) return;
+
+            const int steps = 64;
+            var tex = new Texture2D(1, steps, TextureFormat.RGBA32, false)
+            {
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+                name = "BackdropHaze",
+            };
+            for (int y = 0; y < steps; y++)
+            {
+                float t = y / (steps - 1f); // 0 = zemin, 1 = tepe
+                float alpha = Mathf.Pow(1f - Mathf.Clamp01(t / 0.4f), 1.6f) * hazeDensity;
+                tex.SetPixel(0, y, new Color(hazeColor.r, hazeColor.g, hazeColor.b, alpha));
+            }
+            tex.Apply(false, true);
+
+            // 1 piksel = 1 dünya birimi; yatayda genişliğe, dikeyde yüksekliğe gerilir.
+            var sprite = Sprite.Create(tex, new Rect(0, 0, 1, steps), new Vector2(0.5f, 0f), 1f);
+            var haze = new GameObject("Sis").AddComponent<SpriteRenderer>();
+            haze.transform.SetParent(root, false);
+            haze.transform.localPosition = new Vector3(0f, groundY - 0.1f, z);
+            haze.transform.localScale = new Vector3(width, height / steps, 1f);
+            haze.sprite = sprite;
+            haze.sortingOrder = -29990;
+            haze.shadowCastingMode = ShadowCastingMode.Off;
+            haze.receiveShadows = false;
         }
 
         /// <summary>

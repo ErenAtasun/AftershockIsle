@@ -51,14 +51,17 @@ namespace AftershockIsle.Characters
             var awayCompanion = ExpeditionSystem.AwayCompanion;
             if (awayCompanion != null) eaters.Add(awayCompanion);
 
+            float medMultiplier = AftershockIsle.Crafting.PlaceableStructure.HasAny(AftershockIsle.Crafting.RecipeId.MedStation) ? 1.5f : 1f;
+            float comfortMultiplier = AftershockIsle.Crafting.PlaceableStructure.HasAny(AftershockIsle.Crafting.RecipeId.ComfortCorner) ? 1.4f : 1f;
+
             foreach (var survivor in eaters)
             {
                 if (survivor.IsDead) continue;
 
                 if (ResourceStorage.Instance.TrySpend(cost))
                 {
-                    survivor.Heal(healWhenFed);
-                    survivor.Condition.Feed(stressReliefWhenFed);
+                    survivor.Heal(healWhenFed * medMultiplier);
+                    survivor.Condition.Feed(stressReliefWhenFed * comfortMultiplier);
                     fed++;
                     continue;
                 }

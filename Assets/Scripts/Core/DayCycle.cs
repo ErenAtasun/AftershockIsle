@@ -48,7 +48,10 @@ namespace AftershockIsle.Core
             if (config == null) config = ScriptableObject.CreateInstance<DayCycleConfig>();
         }
 
-        void Start() => StartDay(1);
+        void Start()
+        {
+            if (Day == 0) StartDay(1);
+        }
 
         void Update()
         {
@@ -74,6 +77,15 @@ namespace AftershockIsle.Core
             Phase = phase;
             PhaseElapsed = 0f;
             EventBus.Publish(new DayPhaseChanged(Day, phase));
+        }
+
+        public void RestoreState(int day, DayPhase phase, float phaseElapsed)
+        {
+            Day = day;
+            Phase = phase;
+            PhaseElapsed = phaseElapsed;
+            EventBus.Publish(new DayStarted(Day));
+            EventBus.Publish(new DayPhaseChanged(Day, Phase));
         }
     }
 }

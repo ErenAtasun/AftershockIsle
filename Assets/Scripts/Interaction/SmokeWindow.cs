@@ -41,5 +41,11 @@ namespace AftershockIsle.Interaction
             IsBroken = true;
             if (glass != null) glass.SetActive(false);
         }
+
+        public void RestoreState(bool isBroken)
+        {
+            IsBroken = isBroken;
+            if (glass != null) glass.SetActive(!isBroken);
+        }
     }
 }

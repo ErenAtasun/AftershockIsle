@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using AftershockIsle.Building;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
+using AftershockIsle.Crafting;
 using AftershockIsle.Economy;
 using AftershockIsle.Interaction;
 using UnityEngine;
@@ -84,6 +85,17 @@ namespace AftershockIsle.Crisis
         public bool IsSmokeBlockedHere => Smoke >= smokeBlockThreshold;
         public float CollapseCountdown => collapseAfterFullBurn - fullBurnTimer;
         public bool IsAtFullBurn => Intensity >= 100f;
+        public float FullBurnTimer => fullBurnTimer;
+        public bool HasCollapsed => hasCollapsed;
+
+        public void RestoreState(float intensity, float smoke, float fullBurn, bool collapsed)
+        {
+            Intensity = Mathf.Clamp(intensity, 0f, 100f);
+            Smoke = Mathf.Clamp(smoke, 0f, 100f);
+            fullBurnTimer = fullBurn;
+            hasCollapsed = collapsed;
+            RefreshVisuals();
+        }
 
         public override string ActionLabel => "Söndür";
         public override WorkCategory Category => WorkCategory.Firefight;
@@ -91,12 +103,20 @@ namespace AftershockIsle.Crisis
         public override string StatusText =>
             $"Yangın %{Intensity:0}  duman %{Smoke:0}. Kova suyu gerekir (her kova -%{extinguishPerBucket:0}).";
 
-        /// <summary>Kat duman ya da gaz yüzünden girilemez durumda mı.</summary>
+        /// <summary>Kat duman ya da gaz yüzünden girilemez durumda mı (Gaz Maskesi varsa duman engellemez).</summary>
         public static bool IsSmokeBlocked(int floor)
         {
+            if (Workbench.Has(RecipeId.GasMask)) return false;
             foreach (var fire in all)
                 if (fire.Floor == floor && fire.IsSmokeBlockedHere) return true;
             return GasLeak.IsGasBlocked(floor);
+        }
+
+        public static FireSpot ForFloor(int floor)
+        {
+            foreach (var fire in all)
+                if (fire != null && fire.Floor == floor) return fire;
+            return null;
         }
 
         /// <summary>Yanmayan ve tavanı çökmemiş rastgele bir odağı tutuşturur.</summary>
@@ -173,6 +193,13 @@ namespace AftershockIsle.Crisis
             Extinguish(extinguishPerBucket);
         }
 
+        public void ExtinguishDirect(float fireAmount, float smokeAmount)
+        {
+            Smoke = Mathf.Max(0f, Smoke - smokeAmount);
+            if (IsBurning) Extinguish(fireAmount);
+            RefreshVisuals();
+        }
+
         void Extinguish(float amount)
         {
             if (!IsBurning) return;
@@ -190,10 +217,12 @@ namespace AftershockIsle.Crisis
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
 
+            float suppressorFactor = PlaceableStructure.HasOnFloor(RecipeId.FireSuppressor, Floor) ? 0.5f : 1f;
+
             if (IsBurning)
             {
-                Intensity = Mathf.Min(100f, Intensity + growthPerSecond * dt);
-                Smoke += smokePerSecondAtFull * (Intensity / 100f) * dt;
+                Intensity = Mathf.Min(100f, Intensity + growthPerSecond * suppressorFactor * dt);
+                Smoke += smokePerSecondAtFull * suppressorFactor * (Intensity / 100f) * dt;
                 StructuralIntegrity.Instance.SetDrain(this, integrityDrainPerSecond * Intensity / 100f, DamageSource.Fire);
 
                 fullBurnTimer = IsAtFullBurn ? fullBurnTimer + dt : 0f;
@@ -214,12 +243,17 @@ namespace AftershockIsle.Crisis
 
         void AffectSurvivorsInSmoke(float dt)
         {
+            bool hasGasMask = Workbench.Has(RecipeId.GasMask);
+            float maskFactor = hasGasMask ? 0.25f : 1f;
+
             foreach (var survivor in Survivor.All)
             {
                 if (survivor.IsDead || survivor.Mover.CurrentFloor != Floor || survivor.Mover.IsClimbing) continue;
 
-                survivor.TakeDamage(smokeDamagePerSecond * dt, "Dumandan zehirlendi.");
-                survivor.Condition.AddStress(smokeStressPerSecond * dt);
+                survivor.TakeDamage(smokeDamagePerSecond * maskFactor * dt, "Dumandan zehirlendi.");
+                survivor.Condition.AddStress(smokeStressPerSecond * maskFactor * dt);
+
+                if (hasGasMask) continue;
 
                 // Pencere kıran kalır; geçen (yürüyen) dokunulmaz; duran/çalışan öksürerek kaçar.
                 if (!survivor.CanAct || survivor.Mover.IsMoving || survivor.Tasks.Current is SmokeWindow) continue;

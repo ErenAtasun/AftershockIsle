@@ -75,8 +75,8 @@ namespace AftershockIsle.Player
             bool menuOpen = ModalMenu.IsOpen;
             if (!menuOpen) HandleCharacterSwitch();
 
-            // Dış sahadayken karakteri FieldExpedition yönetir; sığınaktaki seçim/emir askıda kalır.
-            if (SideViewCamera.ViewingField || menuOpen)
+            // Dış sahadayken ya da Grid Yerleştirme modundayken sığınaktaki seçim/emir askıda kalır.
+            if (SideViewCamera.ViewingField || menuOpen || PlacementController.IsPlacementActive)
             {
                 Hovered = null;
                 Nearby = null;

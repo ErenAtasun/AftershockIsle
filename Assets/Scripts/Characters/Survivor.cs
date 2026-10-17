@@ -118,6 +118,11 @@ namespace AftershockIsle.Characters
         {
             if (IsDead || amount <= 0f) return;
 
+            bool onExpedition = AftershockIsle.Expedition.ExpeditionSystem.AwayExplorer == this ||
+                                AftershockIsle.Expedition.ExpeditionSystem.AwayCompanion == this;
+            if (onExpedition && AftershockIsle.Crafting.Workbench.Has(AftershockIsle.Crafting.RecipeId.ArmorVest))
+                amount *= 0.65f;
+
             Health = Mathf.Max(0f, Health - amount);
             if (Health <= 0f) Die(cause);
         }
@@ -220,6 +225,41 @@ namespace AftershockIsle.Characters
             target.GetPropertyBlock(block);
             block.SetColor(BaseColorId, color);
             target.SetPropertyBlock(block);
+        }
+
+        public IReadOnlyList<ResourceAmount> Bag => bag;
+
+        public void RestoreState(float health, bool isDead, ResourceAmount carriedItem, bool isCarrying, float trapped, List<ResourceAmount> bagItems, Vector3 position)
+        {
+            Health = health;
+            IsDead = isDead;
+            carried = carriedItem;
+            IsCarrying = isCarrying;
+            trappedRemaining = trapped;
+            bag.Clear();
+            if (bagItems != null) bag.AddRange(bagItems);
+            RefreshCarry();
+
+            transform.position = position;
+            if (Mover != null)
+            {
+                Mover.Halt();
+                Mover.UpdateCurrentFloor();
+            }
+
+            if (IsDead)
+            {
+                trappedRemaining = 0f;
+                if (Tasks != null) Tasks.CancelAll();
+                if (Mover != null)
+                {
+                    Mover.Halt();
+                    Mover.Frozen = true;
+                }
+                SetSelected(false);
+                transform.SetPositionAndRotation(transform.position + Vector3.up * 0.3f,
+                    Quaternion.Euler(0f, transform.eulerAngles.y, 90f));
+            }
         }
     }
 }

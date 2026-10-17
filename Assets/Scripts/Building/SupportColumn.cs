@@ -56,6 +56,7 @@ namespace AftershockIsle.Building
         public static IReadOnlyList<SupportColumn> All => all;
 
         public ColumnState State => state;
+        public int SupportHitsRemaining => supportHitsRemaining;
         public bool NeedsRepair => state == ColumnState.Cracked || state == ColumnState.Broken;
         ResourceAmount RepairCost => state == ColumnState.Broken ? rebuildCost : supportCost;
 
@@ -185,6 +186,13 @@ namespace AftershockIsle.Building
                 _ => new Color(0.5f, 0.12f, 0.1f),
             });
             body.SetPropertyBlock(block);
+        }
+
+        public void RestoreState(ColumnState savedState, int hitsRemaining)
+        {
+            state = savedState;
+            supportHitsRemaining = hitsRemaining;
+            ApplyVisual();
         }
     }
 }

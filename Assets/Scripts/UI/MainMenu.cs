@@ -1,10 +1,11 @@
 using AftershockIsle.Core;
+using AftershockIsle.Save;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace AftershockIsle.UI
 {
-    /// <summary>Başlangıç sahnesinin geçici IMGUI ana menüsü: oyuna başla, nasıl oynanır, çık. Fare, klavye ya da gamepad ile.</summary>
+    /// <summary>Başlangıç sahnesinin geçici IMGUI ana menüsü: devam et, yeni oyun, nasıl oynanır, çık. Fare, klavye ya da gamepad ile.</summary>
     public class MainMenu : MonoBehaviour
     {
         public const string GameScene = "Main";
@@ -49,11 +50,34 @@ namespace AftershockIsle.UI
 
             GUI.Label(new Rect(0, y, Screen.width, 70), "AFTERSHOCK: ISLE", titleStyle);
             GUI.Label(new Rect(0, y + 70, Screen.width, 28), "Çöken binayı ayakta tut. Hayatta kal. Çatıdan tahliye ol.", subtitleStyle);
-            y += 140f;
+            y += 130f;
 
             const float width = 320f;
             nav.BeginDraw();
-            Button(cx - width * 0.5f, ref y, width, "Oyuna Başla", () => SceneManager.LoadScene(GameScene));
+
+            bool hasSave = SaveManager.HasSave();
+            if (hasSave)
+            {
+                Button(cx - width * 0.5f, ref y, width, "Devam Et", () =>
+                {
+                    SaveManager.PendingLoad = true;
+                    SceneManager.LoadScene(GameScene);
+                });
+                Button(cx - width * 0.5f, ref y, width, "Yeni Oyun", () =>
+                {
+                    SaveManager.PendingLoad = false;
+                    SceneManager.LoadScene(GameScene);
+                });
+            }
+            else
+            {
+                Button(cx - width * 0.5f, ref y, width, "Oyuna Başla", () =>
+                {
+                    SaveManager.PendingLoad = false;
+                    SceneManager.LoadScene(GameScene);
+                });
+            }
+
             Button(cx - width * 0.5f, ref y, width, showHowTo ? "Rehberi Gizle" : "Nasıl Oynanır", () => showHowTo = !showHowTo);
             Button(cx - width * 0.5f, ref y, width, "Çık", PauseMenu.QuitGame);
             nav.EndDraw();

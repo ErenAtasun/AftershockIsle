@@ -70,5 +70,18 @@ namespace AftershockIsle.Crisis
             DisasterType.GasLeak => GasLeak.TryStartLeak() || true,
             _ => false,
         };
+
+        public IEnumerable<int> GetFiredScheduleIndices() => fired;
+        public IEnumerable<int> GetFiredEndlessIndices() => firedEndless;
+        public int EndlessDay => endlessDay;
+
+        public void RestoreState(IEnumerable<int> firedIndices, int savedEndlessDay, IEnumerable<int> firedEndlessIndices)
+        {
+            fired.Clear();
+            if (firedIndices != null) foreach (var i in firedIndices) fired.Add(i);
+            endlessDay = savedEndlessDay;
+            firedEndless.Clear();
+            if (firedEndlessIndices != null) foreach (var i in firedEndlessIndices) firedEndless.Add(i);
+        }
     }
 }

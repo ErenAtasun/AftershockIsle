@@ -52,7 +52,12 @@ namespace AftershockIsle.Characters
 
         void Start()
         {
-            CurrentFloor = building.FloorAtHeight(transform.position.y + 0.1f);
+            UpdateCurrentFloor();
+        }
+
+        public void UpdateCurrentFloor()
+        {
+            if (building != null) CurrentFloor = building.FloorAtHeight(transform.position.y + 0.1f);
         }
 
         /// <summary>

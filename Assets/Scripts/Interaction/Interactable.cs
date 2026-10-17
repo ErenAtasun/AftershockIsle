@@ -49,8 +49,22 @@ namespace AftershockIsle.Interaction
         protected virtual void Awake()
         {
             Building = FindFirstObjectByType<BuildingLayout>();
-            Floor = Building.FloorAtHeight(transform.position.y + 0.05f);
+            if (Building != null) Floor = Building.FloorAtHeight(transform.position.y + 0.05f);
             // Oyun sırasında doğan nesne (düşen enkaz) yürüyüş engellerine hemen girsin.
+            if (BlocksMovement) FloorObstacles.Invalidate();
+        }
+
+        public void ConfigureRuntime(string name, float duration)
+        {
+            displayName = name;
+            workDuration = Mathf.Max(0.1f, duration);
+            RefreshFloorFromPosition();
+        }
+
+        public void RefreshFloorFromPosition()
+        {
+            if (Building == null) Building = FindFirstObjectByType<BuildingLayout>();
+            if (Building != null) Floor = Building.FloorAtHeight(transform.position.y + 0.05f);
             if (BlocksMovement) FloorObstacles.Invalidate();
         }
 

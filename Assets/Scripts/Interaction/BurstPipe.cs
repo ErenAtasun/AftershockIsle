@@ -75,5 +75,11 @@ namespace AftershockIsle.Interaction
         {
             if (sprayVisual != null) sprayVisual.SetActive(IsBurst);
         }
+
+        public void RestoreState(bool isBurst)
+        {
+            IsBurst = isBurst;
+            RefreshVisual();
+        }
     }
 }

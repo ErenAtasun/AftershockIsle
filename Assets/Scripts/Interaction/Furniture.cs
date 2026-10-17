@@ -77,5 +77,12 @@ namespace AftershockIsle.Interaction
             if (result.type == ResourceType.Scrap) result.amount = SkillTree.ApplyRecycling(result.amount);
             return result;
         }
+
+        public bool IsSearched => searched;
+
+        public void RestoreState(bool isSearched)
+        {
+            searched = isSearched;
+        }
     }
 }

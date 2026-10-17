@@ -36,7 +36,7 @@ namespace AftershockIsle.Building
 
         readonly Dictionary<Object, (float perSecond, DamageSource source)> drains =
             new Dictionary<Object, (float, DamageSource)>();
-        readonly float[] drainBySource = new float[4];
+        readonly float[] drainBySource = new float[System.Enum.GetValues(typeof(DamageSource)).Length];
 
         public static StructuralIntegrity Instance { get; private set; }
 
@@ -104,5 +104,12 @@ namespace AftershockIsle.Building
             drains[owner] = (perSecond, source);
 
         public void RemoveDrain(Object owner) => drains.Remove(owner);
+ 
+        public void RestoreState(float savedCurrent, bool savedIsCollapsed)
+        {
+            Current = Mathf.Clamp(savedCurrent, 0f, maxIntegrity);
+            IsCollapsed = savedIsCollapsed;
+            EventBus.Publish(new IntegrityChanged(Current, 0f, DamageSource.Debug));
+        }
     }
 }

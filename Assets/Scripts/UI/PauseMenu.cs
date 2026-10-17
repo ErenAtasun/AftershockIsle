@@ -1,11 +1,12 @@
 using AftershockIsle.Core;
+using AftershockIsle.Save;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace AftershockIsle.UI
 {
     /// <summary>
-    /// Esc / Start ile açılan duraklatma menüsü: devam, yeniden başla, ana menü, çıkış. Gamepad ile gezilir.
+    /// Esc / Start ile açılan duraklatma menüsü: devam, kaydet, yeniden başla, ana menü, çıkış. Gamepad ile gezilir.
     /// Açıkken oyun donar ve klavye kısayolları (Space/1/2) çalışmaz; oyun bitmişse zamana dokunmaz.
     /// </summary>
     public class PauseMenu : MonoBehaviour
@@ -19,7 +20,9 @@ namespace AftershockIsle.UI
         TimeSpeed resumeSpeed;
         GUIStyle titleStyle;
         GUIStyle buttonStyle;
+        GUIStyle noticeStyle;
         readonly MenuNav nav = new MenuNav();
+        float saveFeedbackTimer;
 
         void Awake()
         {
@@ -29,6 +32,7 @@ namespace AftershockIsle.UI
 
         void Update()
         {
+            if (saveFeedbackTimer > 0f) saveFeedbackTimer -= Time.unscaledDeltaTime;
             if (GameInput.EscapePressed) SetOpen(!open);
             if (!open) return;
 
@@ -73,6 +77,12 @@ namespace AftershockIsle.UI
                 alignment = TextAnchor.MiddleCenter,
             };
             buttonStyle ??= new GUIStyle(GUI.skin.button) { fontSize = 18 };
+            noticeStyle ??= new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 16,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter,
+            };
 
             // Menü açıkken arkadaki dünyaya tıklanmasın.
             UIBlocker.Add(new Rect(0, 0, Screen.width, Screen.height));
@@ -84,14 +94,31 @@ namespace AftershockIsle.UI
 
             const float width = 320f;
             float x = (Screen.width - width) * 0.5f;
-            float y = Screen.height * 0.5f - 160f;
+            float y = Screen.height * 0.5f - 180f;
 
             GUI.Label(new Rect(x, y, width, 50), "DURAKLATILDI", titleStyle);
-            y += 70f;
+            y += 60f;
+
+            if (saveFeedbackTimer > 0f)
+            {
+                var prevColor = GUI.color;
+                GUI.color = new Color(0.4f, 1f, 0.4f);
+                GUI.Label(new Rect(x, y, width, 30), "✓ Oyun Başarıyla Kaydedildi!", noticeStyle);
+                GUI.color = prevColor;
+                y += 35f;
+            }
 
             nav.BeginDraw();
             bool ended = session.Outcome != GameOutcome.None;
-            if (!ended) Button(ref y, x, width, "Devam Et", () => SetOpen(false));
+            if (!ended)
+            {
+                Button(ref y, x, width, "Devam Et", () => SetOpen(false));
+                Button(ref y, x, width, "Oyunu Kaydet", () =>
+                {
+                    if (SaveManager.Instance != null && SaveManager.Instance.SaveGame())
+                        saveFeedbackTimer = 3f;
+                });
+            }
             Button(ref y, x, width, "Yeniden Başla", () => SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex));
             Button(ref y, x, width, "Ana Menü", () => SceneManager.LoadScene(MainMenuScene));
             Button(ref y, x, width, "Çık", QuitGame);

@@ -103,5 +103,17 @@ namespace AftershockIsle.Skills
             EventBus.Publish(new SkillUnlocked(id));
             return true;
         }
+
+        public IEnumerable<SkillId> GetUnlockedSkills() => unlocked;
+
+        public void RestoreState(int points, IEnumerable<SkillId> unlockedSkills)
+        {
+            Points = points;
+            unlocked.Clear();
+            if (unlockedSkills != null)
+            {
+                foreach (var id in unlockedSkills) unlocked.Add(id);
+            }
+        }
     }
 }

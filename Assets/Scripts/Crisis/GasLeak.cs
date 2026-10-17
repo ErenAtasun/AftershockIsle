@@ -67,6 +67,13 @@ namespace AftershockIsle.Crisis
         public bool IsBlockingHere => Concentration >= blockThreshold;
         public bool IsExplosive => Concentration >= explodeThreshold;
 
+        public void RestoreState(bool isLeaking, float concentration)
+        {
+            IsLeaking = isLeaking;
+            Concentration = Mathf.Clamp(concentration, 0f, 100f);
+            RefreshVisual();
+        }
+
         public override string ActionLabel => "Vanayı Kapat";
         public override WorkCategory Category => WorkCategory.Repair;
         public override bool BlocksMovement => false;
@@ -139,12 +146,17 @@ namespace AftershockIsle.Crisis
 
         void AffectSurvivors(float dt)
         {
+            bool hasGasMask = AftershockIsle.Crafting.Workbench.Has(AftershockIsle.Crafting.RecipeId.GasMask);
+            float maskFactor = hasGasMask ? 0.25f : 1f;
+
             foreach (var survivor in Survivor.All)
             {
                 if (survivor.IsDead || survivor.Mover.CurrentFloor != Floor || survivor.Mover.IsClimbing) continue;
 
-                survivor.TakeDamage(toxicDamagePerSecond * dt, "Gazdan zehirlendi.");
-                survivor.Condition.AddStress(toxicStressPerSecond * dt);
+                survivor.TakeDamage(toxicDamagePerSecond * maskFactor * dt, "Gazdan zehirlendi.");
+                survivor.Condition.AddStress(toxicStressPerSecond * maskFactor * dt);
+
+                if (hasGasMask) continue;
 
                 // Pencere kıran ve vanayı kapatan kalır; duran/çalışan öksürerek kaçar.
                 if (!survivor.CanAct || survivor.Mover.IsMoving || survivor.Mover.IsSteering) continue;

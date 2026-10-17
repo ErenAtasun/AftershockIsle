@@ -145,8 +145,8 @@ namespace AftershockIsle.Characters
         {
             if (target.RequiresEmptyHands && survivor.IsCarrying)
             {
-                // Depolanabilir yük sandığa gider; kova gibi depolanamayan yük yere boşaltılır.
-                var chest = StorageChest.Main;
+                // Depolanabilir yük en yakın sandığa gider; kova gibi depolanamayan yük yere boşaltılır.
+                var chest = StorageChest.FindNearest(survivor);
                 if (survivor.Carried.type.IsStorable() && chest != null && target != chest) return chest;
                 if (!survivor.Carried.type.IsStorable() && survivor.TryTakeCarried(out var dumped))
                     Notify($"{dumped.type.ToDisplayName()} boşaltıldı.");
@@ -206,7 +206,7 @@ namespace AftershockIsle.Characters
             done.Complete(survivor);
 
             // Tekrarlı işin ön koşulları (taşıma, kova) sıradaki çözümlemede yeniden araya girer.
-            var chest = StorageChest.Main;
+            var chest = StorageChest.FindNearest(survivor);
             if (done.RepeatAfterComplete)
                 queue.Insert(0, new QueuedTask { Target = done });
             else if (survivor.IsCarrying && survivor.Carried.type.IsStorable() && chest != null && done != chest)

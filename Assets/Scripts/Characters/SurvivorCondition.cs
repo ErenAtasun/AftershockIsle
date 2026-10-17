@@ -1,5 +1,6 @@
 using AftershockIsle.Building;
 using AftershockIsle.Core;
+using AftershockIsle.Crafting;
 using UnityEngine;
 
 namespace AftershockIsle.Characters
@@ -55,12 +56,20 @@ namespace AftershockIsle.Characters
 
             var tasks = survivor.Tasks;
             var mover = survivor.Mover;
-            bool indoors = mover.CurrentFloor < mover.Building.FloorCount - 1;
+            int floor = mover.CurrentFloor;
+            bool indoors = floor < mover.Building.FloorCount - 1;
+            bool hasHeater = PlaceableStructure.HasOnFloor(RecipeId.ShelterHeater, floor);
+            bool isLit = PowerGrid.IsOn || hasHeater || !indoors;
 
-            if (tasks.State == TaskState.Working && !PowerGrid.IsOn && indoors)
+            if (tasks.State == TaskState.Working && !isLit)
+            {
                 AddStress(darkWorkStressPerSecond * dt);
-            else if (tasks.State == TaskState.Idle && !mover.IsMoving && (PowerGrid.IsOn || !indoors))
-                RelieveStress(calmRecoveryPerSecond * dt);
+            }
+            else if (tasks.State == TaskState.Idle && !mover.IsMoving && isLit)
+            {
+                float comfortBonus = PlaceableStructure.HasOnFloor(RecipeId.ComfortCorner, floor) ? 2.5f : 1f;
+                RelieveStress(calmRecoveryPerSecond * comfortBonus * dt);
+            }
         }
 
         public void AddStress(float amount)
@@ -95,6 +104,13 @@ namespace AftershockIsle.Characters
             survivor.Tasks.CancelAll();
             survivor.Mover.Halt();
             EventBus.Publish(new SurvivorPanicked(survivor));
+        }
+
+        public void RestoreState(float stress, int hunger, float panic)
+        {
+            Stress = Mathf.Clamp(stress, 0f, maxStress);
+            Hunger = Mathf.Clamp(hunger, 0, MaxHunger);
+            panicRemaining = Mathf.Max(0f, panic);
         }
     }
 }

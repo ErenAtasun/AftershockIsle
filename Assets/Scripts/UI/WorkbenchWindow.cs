@@ -1,3 +1,4 @@
+using AftershockIsle.Building;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
 using AftershockIsle.Crafting;
@@ -8,13 +9,13 @@ namespace AftershockIsle.UI
 {
     /// <summary>
     /// Tezgahla etkileşince (sağ tık ya da F / A) açılan geçici IMGUI üretim menüsü. Seçilen tarif, menüyü açan karaktere
-    /// iş olarak verilir. Gamepad: yukarı/aşağı gez, A üret, B kapat.
+    /// iş olarak verilir. Üretilen yerleşilebilir yapılar buradan ya da [B] tuşuyla sığınak ızgarasına (Grid) yerleştirilir.
     /// </summary>
     public class WorkbenchWindow : MonoBehaviour
     {
         const int WindowId = 4401;
 
-        Rect windowRect = new Rect(0, 0, 520, 470);
+        Rect windowRect = new Rect(0, 0, 560, 510);
         Survivor worker;
         bool open;
         Vector2 scroll;
@@ -36,7 +37,7 @@ namespace AftershockIsle.UI
         {
             if (!open) return;
             nav.Tick();
-            if (GameInput.MenuBackPressed) open = false;
+            if (GameInput.MenuBackPressed || GameInput.BuildModeTogglePressed) open = false;
         }
 
         void OnGUI()
@@ -62,13 +63,27 @@ namespace AftershockIsle.UI
         {
             var bench = Workbench.Instance;
             nav.BeginDraw();
+
+            if (bench.TotalUnplacedCount > 0)
+            {
+                GUI.color = new Color(0.55f, 1f, 0.65f);
+                nav.Button($"📦 Kuruluma Hazır {bench.TotalUnplacedCount} Yapıyı Eve Yerleştir [B]", () =>
+                {
+                    open = false;
+                    if (PlacementController.Instance != null)
+                        PlacementController.Instance.ToggleBuildMode();
+                });
+                GUI.color = Color.white;
+                GUILayout.Space(4);
+            }
+
             scroll = GUILayout.BeginScrollView(scroll);
 
             for (int tier = 1; tier <= 3; tier++)
             {
-                GUILayout.Label(tier == 1 ? "Kademe 1 — İlkel Afet Hazırlığı"
-                    : tier == 2 ? "Kademe 2 — Mekanik & Altyapı"
-                    : "Kademe 3 — İletişim & Kurtarma", headerStyle);
+                GUILayout.Label(tier == 1 ? "Kademe 1 — İlkel Afet Hazırlığı & Ev Konforu"
+                    : tier == 2 ? "Kademe 2 — Mekanik, Revir & Altyapı"
+                    : "Kademe 3 — İletişim, Jeneratör & Kurtarma", headerStyle);
 
                 if (tier == 1)
                     GUILayout.Label("Ahşap Destek (çatlak kolona sağ tık) ve Manuel Tulumba başlangıçtan beri kullanılabilir.", wrapStyle);
@@ -80,37 +95,62 @@ namespace AftershockIsle.UI
             }
 
             GUILayout.EndScrollView();
-            nav.KeepFocusVisible(ref scroll, windowRect.height - 110f);
+            nav.KeepFocusVisible(ref scroll, windowRect.height - 140f);
 
             if (bench.PendingOrder.HasValue)
                 GUILayout.Label($"Bekleyen sipariş: {bench.PendingOrder.Value.Name}", wrapStyle);
 
+            GUILayout.BeginHorizontal();
+            nav.Button("🏗 Ev Yerleşim Modu [B]", () =>
+            {
+                open = false;
+                if (PlacementController.Instance != null)
+                    PlacementController.Instance.ToggleBuildMode();
+            });
             nav.Button($"Kapat ({GameInput.Prompt(InputPrompt.Back)})", () => open = false);
+            GUILayout.EndHorizontal();
             nav.EndDraw();
         }
 
         void DrawRecipe(Workbench bench, RecipeInfo recipe)
         {
             bool canOrder = bench.CanOrder(recipe, out string reason);
-            bool done = !recipe.Repeatable && Workbench.Has(recipe.Id);
+            bool done = !recipe.Repeatable && Workbench.IsCrafted(recipe.Id);
+            int unplacedCount = recipe.IsPlaceable ? bench.GetUnplacedCount(recipe.Id) : 0;
 
             GUILayout.BeginHorizontal(GUI.skin.box);
             GUILayout.BeginVertical();
-            string suffix = done ? "  (TAMAM)"
+            string suffix = done && unplacedCount == 0 ? "  (KURULDU / TAMAM)"
+                : unplacedCount > 0 ? $"  (Kuruluma Hazır: {unplacedCount})"
                 : recipe.Id == RecipeId.SteelBeam ? $"  (stok {bench.SteelBeams})"
                 : recipe.Id == RecipeId.AmmoPack ? $"  (stok {bench.Ammo})"
                 : "";
-            GUILayout.Label($"{recipe.Name}{suffix}", headerStyle);
+
+            string gridBadge = recipe.IsPlaceable
+                ? $"   [Grid: {recipe.GridWidth}x{recipe.GridDepth} • {recipe.AllowedFloorsText()}]"
+                : "";
+
+            GUILayout.Label($"{recipe.Name}{suffix}{gridBadge}", headerStyle);
             GUILayout.Label(recipe.Description, wrapStyle);
             GUILayout.Label($"Maliyet: {ResourceStorage.FormatCosts(recipe.Costs)}   Süre: {recipe.Duration:0} sn" +
                             (canOrder || done ? "" : $"   → {reason}"), wrapStyle);
             GUILayout.EndVertical();
 
+            if (unplacedCount > 0)
+            {
+                nav.Button("Kur [B]", () =>
+                {
+                    open = false;
+                    if (PlacementController.Instance != null)
+                        PlacementController.Instance.EnterPlacementForRecipe(recipe.Id);
+                }, true, null, GUILayout.Width(68), GUILayout.Height(40));
+            }
+
             nav.Button(recipe.IsUpgrade ? "Yükselt" : "Üret", () =>
             {
                 bench.Order(recipe, worker, GameInput.QueueModifierHeld);
                 open = false;
-            }, canOrder, null, GUILayout.Width(84), GUILayout.Height(40));
+            }, canOrder, null, GUILayout.Width(78), GUILayout.Height(40));
             GUILayout.EndHorizontal();
         }
     }

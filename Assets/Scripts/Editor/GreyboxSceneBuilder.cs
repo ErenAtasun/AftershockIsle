@@ -13,6 +13,7 @@ using AftershockIsle.Economy;
 using AftershockIsle.Expedition;
 using AftershockIsle.Interaction;
 using AftershockIsle.Player;
+using AftershockIsle.Save;
 using AftershockIsle.Skills;
 using AftershockIsle.UI;
 using UnityEditor;
@@ -134,6 +135,9 @@ namespace AftershockIsle.EditorTools
             SetRef(evacuation, "rotor", rotor);
             SetRef(evacuation, "landingPoint", building.transform.Find("Props/İniş Noktası"));
             systems.AddComponent<DebugCheats>();
+            systems.AddComponent<SaveManager>();
+            systems.AddComponent<ShelterGrid>();
+            systems.AddComponent<PlacementController>();
 
             var survivorPrefab = CreateSurvivorPrefab(palette);
             SetRef(systems.AddComponent<SurvivorRoster>(), "survivorPrefab", survivorPrefab.GetComponent<Survivor>());

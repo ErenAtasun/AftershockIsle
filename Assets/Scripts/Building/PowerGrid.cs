@@ -20,6 +20,8 @@ namespace AftershockIsle.Building
 
         public static PowerGrid Instance { get; private set; }
         public static bool IsOn => Instance != null && Instance.on;
+        /// <summary>Ana şalter açıkken ya da Yedek Jeneratör kuruluyken pompa ve telsiz çalışır.</summary>
+        public static bool HasEquipmentPower => IsOn || AftershockIsle.Crafting.PlaceableStructure.HasAny(AftershockIsle.Crafting.RecipeId.BackupGenerator);
 
         bool on;
 

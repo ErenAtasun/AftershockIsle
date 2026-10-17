@@ -84,5 +84,15 @@ namespace AftershockIsle.Economy
             counts[(int)type] += delta;
             EventBus.Publish(new ResourcesChanged(type, counts[(int)type]));
         }
+
+        public void RestoreState(int scrap, int metal, int electronics, int supplies)
+        {
+            counts[(int)ResourceType.Scrap] = scrap;
+            counts[(int)ResourceType.Metal] = metal;
+            counts[(int)ResourceType.Electronics] = electronics;
+            counts[(int)ResourceType.Supplies] = supplies;
+            foreach (var type in ResourceTypes.All)
+                EventBus.Publish(new ResourcesChanged(type, counts[(int)type]));
+        }
     }
 }

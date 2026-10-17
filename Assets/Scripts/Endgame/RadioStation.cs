@@ -154,5 +154,13 @@ namespace AftershockIsle.Endgame
             block.SetColor(BaseColorId, SignalComplete ? Color.green : IsRepaired ? new Color(1f, 0.8f, 0.2f) : new Color(0.8f, 0.15f, 0.1f));
             statusLight.SetPropertyBlock(block);
         }
+
+        public void RestoreState(bool isRepaired, float signal01, bool signalComplete)
+        {
+            IsRepaired = isRepaired;
+            Signal01 = Mathf.Clamp01(signal01);
+            SignalComplete = signalComplete;
+            RefreshLight();
+        }
     }
 }

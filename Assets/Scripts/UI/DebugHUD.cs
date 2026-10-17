@@ -8,6 +8,7 @@ using AftershockIsle.Endgame;
 using AftershockIsle.Expedition;
 using AftershockIsle.Interaction;
 using AftershockIsle.Player;
+using AftershockIsle.Save;
 using AftershockIsle.Skills;
 using UnityEngine;
 
@@ -69,9 +70,34 @@ namespace AftershockIsle.UI
             EventBus.Subscribe<RadioRepaired>(OnRadioRepaired);
             EventBus.Subscribe<SignalInterrupted>(OnSignalInterrupted);
             EventBus.Subscribe<HelicopterInbound>(OnHelicopterInbound);
+            EventBus.Subscribe<SaveCompleted>(OnSaveCompleted);
+            EventBus.Subscribe<GameLoaded>(OnGameLoaded);
+            EventBus.Subscribe<StructurePlaced>(OnStructurePlaced);
         }
 
-        void OnRecipeCrafted(RecipeCrafted evt) => ShowNotice($"Tezgah: {RecipeCatalog.Get(evt.Id).Name} tamamlandı.");
+        void OnStructurePlaced(StructurePlaced evt)
+        {
+            if (evt.Structure != null)
+                ShowNotice($"✓ {evt.Structure.Info.Name} {building.GetFloorName(evt.Structure.GridFloor)} katına yerleştirildi.");
+        }
+
+        void OnSaveCompleted(SaveCompleted evt)
+        {
+            if (evt.Success) ShowNotice(evt.SlotName == SaveManager.AutoSaveFile ? "Otomatik Kayıt Alındı." : "Oyun Kaydedildi.");
+        }
+
+        void OnGameLoaded(GameLoaded evt)
+        {
+            if (evt.Success) ShowNotice("Kayıtlı Oyun Yüklendi.");
+        }
+
+        void OnRecipeCrafted(RecipeCrafted evt)
+        {
+            var info = RecipeCatalog.Get(evt.Id);
+            ShowNotice(info.IsPlaceable
+                ? $"Tezgah: {info.Name} tamamlandı! Sığınak ızgarasında istediğin hücreye yerleştir."
+                : $"Tezgah: {info.Name} tamamlandı.");
+        }
         void OnPumpBroke(PumpBroke evt) => ShowNotice("Elektrikli pompa bozuldu! Tamir için 1 Boru & Metal gerekli.");
         void OnRadioRepaired(RadioRepaired evt) => ShowNotice("Telsiz tamir edildi. Şartlar sağlanınca sinyal gönderilebilir.");
         void OnSignalInterrupted(SignalInterrupted evt) => ShowNotice(evt.Reason, 5f);
@@ -132,6 +158,9 @@ namespace AftershockIsle.UI
             EventBus.Unsubscribe<RadioRepaired>(OnRadioRepaired);
             EventBus.Unsubscribe<SignalInterrupted>(OnSignalInterrupted);
             EventBus.Unsubscribe<HelicopterInbound>(OnHelicopterInbound);
+            EventBus.Unsubscribe<SaveCompleted>(OnSaveCompleted);
+            EventBus.Unsubscribe<GameLoaded>(OnGameLoaded);
+            EventBus.Unsubscribe<StructurePlaced>(OnStructurePlaced);
         }
 
         // Paneller alanlarını OnGUI'de yeniden bildirir; LateUpdate OnGUI'den önce çalışır.
@@ -195,7 +224,7 @@ namespace AftershockIsle.UI
 
         void DrawInfoPanel()
         {
-            var rect = new Rect(12, 12, 400, 320);
+            var rect = new Rect(12, 12, 400, 355);
             UIBlocker.Add(rect);
             GUILayout.BeginArea(rect, GUI.skin.box);
             GUILayout.Label($"Gün {dayCycle.Day} — {dayCycle.Phase.ToDisplayName()} ({Mathf.CeilToInt(dayCycle.PhaseRemaining)} sn)");
@@ -224,11 +253,16 @@ namespace AftershockIsle.UI
                 GUILayout.Label("Seçili: —");
             }
 
-            GUILayout.Space(6);
+            GUILayout.Space(4);
             GUILayout.Label("WASD / sol çubuk: yürü   F / A: etkileş   Tab / LB-RB: karakter");
-            GUILayout.Label("Fare: sol tık seç, sağ tık iş ver (Shift: sıraya ekle)   K / H");
+            GUILayout.Label("Fare: sol tık seç, sağ tık iş ver   [B]: Ev Yerleşimi (Grid)   K / H");
             GUILayout.Label("Test: F6 yangın F7 boru F8 sarsıntı F9 hasar F10 kolon");
             GUILayout.Label("      F11 kaynak+puan  F12 kazazede ekle");
+            if (GUILayout.Button(PlacementController.IsPlacementActive ? "🏗 Yerleşim Modunu Kapat [B]" : "🏗 Ev Yerleşim & Grid Modu [B]", GUILayout.Height(24)))
+            {
+                if (PlacementController.Instance != null)
+                    PlacementController.Instance.ToggleBuildMode();
+            }
             GUILayout.EndArea();
         }
 

@@ -19,7 +19,6 @@ namespace AftershockIsle.Crafting
     /// Kademe 2 elektrikli pompa: kurulduktan sonra elektrik açıkken bodrum suyunu insan gücü olmadan çeker.
     /// Çalıştıkça yıpranır; ömrü dolunca bozulur ve Boru &amp; Metal ile tamir edilir.
     /// </summary>
-    [RequireComponent(typeof(InstallableVisual))]
     public class ElectricPump : Interactable
     {
         [SerializeField] float drainPerSecond = 2f;
@@ -31,7 +30,7 @@ namespace AftershockIsle.Crafting
         float wear;
 
         public bool IsBroken { get; private set; }
-        public bool IsRunning => installable.IsInstalled && !IsBroken && PowerGrid.IsOn &&
+        public bool IsRunning => (installable == null || installable.IsInstalled) && !IsBroken && PowerGrid.HasEquipmentPower &&
                                  FloodSystem.Instance != null && FloodSystem.Instance.Level > 0.01f;
         float Lifetime => lifetime * (SkillTree.Has(SkillId.AutomationMaster) ? 1.5f : 1f);
 
@@ -39,7 +38,7 @@ namespace AftershockIsle.Crafting
         public override WorkCategory Category => WorkCategory.Repair;
         public override string StatusText => IsBroken
             ? $"BOZUK — tamir: {repairCost}"
-            : $"{(IsRunning ? "Çalışıyor" : PowerGrid.IsOn ? "Beklemede" : "Elektrik yok")}  — yıpranma %{wear / Lifetime * 100f:0}";
+            : $"{(IsRunning ? "Çalışıyor" : PowerGrid.HasEquipmentPower ? "Beklemede" : "Elektrik yok")}  — yıpranma %{wear / Lifetime * 100f:0}";
 
         protected override void Awake()
         {
@@ -74,6 +73,14 @@ namespace AftershockIsle.Crafting
             if (!ResourceStorage.Instance.TrySpend(repairCost)) return;
             IsBroken = false;
             wear = 0f;
+        }
+
+        public float Wear => wear;
+
+        public void RestoreState(bool isBroken, float wearAmount)
+        {
+            IsBroken = isBroken;
+            wear = wearAmount;
         }
     }
 }

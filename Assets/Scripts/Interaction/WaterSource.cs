@@ -70,5 +70,13 @@ namespace AftershockIsle.Interaction
 
             worker.TryPickUp(new ResourceAmount(ResourceType.Water, 1));
         }
+
+        public int Charges => charges;
+        public bool UsesFloodWater => usesFloodWater;
+
+        public void RestoreState(int chargesLeft)
+        {
+            charges = chargesLeft;
+        }
     }
 }

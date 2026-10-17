@@ -129,6 +129,8 @@ namespace AftershockIsle.Core
 
         public static bool FocusPressed => Keys != null && Keys.fKey.wasPressedThisFrame;
         public static bool RestartPressed => Keys != null && Keys.rKey.wasPressedThisFrame;
+        public static bool BuildModeTogglePressed => !FieldControlsActive && Keys != null && Keys.bKey.wasPressedThisFrame;
+        public static bool RotatePlacementPressed => !FieldControlsActive && Keys != null && Keys.rKey.wasPressedThisFrame;
 
         /// <summary>Basılıyken verilen emir mevcut işleri iptal etmez, sıraya eklenir.</summary>
         public static bool QueueModifierHeld => Keys != null && Keys.shiftKey.isPressed;

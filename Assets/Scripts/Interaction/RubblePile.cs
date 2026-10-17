@@ -112,5 +112,29 @@ namespace AftershockIsle.Interaction
             position.y = baseY + transform.lossyScale.y * 0.5f;
             transform.position = position;
         }
+
+        public int Remaining => remaining;
+        public int DigCount => digCount;
+        public bool BlocksPath => blocksPath;
+
+        public void RestoreState(int remainingDigs)
+        {
+            remaining = remainingDigs;
+            if (remaining <= 0)
+            {
+                if (blocksPath && Building != null) Building.RemoveBlocker(this);
+                Destroy(gameObject);
+                return;
+            }
+
+            float t = Mathf.Lerp(0.35f, 1f, remaining / (float)digCount);
+            var scale = fullScale;
+            scale.y *= t;
+            transform.localScale = scale;
+
+            var position = transform.position;
+            position.y = baseY + transform.lossyScale.y * 0.5f;
+            transform.position = position;
+        }
     }
 }

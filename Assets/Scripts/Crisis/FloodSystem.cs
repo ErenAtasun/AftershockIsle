@@ -77,6 +77,15 @@ namespace AftershockIsle.Crisis
         /// <summary>Boruyu patlatır (afet takvimi veya artçı sarsıntı zinciri).</summary>
         public bool TryBurstPipe() => pipe != null && pipe.Burst();
 
+        public float FullTimer => fullTimer;
+
+        public void RestoreState(float level, float fullTimerVal)
+        {
+            Level = Mathf.Clamp(level, 0f, 100f);
+            fullTimer = fullTimerVal;
+            RefreshVisual();
+        }
+
         public void Drain(float amount) => Level = Mathf.Max(0f, Level - amount);
 
         void Update()

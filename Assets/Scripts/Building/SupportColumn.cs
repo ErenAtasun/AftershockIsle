@@ -9,18 +9,33 @@ using UnityEngine;
 
 namespace AftershockIsle.Building
 {
-    public enum ColumnState { Intact, Cracked, Supported, Reinforced, Broken }
+    /// <summary>
+    /// Kolonun üç seviyesi: Lv1 Kırık → Lv2 Çatlak → Lv3 Çelik güçlendirilmiş.
+    /// Sayısal değerler eski kayıtlar ve sahnelerle uyum için korunur (0 = eski Sağlam, 2 = eski Ahşap destekli;
+    /// ikisi de yüklenirken Çatlak'a çevrilir).
+    /// </summary>
+    public enum ColumnState { Cracked = 1, Reinforced = 3, Broken = 4 }
 
     public static class ColumnStateNames
     {
         public static string ToDisplayName(this ColumnState state) => state switch
         {
-            ColumnState.Intact => "Sağlam",
             ColumnState.Cracked => "Çatlak",
-            ColumnState.Supported => "Ahşap destekli",
             ColumnState.Reinforced => "Çelik güçlendirilmiş",
             _ => "Kırık",
         };
+
+        /// <summary>1 = Kırık, 2 = Çatlak, 3 = Güçlendirilmiş.</summary>
+        public static int ToLevel(this ColumnState state) => state switch
+        {
+            ColumnState.Reinforced => 3,
+            ColumnState.Cracked => 2,
+            _ => 1,
+        };
+
+        /// <summary>Eski 5 durumlu değerleri (Sağlam, Ahşap destekli) yeni üç seviyeye çevirir.</summary>
+        public static ColumnState Normalize(ColumnState state) =>
+            System.Enum.IsDefined(typeof(ColumnState), state) ? state : ColumnState.Cracked;
     }
 
     public readonly struct ColumnStateChanged
@@ -33,19 +48,21 @@ namespace AftershockIsle.Building
             Column = column;
             Previous = previous;
         }
+
+        public bool LeveledUp => Column.Level > Previous.ToLevel();
     }
 
     /// <summary>
-    /// Katın tavanını taşıyan kolon. Çatlak/kırık kolon sarsıntı hasarını büyütür (Aşama 3);
-    /// Kalas harcanarak ahşap destek dikilir. Çelik güçlendirme tezgah Kademe 3 ile gelecek.
+    /// Katın tavanını taşıyan kolon. Onarım seviyeyi birer birer yükseltir: kırık kolon malzemeyle yeniden dikilir
+    /// (Lv1→Lv2), çatlak kolon tezgahın çelik kirişiyle güçlendirilir (Lv2→Lv3). Sarsıntıda çatlak kolon kırılır,
+    /// güçlendirilmiş kolon etkilenmez. Görseli ModelManager'daki seviye modelleri, yoksa renk verir.
     /// </summary>
     public class SupportColumn : Interactable
     {
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         static readonly List<SupportColumn> all = new List<SupportColumn>();
 
-        [SerializeField] ColumnState state = ColumnState.Intact;
-        [SerializeField] ResourceAmount supportCost = new ResourceAmount(ResourceType.Scrap, 2);
+        [SerializeField] ColumnState state = ColumnState.Cracked;
         [SerializeField] ResourceAmount rebuildCost = new ResourceAmount(ResourceType.Scrap, 4);
         [SerializeField] float reinforceDuration = 6f;
         [SerializeField] Renderer body;
@@ -56,27 +73,27 @@ namespace AftershockIsle.Building
         public static IReadOnlyList<SupportColumn> All => all;
 
         public ColumnState State => state;
+        public int Level => state.ToLevel();
+        /// <summary>Çatlak kolonun kırılmadan önce kaç sarsıntı daha atlatacağı (Çelik Tahkimat yeteneğiyle 2).</summary>
         public int SupportHitsRemaining => supportHitsRemaining;
-        public bool NeedsRepair => state == ColumnState.Cracked || state == ColumnState.Broken;
-        ResourceAmount RepairCost => state == ColumnState.Broken ? rebuildCost : supportCost;
+        public bool NeedsRepair => state == ColumnState.Broken;
 
-        /// <summary>Stokta çelik kiriş varken kırık olmayan her kolon çelikle güçlendirilebilir (önceliklidir).</summary>
-        bool WillReinforce => state != ColumnState.Broken && state != ColumnState.Reinforced &&
+        bool WillReinforce => state == ColumnState.Cracked &&
                               Workbench.Instance != null && Workbench.Instance.SteelBeams > 0;
 
-        public override string ActionLabel => WillReinforce ? "Çelikle Güçlendir"
-            : state == ColumnState.Broken ? "Yeniden Dik" : "Destekle";
+        public override string ActionLabel => state == ColumnState.Broken ? "Yeniden Dik" : "Çelikle Güçlendir";
         public override WorkCategory Category => WorkCategory.Repair;
         public override float WorkDuration => WillReinforce ? reinforceDuration : base.WorkDuration;
         public override string StatusText
         {
             get
             {
-                string text = state == ColumnState.Supported
-                    ? $"Durum: {state.ToDisplayName()} ({supportHitsRemaining} sarsıntı daha dayanır)"
-                    : $"Durum: {state.ToDisplayName()}";
+                string text = $"Durum: Lv{Level} {state.ToDisplayName()}";
+                if (state == ColumnState.Cracked && supportHitsRemaining > 1)
+                    text += $" ({supportHitsRemaining} sarsıntı daha dayanır)";
+
+                if (NeedsRepair) return $"{text}  — yeniden dik: {rebuildCost}";
                 if (WillReinforce) return $"{text}  — çelikle güçlendir: 1 çelik kiriş (stok {Workbench.Instance.SteelBeams})";
-                if (NeedsRepair) return $"{text}  — {ActionLabel.ToLowerInvariant()}: {RepairCost}";
                 return text;
             }
         }
@@ -85,93 +102,88 @@ namespace AftershockIsle.Building
         {
             base.Awake();
             if (body == null) body = GetComponent<Renderer>();
+            state = ColumnStateNames.Normalize(state);
+            if (state == ColumnState.Cracked && supportHitsRemaining <= 0) supportHitsRemaining = SkillTree.SupportDurability;
             ApplyVisual();
         }
 
         void OnEnable() => all.Add(this);
         void OnDisable() => all.Remove(this);
 
-        // Editörde başlangıç durumunu renkle görebilmek için.
+        // Editörde başlangıç durumunu renkle görebilmek için. Model değişimi burada yapılamaz (OnValidate'te obje yaratılmaz).
         void OnValidate()
         {
             if (body == null) body = GetComponent<Renderer>();
-            ApplyVisual();
+            ApplyTint();
         }
 
         public override bool CanStart(Survivor worker, out string reason)
         {
-            if (WillReinforce)
+            switch (state)
             {
-                reason = null;
-                return true;
+                case ColumnState.Reinforced:
+                    reason = "Kolon zaten çelikle güçlendirilmiş.";
+                    return false;
+                case ColumnState.Cracked:
+                    reason = WillReinforce ? null : "Güçlendirmek için çelik kiriş gerekli (Tezgah Kademe 3).";
+                    return reason == null;
+                default:
+                    reason = ResourceStorage.Instance.Has(rebuildCost) ? null : $"Depoda yeterli malzeme yok: {rebuildCost} gerekli.";
+                    return reason == null;
             }
-
-            if (!NeedsRepair)
-            {
-                reason = state == ColumnState.Reinforced ? "Kolon zaten çelikle güçlendirilmiş." : "Kolonun desteğe ihtiyacı yok.";
-                return false;
-            }
-
-            if (!ResourceStorage.Instance.Has(RepairCost))
-            {
-                reason = $"Depoda yeterli malzeme yok: {RepairCost} gerekli.";
-                return false;
-            }
-
-            reason = null;
-            return true;
         }
 
-        public override bool CanContinue(Survivor worker) => WillReinforce || NeedsRepair;
+        public override bool CanContinue(Survivor worker) => NeedsRepair || WillReinforce;
 
         public override void Complete(Survivor worker)
         {
-            if (WillReinforce)
+            if (state == ColumnState.Cracked)
             {
-                if (Workbench.Instance.TryUseSteelBeam()) SetState(ColumnState.Reinforced);
+                if (Workbench.Instance != null && Workbench.Instance.TryUseSteelBeam()) SetState(ColumnState.Reinforced);
                 return;
             }
 
             // Çalışma sırasında malzeme başka işe harcanmış olabilir.
-            if (!ResourceStorage.Instance.TrySpend(RepairCost)) return;
+            if (state != ColumnState.Broken || !ResourceStorage.Instance.TrySpend(rebuildCost)) return;
             supportHitsRemaining = SkillTree.SupportDurability;
-            SetState(ColumnState.Supported);
+            SetState(ColumnState.Cracked);
         }
 
         /// <summary>
-        /// Sarsıntının bu kolona etkisi: çatlak kırılır, ahşap destek bir darbe emer (dayanıklılığı bitince
-        /// çatlağa döner), sağlam kolon ihtimalle çatlar, çelik etkilenmez. Bu sarsıntıda kırıldıysa true.
+        /// Sarsıntının bu kolona etkisi: çatlak kolon dayanıklılığı bitince kırılır, güçlendirilmiş ve zaten kırık
+        /// kolon etkilenmez. Bu sarsıntıda kırıldıysa true.
         /// </summary>
-        public bool ApplyShock(float intactCrackChance)
+        public bool ApplyShock()
         {
-            switch (state)
-            {
-                case ColumnState.Cracked:
-                    SetState(ColumnState.Broken);
-                    return true;
-                case ColumnState.Supported:
-                    supportHitsRemaining--;
-                    if (supportHitsRemaining <= 0) SetState(ColumnState.Cracked);
-                    return false;
-                case ColumnState.Intact:
-                    if (Random.value < intactCrackChance) SetState(ColumnState.Cracked);
-                    return false;
-                default:
-                    return false;
-            }
+            if (state != ColumnState.Cracked) return false;
+
+            supportHitsRemaining--;
+            if (supportHitsRemaining > 0) return false;
+
+            SetState(ColumnState.Broken);
+            return true;
         }
 
         public void SetState(ColumnState newState)
         {
+            newState = ColumnStateNames.Normalize(newState);
             if (newState == state) return;
 
             var previous = state;
             state = newState;
+            if (state == ColumnState.Cracked && supportHitsRemaining <= 0) supportHitsRemaining = SkillTree.SupportDurability;
             ApplyVisual();
             EventBus.Publish(new ColumnStateChanged(this, previous));
         }
 
-        void ApplyVisual()
+        /// <summary>Seviye modelini (varsa) yeniden giydirir; ModelManager güncellendiğinde çağrılır.</summary>
+        public void ApplyVisual()
+        {
+            if (ModelManager.Instance != null && ModelManager.Instance.ApplyColumnModel(this)) return;
+            ApplyTint();
+        }
+
+        void ApplyTint()
         {
             if (body == null) return;
 
@@ -179,9 +191,7 @@ namespace AftershockIsle.Building
             body.GetPropertyBlock(block);
             block.SetColor(BaseColorId, state switch
             {
-                ColumnState.Intact => new Color(0.62f, 0.62f, 0.6f),
                 ColumnState.Cracked => new Color(0.85f, 0.55f, 0.2f),
-                ColumnState.Supported => new Color(0.55f, 0.38f, 0.2f),
                 ColumnState.Reinforced => new Color(0.4f, 0.55f, 0.75f),
                 _ => new Color(0.5f, 0.12f, 0.1f),
             });
@@ -190,8 +200,8 @@ namespace AftershockIsle.Building
 
         public void RestoreState(ColumnState savedState, int hitsRemaining)
         {
-            state = savedState;
-            supportHitsRemaining = hitsRemaining;
+            state = ColumnStateNames.Normalize(savedState);
+            supportHitsRemaining = state == ColumnState.Cracked ? Mathf.Max(1, hitsRemaining) : 0;
             ApplyVisual();
         }
     }

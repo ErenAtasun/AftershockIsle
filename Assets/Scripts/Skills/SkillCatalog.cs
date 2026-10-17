@@ -33,7 +33,7 @@ namespace AftershockIsle.Skills
         public static readonly SkillInfo[] All =
         {
             new SkillInfo(SkillId.QuickHammer, SkillBranch.Construction, 1, "Hızlı Çekiç", "Tamir ve kazma hızı +%30."),
-            new SkillInfo(SkillId.SteelBracing, SkillBranch.Construction, 2, "Çelik Tahkimat", "Dikilen ahşap destekler 2 sarsıntıya dayanır."),
+            new SkillInfo(SkillId.SteelBracing, SkillBranch.Construction, 2, "Çelik Tahkimat", "Yeniden dikilen çatlak kolonlar 2 sarsıntıya dayanır."),
             new SkillInfo(SkillId.LifeTriangleArchitect, SkillBranch.Construction, 3, "Yaşam Üçgeni Mimarı", "Kazazedeler sarsıntılarda hiç hasar almaz."),
 
             new SkillInfo(SkillId.NimbleStep, SkillBranch.Exploration, 1, "Çevik Adım", "Yürüme ve tırmanma hızı +%25."),

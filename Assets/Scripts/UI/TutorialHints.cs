@@ -92,8 +92,9 @@ namespace AftershockIsle.UI
         void OnSelected(SurvivorSelected evt)
         {
             if (evt.Survivor == null) return;
-            Show("select", "Çatlak kolonlar",
-                "Turuncu (çatlak) kolonlar sarsıntıda kırılır. Kolonla etkileş (F / A ya da sağ tık): 2 Kalas ile ahşap destek dikilir. " +
+            Show("select", "Kolon seviyeleri",
+                "Kolonların 3 seviyesi var: Lv1 Kırık, Lv2 Çatlak, Lv3 Çelik. Çatlak kolon sarsıntıda kırılır. Kırık kolonla etkileş " +
+                "(F / A ya da sağ tık): 4 Kalas & Hurda ile yeniden dikilir. " +
                 "Kalası molozlardan kazarak bulursun; karakter malzemeyi kendisi sandığa taşır.");
         }
 
@@ -103,8 +104,8 @@ namespace AftershockIsle.UI
 
         void OnColumnChanged(ColumnStateChanged evt)
         {
-            if (evt.Column.State == ColumnState.Supported)
-                Show("support", "Destek dikildi", "Ahşap destek bir sarsıntıyı karşılar, sonra tekrar çatlar. Kalıcı çözüm için Kademe 3'te Çelik Kiriş üret.");
+            if (evt.LeveledUp && evt.Column.State == ColumnState.Cracked)
+                Show("support", "Kolon yeniden dikildi", "Çatlak kolon ilk sarsıntıda yine kırılır. Kalıcı çözüm: Kademe 3'te Çelik Kiriş üretip kolonu Lv3'e güçlendir; çelik kolon sarsıntıdan etkilenmez.");
         }
 
         void OnPhaseChanged(DayPhaseChanged evt)

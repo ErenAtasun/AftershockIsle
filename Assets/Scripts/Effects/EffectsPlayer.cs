@@ -22,7 +22,14 @@ namespace AftershockIsle.Effects
 
         BuildingLayout building;
 
-        void Awake() => building = FindFirstObjectByType<BuildingLayout>();
+        /// <summary>Sahnedeki partikül malzemesi; sürekli efektler (yangın) de aynısını kullanır.</summary>
+        public static Material ParticleMaterial { get; private set; }
+
+        void Awake()
+        {
+            building = FindFirstObjectByType<BuildingLayout>();
+            if (particleMaterial != null) ParticleMaterial = particleMaterial;
+        }
 
         void OnEnable()
         {

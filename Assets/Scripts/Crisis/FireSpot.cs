@@ -4,6 +4,7 @@ using AftershockIsle.Characters;
 using AftershockIsle.Core;
 using AftershockIsle.Crafting;
 using AftershockIsle.Economy;
+using AftershockIsle.Effects;
 using AftershockIsle.Interaction;
 using UnityEngine;
 
@@ -73,6 +74,7 @@ namespace AftershockIsle.Crisis
         [SerializeField] float flameStandOff = 1.3f;
 
         MaterialPropertyBlock block;
+        FireParticles particles;
         Vector3 flameBaseScale;
         float fullBurnTimer;
         bool hasCollapsed;
@@ -304,7 +306,20 @@ namespace AftershockIsle.Crisis
 
         void RefreshVisuals()
         {
-            if (flame != null)
+            // Partikül alevi ilk tutuşmada kurulur; eski kutu alev yalnızca partikül yoksa (editörde) kullanılır.
+            if (particles == null && IsBurning && Application.isPlaying) particles = FireParticles.Create(transform);
+            if (particles != null)
+            {
+                particles.Set(IsBurning, Intensity / 100f);
+                if (flame != null)
+                {
+                    // Kutu tıklama alanı olarak kalır, yalnızca görünmez olur.
+                    flame.SetActive(IsBurning);
+                    var box = flame.GetComponent<Renderer>();
+                    if (box != null) box.enabled = false;
+                }
+            }
+            else if (flame != null)
             {
                 flame.SetActive(IsBurning);
                 if (IsBurning)

@@ -21,9 +21,9 @@ namespace AftershockIsle.Building
         [Header("Hedef Bina Sistemi")]
         [SerializeField] BuildingLayout building;
 
-        [Header("1. Bina Modeli (İsteğe Bağlı)")]
-        [Tooltip("İşaretlenirse ve aşağıya bina prefabı bırakılırsa eski gri duvarları gizleyip yeni binayı gösterir")]
-        [SerializeField] bool useCustomBuilding;
+        [Header("1. Bina Modeli")]
+        [Tooltip("İşaretliyken eski gri kutu binayı gizler ve yeni bina modelini gösterir")]
+        [SerializeField] bool useCustomBuilding = true;
         [Tooltip("Buraya Building.fbx veya bina prefabını sürükle")]
         [SerializeField] GameObject buildingPrefab;
         [Tooltip("Blender'daki tek katın iç ölçüsü (Genişlik X, Kat Yüksekliği Y, Derinlik Z)")]
@@ -34,6 +34,10 @@ namespace AftershockIsle.Building
         [SerializeField] bool fitBuildingToLayout = true;
         [Tooltip("Bina modeli atandığında eski gri duvar ve döşeme kutularını gizler (kapı ve mantık çalışmaya devam eder)")]
         [SerializeField] bool hideGreyboxWalls = true;
+        [Tooltip("İşaretliyken sahnedeki eski kutu eşyaları ve mavi bodrum suyu küpünü gizler (2. resimdeki temiz bina görünümü için)")]
+        [SerializeField] bool hideGreyboxProps = true;
+        [Tooltip("Pencerelerin arkasına 2. resimdeki gibi kirli sarı/kehribar buğulu cam arka planı ekler")]
+        [SerializeField] bool addWarmWindowBacking = true;
 
         [Header("2. Çukur Kalasları (Tahtalar)")]
         [Tooltip("Buraya tahtalar.fbx modelini bırakabilirsin")]
@@ -48,6 +52,16 @@ namespace AftershockIsle.Building
         [SerializeField] GameObject workbenchPrefab;
         [Tooltip("Buraya bodrumdaki su deposu / varil modelini bırakabilirsin (Su Tulumbasına giydirir)")]
         [SerializeField] GameObject waterTankPrefab;
+
+        [Header("4. Kolon Seviye Modelleri (Assets/Models/Columns)")]
+        [Tooltip("Lv1: Kolon_Lv1_Kirik.fbx")]
+        [SerializeField] GameObject columnLv1Prefab;
+        [Tooltip("Lv2: Kolon_Lv2_Catlak.fbx")]
+        [SerializeField] GameObject columnLv2Prefab;
+        [Tooltip("Lv3: Kolon_Lv3_Guclendirilmis.fbx")]
+        [SerializeField] GameObject columnLv3Prefab;
+        [Tooltip("Kolon modelinin Y eksenindeki dönüşü (hasarlı yüz kameraya baksın diye)")]
+        [SerializeField] float columnYaw = 180f;
 
         static Material outlineMaterial;
         readonly Dictionary<Material, Material> runtimeMaterials = new Dictionary<Material, Material>();
@@ -73,10 +87,13 @@ namespace AftershockIsle.Building
             if (building == null) building = FindFirstObjectByType<BuildingLayout>();
             if (building == null) return;
 
+            runtimeMaterials.Clear();
             ApplyBuilding();
             ApplyFloorPlanks();
             ApplyWorkbench();
             ApplyWaterTank();
+            ApplyColumns();
+            ApplyGreyboxPropsVisibility();
         }
 
         // ---------------------------------------------------------------- 1. Bina
@@ -93,11 +110,6 @@ namespace AftershockIsle.Building
                 foreach (var renderer in geo.GetComponentsInChildren<Renderer>(true))
                 {
                     if (renderer == null) continue;
-                    if (renderer.gameObject.name.StartsWith("Earth_"))
-                    {
-                        renderer.enabled = true;
-                        continue;
-                    }
                     renderer.enabled = showGreybox;
                 }
             }
@@ -127,15 +139,17 @@ namespace AftershockIsle.Building
             instance.transform.localRotation = Quaternion.identity;
             instance.transform.localScale = Vector3.one;
 
-            CleanBuildingInstance(instance);
+            CleanBuildingInstance(instance, addWarmWindowBacking);
             FixBuildingMaterials(instance);
         }
 
         /// <summary>
-        /// Blender sahnesinden yanlışlıkla gelen Kamera, Işık veya bina dışı objeleri kapatır;
-        /// bina mesh collider'larının içerideki karakter/eşya tıklamalarını engellemesini önler.
+        /// Blender sahnesinden yanlışlıkla gelen Kamera/Işık objelerini kapatır,
+        /// Blender'daki açık kapı açılarını (kapi_acik_aci) uygular,
+        /// arka duvarla çakışan tuğla/harç/çatlak detaylarını 2 cm öne çeker ve
+        /// pencerelerin arkasına 2. resimdeki sarı buğulu cam panelini yerleştirir.
         /// </summary>
-        static void CleanBuildingInstance(GameObject instance)
+        static void CleanBuildingInstance(GameObject instance, bool createWindowBacking)
         {
             foreach (var cam in instance.GetComponentsInChildren<Camera>(true))
                 cam.gameObject.SetActive(false);
@@ -147,18 +161,89 @@ namespace AftershockIsle.Building
             {
                 if (child == null || child == instance.transform) continue;
                 string n = child.name;
+
                 if (n.StartsWith("Bakir_Mavi") || n.StartsWith("Kivilcim") || n == "Camera" || n == "Light")
+                {
                     child.gameObject.SetActive(false);
+                    continue;
+                }
+
+                // Arka duvarın (Y=2.0, Solidify=1.985) içinde kalıp gizlenen tuğla, harç ve çatlakları kameraya (+Z) yaklaştır
+                if (n.Contains("Brick_Mortar"))
+                {
+                    var p = child.localPosition;
+                    child.localPosition = new Vector3(p.x, p.y, 0.018f);
+                }
+                else if (n.Contains("BackWall_Crack"))
+                {
+                    var p = child.localPosition;
+                    child.localPosition = new Vector3(p.x, p.y, 0.020f);
+                }
+                else if (n.Contains("Brick_Details"))
+                {
+                    var p = child.localPosition;
+                    child.localPosition = new Vector3(p.x, p.y, 0.025f);
+                }
+
+                // Blender'da kapi_acik_aci ile açılmış yeşil paslı kapıları 2. resimdeki açılarına döndür
+                if (n.StartsWith("F1_Door_X-4_5") || n.StartsWith("F3_Door_X-3_0") || n.StartsWith("F1_Ext_Door"))
+                {
+                    child.localRotation = Quaternion.Euler(0f, 82f, 0f) * Quaternion.Euler(-90f, 0f, 0f);
+                }
+                else if (n.StartsWith("F1_Door_X+4_0") || n.StartsWith("F2_Door_X+4_5") ||
+                         n.StartsWith("F2_Door_X-1_0") || n.StartsWith("F3_Door_X+3_0"))
+                {
+                    child.localRotation = Quaternion.Euler(0f, -82f, 0f) * Quaternion.Euler(-90f, 0f, 0f);
+                }
             }
+
+            if (createWindowBacking)
+                CreateWarmWindowBackings(instance.transform);
 
             foreach (var col in instance.GetComponentsInChildren<Collider>(true))
                 col.enabled = false;
+        }
+
+        static void CreateWarmWindowBackings(Transform buildingRoot)
+        {
+            var shader = Shader.Find("Aftershock/CelBuilding")
+                         ?? (GraphicsSettings.currentRenderPipeline != null
+                             ? GraphicsSettings.currentRenderPipeline.defaultShader
+                             : Shader.Find("Standard"));
+            var glassMat = new Material(shader) { name = "Window_Amber_Backing_Cel" };
+            // 2. resimdeki kirli sarı / kehribar pencere içi rengi
+            Color amber = new Color(0.56f, 0.45f, 0.21f, 1f);
+            Color amberPatch = new Color(0.46f, 0.36f, 0.16f, 1f);
+            if (glassMat.HasProperty("_BaseColor")) glassMat.SetColor("_BaseColor", amber);
+            if (glassMat.HasProperty("_Color")) glassMat.SetColor("_Color", amber);
+            if (glassMat.HasProperty("_PatchColor")) glassMat.SetColor("_PatchColor", amberPatch);
+            if (glassMat.HasProperty("_NoiseScale")) glassMat.SetFloat("_NoiseScale", 3.0f);
+            if (glassMat.HasProperty("_NoiseThreshold")) glassMat.SetFloat("_NoiseThreshold", 0.65f);
+            if (glassMat.HasProperty("_NoiseStrength")) glassMat.SetFloat("_NoiseStrength", 0.6f);
+            if (glassMat.HasProperty("_CornerAO")) glassMat.SetFloat("_CornerAO", 0.15f);
+
+            float[] floorWindowCenterY = { 5.08f, 8.58f, 12.08f };
+            for (int i = 0; i < floorWindowCenterY.Length; i++)
+            {
+                var backing = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                backing.name = $"Window_Amber_Backing_F{i + 1}";
+                backing.transform.SetParent(buildingRoot, false);
+                // Demir parmaklıkların (-2.04..-2.12) hemen arkasında, dış duvar kalınlığının (-2.00..-2.35) içinde
+                backing.transform.localPosition = new Vector3(0f, floorWindowCenterY[i], -2.18f);
+                backing.transform.localScale = new Vector3(14.5f, 1.42f, 0.02f);
+                var col = backing.GetComponent<Collider>();
+                if (col != null) DestroySafe(col);
+                var r = backing.GetComponent<Renderer>();
+                if (r != null) r.sharedMaterial = glassMat;
+            }
         }
 
         void FixBuildingMaterials(GameObject instance)
         {
             foreach (var renderer in instance.GetComponentsInChildren<Renderer>(true))
             {
+                if (renderer.gameObject.name.StartsWith("Window_Amber_Backing")) continue;
+
                 var shared = renderer.sharedMaterials;
                 bool changed = false;
 
@@ -181,6 +266,10 @@ namespace AftershockIsle.Building
 
                 if (changed) renderer.sharedMaterials = shared;
             }
+
+#if UNITY_EDITOR
+            UpgradeExtractedBuildingMaterialsInEditor();
+#endif
         }
 
         static Material GetOutlineMaterial()
@@ -200,21 +289,202 @@ namespace AftershockIsle.Building
         {
             if (runtimeMaterials.TryGetValue(source, out var cached) && cached != null) return cached;
 
-            var shader = GraphicsSettings.currentRenderPipeline != null
-                ? GraphicsSettings.currentRenderPipeline.defaultShader
-                : Shader.Find("Standard");
+            var celShader = Shader.Find("Aftershock/CelBuilding");
+            var shader = celShader != null
+                ? celShader
+                : (GraphicsSettings.currentRenderPipeline != null
+                    ? GraphicsSettings.currentRenderPipeline.defaultShader
+                    : Shader.Find("Standard"));
 
-            Color color = Color.gray;
-            if (source.HasProperty("_BaseColor")) color = source.GetColor("_BaseColor");
-            else if (source.HasProperty("_Color")) color = source.GetColor("_Color");
-
-            var mat = new Material(shader) { name = source.name + "_URP" };
-            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
-            if (mat.HasProperty("_Color")) mat.SetColor("_Color", color);
-            if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", 0.12f);
+            var mat = new Material(shader) { name = source.name + "_Cel" };
+            ConfigureCelBuildingMaterial(mat, source);
             runtimeMaterials[source] = mat;
             return mat;
         }
+
+        static void ConfigureCelBuildingMaterial(Material target, Material source)
+        {
+            string n = (source != null ? source.name : target.name).ToLowerInvariant();
+
+            Color baseColor = new Color(0.56f, 0.56f, 0.54f, 1f);
+            if (source != null)
+            {
+                if (source.HasProperty("_BaseColor")) baseColor = source.GetColor("_BaseColor");
+                else if (source.HasProperty("_Color")) baseColor = source.GetColor("_Color");
+            }
+
+            Color patchColor = new Color(baseColor.r * 0.84f, baseColor.g * 0.84f, baseColor.b * 0.83f, 1f);
+            float noiseScale = 1.75f;
+            float noiseThreshold = 0.74f;
+            float noiseStrength = 0.85f;
+            float cornerAO = 0.32f;
+            float useBasementDamp = 0f;
+
+            if (n.Contains("bodrum_duvar"))
+            {
+                // 2. resimdeki bodrum sıvası + alt yosun yeşili rutubet şeridi + oda köşe gölgesi
+                baseColor = new Color(0.54f, 0.55f, 0.54f, 1f);
+                patchColor = new Color(0.43f, 0.44f, 0.43f, 1f);
+                noiseScale = 1.7f;
+                noiseThreshold = 0.73f;
+                noiseStrength = 0.90f;
+                cornerAO = 0.38f;
+                useBasementDamp = 1f;
+            }
+            else if (n.Contains("kat_duvar") || n.Contains("bolme_duvar"))
+            {
+                // 2. resimdeki sıcak gri sıva + seyrek hafif lekeler + yumuşak köşe kararması
+                baseColor = new Color(0.58f, 0.57f, 0.55f, 1f);
+                patchColor = new Color(0.47f, 0.46f, 0.44f, 1f);
+                noiseScale = 1.8f;
+                noiseThreshold = 0.75f;
+                noiseStrength = 0.85f;
+                cornerAO = 0.36f;
+            }
+            else if (n.Contains("tavan") || n.Contains("cati"))
+            {
+                // 2. resimde tavanlar pürüzsüz düz gri, sadece kenarları/köşeleri hafif koyu
+                baseColor = new Color(0.46f, 0.47f, 0.48f, 1f);
+                patchColor = new Color(0.41f, 0.42f, 0.43f, 1f);
+                noiseStrength = 0.08f;
+                cornerAO = 0.34f;
+            }
+            else if (n.Contains("bodrum_zemin"))
+            {
+                // 2. resimdeki bodrum zemini: koyu gri beton + geniş ıslak koyu lekeler
+                baseColor = new Color(0.40f, 0.41f, 0.42f, 1f);
+                patchColor = new Color(0.28f, 0.29f, 0.30f, 1f);
+                noiseScale = 1.25f;
+                noiseThreshold = 0.64f;
+                noiseStrength = 0.95f;
+                cornerAO = 0.38f;
+            }
+            else if (n.Contains("zemin"))
+            {
+                // Üst kat zeminleri: temiz mat şap + çok seyrek ufak izler + köşe gölgesi
+                baseColor = new Color(0.46f, 0.45f, 0.43f, 1f);
+                patchColor = new Color(0.38f, 0.37f, 0.35f, 1f);
+                noiseScale = 2.0f;
+                noiseThreshold = 0.80f;
+                noiseStrength = 0.60f;
+                cornerAO = 0.34f;
+            }
+            else if (n.Contains("kolon"))
+            {
+                baseColor = new Color(0.52f, 0.53f, 0.54f, 1f);
+                patchColor = new Color(0.43f, 0.44f, 0.45f, 1f);
+                noiseScale = 2.0f;
+                noiseThreshold = 0.74f;
+                noiseStrength = 0.55f;
+                cornerAO = 0.30f;
+            }
+            else if (n.Contains("tugla_harc"))
+            {
+                // Tuğla oyuğu arka harç boşluğu
+                baseColor = new Color(0.24f, 0.21f, 0.19f, 1f);
+                patchColor = new Color(0.18f, 0.16f, 0.14f, 1f);
+                noiseStrength = 0.20f;
+                cornerAO = 0.15f;
+            }
+            else if (n.Contains("tugla"))
+            {
+                // 2. resimdeki soluk kahve-kiremit tuğlalar (cırtlak kırmızı değil)
+                baseColor = new Color(0.46f, 0.29f, 0.21f, 1f);
+                patchColor = new Color(0.35f, 0.21f, 0.15f, 1f);
+                noiseScale = 4.2f;
+                noiseThreshold = 0.60f;
+                noiseStrength = 0.85f;
+                cornerAO = 0.15f;
+            }
+            else if (n.Contains("kapi_boya"))
+            {
+                // 2. resimdeki küf yeşili/turkuaz kapılar + turuncu/kahve pas lekeleri
+                baseColor = new Color(0.36f, 0.48f, 0.45f, 1f);
+                patchColor = new Color(0.58f, 0.34f, 0.16f, 1f);
+                noiseScale = 3.2f;
+                noiseThreshold = 0.67f;
+                noiseStrength = 0.95f;
+                cornerAO = 0.20f;
+            }
+            else if (n.Contains("ahsap"))
+            {
+                // Merdivenler ve kapı kasaları: eskitilmiş ahşap + pas/aşınma tonu
+                baseColor = new Color(0.46f, 0.39f, 0.31f, 1f);
+                patchColor = new Color(0.60f, 0.37f, 0.17f, 1f);
+                noiseScale = 3.4f;
+                noiseThreshold = 0.68f;
+                noiseStrength = 0.85f;
+                cornerAO = 0.18f;
+            }
+            else if (n.Contains("pasli"))
+            {
+                // Pencere korkulukları, merdiven korkulukları ve borular
+                baseColor = new Color(0.34f, 0.32f, 0.30f, 1f);
+                patchColor = new Color(0.60f, 0.35f, 0.16f, 1f);
+                noiseScale = 3.8f;
+                noiseThreshold = 0.66f;
+                noiseStrength = 0.90f;
+                cornerAO = 0.15f;
+            }
+            else if (n.Contains("kesit_cerceve"))
+            {
+                // 2. resimdeki düz mat koyu antrasit kesit çerçevesi (lekesiz)
+                baseColor = new Color(0.25f, 0.26f, 0.28f, 1f);
+                patchColor = new Color(0.25f, 0.26f, 0.28f, 1f);
+                noiseStrength = 0f;
+                cornerAO = 0.12f;
+            }
+            else if (n.Contains("catlak"))
+            {
+                baseColor = new Color(0.08f, 0.08f, 0.08f, 1f);
+                patchColor = new Color(0.08f, 0.08f, 0.08f, 1f);
+                noiseStrength = 0f;
+                cornerAO = 0f;
+            }
+
+            if (target.HasProperty("_BaseColor")) target.SetColor("_BaseColor", baseColor);
+            if (target.HasProperty("_Color")) target.SetColor("_Color", baseColor);
+            if (target.HasProperty("_PatchColor")) target.SetColor("_PatchColor", patchColor);
+            if (target.HasProperty("_NoiseScale")) target.SetFloat("_NoiseScale", noiseScale);
+            if (target.HasProperty("_NoiseThreshold")) target.SetFloat("_NoiseThreshold", noiseThreshold);
+            if (target.HasProperty("_NoiseStrength")) target.SetFloat("_NoiseStrength", noiseStrength);
+            if (target.HasProperty("_CornerAO")) target.SetFloat("_CornerAO", cornerAO);
+            if (target.HasProperty("_UseBasementDamp")) target.SetFloat("_UseBasementDamp", useBasementDamp);
+            if (target.HasProperty("_Smoothness")) target.SetFloat("_Smoothness", 0.08f);
+        }
+
+#if UNITY_EDITOR
+        static void UpgradeExtractedBuildingMaterialsInEditor()
+        {
+            const string matFolder = "Assets/Models/Buildings/Materials";
+            if (!UnityEditor.AssetDatabase.IsValidFolder(matFolder)) return;
+
+            var celShader = Shader.Find("Aftershock/CelBuilding");
+            var unlitShader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (celShader == null) return;
+
+            var guids = UnityEditor.AssetDatabase.FindAssets("t:Material", new[] { matFolder });
+            foreach (string g in guids)
+            {
+                string path = UnityEditor.AssetDatabase.GUIDToAssetPath(g);
+                var mat = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(path);
+                if (mat == null) continue;
+
+                if (mat.name.StartsWith("Cizim_Dis_Hat") || mat.name.Contains("Outline"))
+                {
+                    if (unlitShader != null && mat.shader != unlitShader) mat.shader = unlitShader;
+                    if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", Color.black);
+                    if (mat.HasProperty("_Cull")) mat.SetFloat("_Cull", (float)CullMode.Back);
+                }
+                else
+                {
+                    if (mat.shader != celShader) mat.shader = celShader;
+                    ConfigureCelBuildingMaterial(mat, mat);
+                }
+                UnityEditor.EditorUtility.SetDirty(mat);
+            }
+        }
+#endif
 
         // ---------------------------------------------------------------- 2. Çukur Kalasları
 
@@ -256,11 +526,66 @@ namespace AftershockIsle.Building
             SkinPropWithCustomPrefab(pump.gameObject, waterTankPrefab, 1.25f, 180f);
         }
 
-        static void SkinPropWithCustomPrefab(GameObject targetBox, GameObject prefab, float targetHeight, float yaw)
+        // ---------------------------------------------------------------- 4. Kolonlar
+
+        void ApplyColumns()
+        {
+            foreach (var column in FindObjectsByType<SupportColumn>(FindObjectsSortMode.None))
+                column.ApplyVisual();
+        }
+
+        void ApplyGreyboxPropsVisibility()
+        {
+            bool useCustom = useCustomBuilding && buildingPrefab != null;
+            var propsRoot = building.transform.Find("Props");
+            if (propsRoot != null)
+            {
+                bool showOldProps = !useCustom || !hideGreyboxProps;
+                foreach (var renderer in propsRoot.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (renderer == null) continue;
+                    renderer.enabled = showOldProps;
+                }
+            }
+
+            if (useCustom && hideGreyboxProps)
+            {
+                var planks = building.transform.Find(PlanksHolderName);
+                if (planks != null) planks.gameObject.SetActive(false);
+            }
+        }
+
+        GameObject ColumnPrefab(int level) => level switch
+        {
+            3 => columnLv3Prefab,
+            2 => columnLv2Prefab,
+            _ => columnLv1Prefab,
+        };
+
+        /// <summary>
+        /// Kolonun kutusuna mevcut seviyesinin modelini giydirir (eskisini siler). Seviyenin modeli atanmamışsa
+        /// false döner; kolon o zaman renkle gösterilir.
+        /// </summary>
+        public bool ApplyColumnModel(SupportColumn column)
+        {
+            var prefab = ColumnPrefab(column.Level);
+            if (prefab == null) return false;
+
+            var model = SkinPropWithCustomPrefab(column.gameObject, prefab, column.transform.lossyScale.y, columnYaw);
+            if (model != null) FixBuildingMaterials(model);
+            return model != null;
+        }
+
+        static GameObject SkinPropWithCustomPrefab(GameObject targetBox, GameObject prefab, float targetHeight, float yaw)
         {
             var defaultModel = targetBox.transform.Find("Model");
             var prevCustom = targetBox.transform.Find(CustomSkinHolderName);
-            if (prevCustom != null) DestroySafe(prevCustom.gameObject);
+            if (prevCustom != null)
+            {
+                // Play modunda Destroy kare sonunda çalışır; aynı karede yenisiyle karışmasın diye adını değiştir.
+                prevCustom.name = CustomSkinHolderName + "_Old";
+                DestroySafe(prevCustom.gameObject);
+            }
 
             if (prefab == null)
             {
@@ -270,7 +595,7 @@ namespace AftershockIsle.Building
                     var boxR = targetBox.GetComponent<MeshRenderer>();
                     if (boxR != null) boxR.enabled = true;
                 }
-                return;
+                return null;
             }
 
             if (defaultModel != null) defaultModel.gameObject.SetActive(false);
@@ -299,6 +624,7 @@ namespace AftershockIsle.Building
 
             var boxRenderer = targetBox.GetComponent<MeshRenderer>();
             if (boxRenderer != null) boxRenderer.enabled = false;
+            return model;
         }
 
         static void AutoAssignFolderTextures(GameObject sourcePrefab, GameObject instance)
@@ -403,11 +729,11 @@ namespace AftershockIsle.Building
             return Instantiate(prefab, parent);
         }
 
-        static void DestroySafe(GameObject go)
+        static void DestroySafe(Object obj)
         {
-            if (go == null) return;
-            if (Application.isPlaying) Destroy(go);
-            else DestroyImmediate(go);
+            if (obj == null) return;
+            if (Application.isPlaying) Destroy(obj);
+            else DestroyImmediate(obj);
         }
     }
 }

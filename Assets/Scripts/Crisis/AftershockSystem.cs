@@ -35,7 +35,7 @@ namespace AftershockIsle.Crisis
 
     /// <summary>
     /// Artçı sarsıntı: geri sayım sırasında Yaşam Üçgeni alanları yeşil yanar; vuruşta
-    /// açıktaki kazazedeler yaralanıp enkaz altında kalır, kolonlar bir kademe kötüleşir ve
+    /// açıktaki kazazedeler yaralanıp enkaz altında kalır, çatlak (Lv2) kolonlar kırılır (Lv1) ve
     /// binaya (çelik olmayan kolon oranı × 2^kırık kolon) ölçekli temel hasar düşer.
     /// </summary>
     public class AftershockSystem : MonoBehaviour
@@ -49,7 +49,6 @@ namespace AftershockIsle.Crisis
         [Tooltip("Her kırık kolon sarsıntı hasarını bu kadarla çarpar")]
         [SerializeField] float brokenColumnMultiplier = 2f;
         [SerializeField] float maxDamageMultiplier = 8f;
-        [SerializeField, Range(0f, 1f)] float intactCrackChance = 0.25f;
         [Tooltip("Sarsıntının sağlam şebeke borusunu patlatma ihtimali (kriz zinciri)")]
         [SerializeField, Range(0f, 1f)] float pipeBurstChance = 0.2f;
         [Tooltip("Elektrik açıkken sarsıntının kıvılcımla yangın çıkarma ihtimali")]
@@ -144,7 +143,7 @@ namespace AftershockIsle.Crisis
             int broken = 0;
             foreach (var column in columns)
             {
-                if (column.ApplyShock(intactCrackChance)) SpawnDebris(column);
+                if (column.ApplyShock()) SpawnDebris(column);
 
                 if (column.State == ColumnState.Reinforced) reinforced++;
                 if (column.State == ColumnState.Broken) broken++;

@@ -176,7 +176,7 @@ namespace AftershockIsle.Building
             }
 
             // 3. Çatı helikopter pisti
-            if (floor == 3 && wx >= 1.8f && wx <= 7.2f)
+            if (b != null && floor == b.RoofFloor && wx >= 1.8f && wx <= 7.2f)
             {
                 reason = "Helikopter tahliye pisti üzerine yapı kurulamaz.";
                 return true;

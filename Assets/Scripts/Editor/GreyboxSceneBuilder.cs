@@ -133,10 +133,14 @@ namespace AftershockIsle.EditorTools
 
             var evacuation = systems.AddComponent<EvacuationSystem>();
             var (helicopter, rotor) = CreateHelicopter(palette);
+            var landingPoint = building.transform.Find("Props/İniş Noktası");
+            // Tahliyeye kadar görünmez; editörde de dünya merkezinde (bodrumda) durmasın diye çatının üstünde bekler.
+            if (landingPoint != null) helicopter.position = landingPoint.position + new Vector3(-12f, 14f, 0f);
+            helicopter.gameObject.SetActive(false);
             SetRef(evacuation, "session", session);
             SetRef(evacuation, "helicopter", helicopter);
             SetRef(evacuation, "rotor", rotor);
-            SetRef(evacuation, "landingPoint", building.transform.Find("Props/İniş Noktası"));
+            SetRef(evacuation, "landingPoint", landingPoint);
             systems.AddComponent<DebugCheats>();
             systems.AddComponent<SaveManager>();
             systems.AddComponent<ShelterGrid>();
@@ -327,7 +331,8 @@ namespace AftershockIsle.EditorTools
             float backZ = layout.Depth * 0.5f;
 
             // Taşıyıcı kolonlar: bodrum, giriş ve yaşam katlarında ikişer. Yaşam katındakiler çatıyı taşır.
-            var cracked = new[] { (1, -3f), (2, 3f) };
+            // Oyun kötü durumda başlar: bu kolonlar Lv1 Kırık, kalanlar Lv2 Çatlak.
+            var broken = new[] { (1, -3f), (2, 3f) };
             for (int floor = 0; floor < layout.FloorCount - 1; floor++)
             {
                 foreach (float x in new[] { -3f, 3f })
@@ -337,8 +342,8 @@ namespace AftershockIsle.EditorTools
                         new Vector3(x, floor * h + height * 0.5f, backZ - 0.45f), new Vector3(0.5f, height, 0.5f), p.Column);
                     var component = column.AddComponent<SupportColumn>();
                     Configure(component, ("displayName", "Taşıyıcı Kolon"), ("workDuration", 4f));
-                    if (System.Array.IndexOf(cracked, (floor, x)) >= 0)
-                        Configure(component, ("state", (int)ColumnState.Cracked));
+                    Configure(component, ("state", (int)(System.Array.IndexOf(broken, (floor, x)) >= 0
+                        ? ColumnState.Broken : ColumnState.Cracked)));
                 }
             }
 
@@ -421,18 +426,19 @@ namespace AftershockIsle.EditorTools
             }
             CreateGasValve(props, layout, 1, -1.5f, p);
 
-            // Kat 3: Çatı. Tahliye alanı yıkıntıyla kapalı; zafer için temizlenmesi gerekecek.
-            var radio = Box("Telsiz İstasyonu", props, new Vector3(-3.5f, 3 * h + 0.7f, backZ - 0.6f), new Vector3(1.2f, 1.4f, 1f), p.Electric);
-            var radioLight = Box("Telsiz Işığı", props, new Vector3(-3.5f, 3 * h + 1.55f, backZ - 0.6f), new Vector3(0.25f, 0.25f, 0.25f), p.Supplies);
+            // Çatı (son kat). Tahliye alanı yıkıntıyla kapalı; zafer için temizlenmesi gerekecek.
+            int roof = layout.RoofFloor;
+            var radio = Box("Telsiz İstasyonu", props, new Vector3(-3.5f, roof * h + 0.7f, backZ - 0.6f), new Vector3(1.2f, 1.4f, 1f), p.Electric);
+            var radioLight = Box("Telsiz Işığı", props, new Vector3(-3.5f, roof * h + 1.55f, backZ - 0.6f), new Vector3(0.25f, 0.25f, 0.25f), p.Supplies);
             Object.DestroyImmediate(radioLight.GetComponent<Collider>());
             var radioComponent = radio.AddComponent<RadioStation>();
             Configure(radioComponent, ("displayName", "Telsiz İstasyonu"));
             SetRef(radioComponent, "statusLight", radioLight.GetComponent<Renderer>());
 
-            Prop("Helikopter Tahliye Alanı", props, new Vector3(4.5f, 3 * h + 0.03f, 0f), new Vector3(5f, 0.05f, 3f), p.Helipad);
+            Prop("Helikopter Tahliye Alanı", props, new Vector3(4.5f, roof * h + 0.03f, 0f), new Vector3(5f, 0.05f, 3f), p.Helipad);
             var landing = new GameObject("İniş Noktası").transform;
             landing.SetParent(props, false);
-            landing.localPosition = new Vector3(4.5f, 3 * h + 0.75f, 0f);
+            landing.localPosition = new Vector3(4.5f, roof * h + 0.75f, 0f);
 
             // Üretilene kadar gizli kalan kurulumlar.
             var electricPump = Box("Elektrikli Pompa", props, new Vector3(-1.6f, 0 * h + 0.5f, backZ - 0.5f), new Vector3(0.9f, 1f, 0.8f), p.Metal);
@@ -443,11 +449,11 @@ namespace AftershockIsle.EditorTools
             Object.DestroyImmediate(valve.GetComponent<Collider>());
             Configure(valve.AddComponent<InstallableVisual>(), ("recipe", (int)RecipeId.BypassValve));
 
-            var rod = Box("Paratoner", props, new Vector3(-7.5f, 3 * h + 1.5f, backZ - 0.3f), new Vector3(0.1f, 3f, 0.1f), p.Metal);
+            var rod = Box("Paratoner", props, new Vector3(-7.5f, roof * h + 1.5f, backZ - 0.3f), new Vector3(0.1f, 3f, 0.1f), p.Metal);
             Object.DestroyImmediate(rod.GetComponent<Collider>());
             Configure(rod.AddComponent<InstallableVisual>(), ("recipe", (int)RecipeId.LightningRod));
-            Rubble("Çatı Yıkıntısı", props, new Vector3(1.2f, 3 * h, 0f), new Vector3(1.4f, 1f, 1.8f), p.Rubble, 4, true);
-            Rubble("Moloz", props, new Vector3(5f, 3 * h, 0.6f), new Vector3(1.2f, 0.6f, 1.2f), p.Rubble, 3, false);
+            Rubble("Çatı Yıkıntısı", props, new Vector3(1.2f, roof * h, 0f), new Vector3(1.4f, 1f, 1.8f), p.Rubble, 4, true);
+            Rubble("Moloz", props, new Vector3(5f, roof * h, 0.6f), new Vector3(1.2f, 0.6f, 1.2f), p.Rubble, 3, false);
         }
 
         static void CreateFireSpot(Transform parent, BuildingLayout layout, int floor, float x, RubblePile collapseRubble, Palette p)
@@ -748,15 +754,23 @@ namespace AftershockIsle.EditorTools
             if (manager == null) manager = systems.AddComponent<ModelManager>();
 
             SetRef(manager, "building", building);
+            Configure(manager,
+                ("useCustomBuilding", true),
+                ("hideGreyboxWalls", true),
+                ("hideGreyboxProps", true),
+                ("addWarmWindowBacking", true));
 
             var buildingFbx = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Buildings/Building.fbx");
             if (buildingFbx != null) SetRef(manager, "buildingPrefab", buildingFbx);
 
-            var planksFbx = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/tahtalar/tahtalar.fbx");
-            if (planksFbx != null) SetRef(manager, "floorPlanksPrefab", planksFbx);
+            var colLv1 = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Columns/Kolon_Lv1_Kirik.fbx");
+            if (colLv1 != null) SetRef(manager, "columnLv1Prefab", colLv1);
 
-            var planksTex = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Models/tahtalar/plank_diffuse.png");
-            if (planksTex != null) SetRef(manager, "floorPlanksTexture", planksTex);
+            var colLv2 = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Columns/Kolon_Lv2_Catlak.fbx");
+            if (colLv2 != null) SetRef(manager, "columnLv2Prefab", colLv2);
+
+            var colLv3 = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Columns/Kolon_Lv3_Guclendirilmis.fbx");
+            if (colLv3 != null) SetRef(manager, "columnLv3Prefab", colLv3);
 
             var benchFbx = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/workbench/bencht.fbx");
             if (benchFbx != null) SetRef(manager, "workbenchPrefab", benchFbx);

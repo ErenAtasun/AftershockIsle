@@ -43,7 +43,7 @@ namespace AftershockIsle.UI
         {
             steps.Add(new Step { Title = "Karakteri yürüt", Detail = () => $"{GameInput.Prompt(InputPrompt.Move)} ile karakteri gez. Seçili karakter yoksa {GameInput.Prompt(InputPrompt.SwitchCharacter)} ile seç." });
             steps.Add(new Step { Title = "Malzeme topla", Detail = () => $"Molozun yanında {GameInput.Prompt(InputPrompt.Interact)}: kaz. Karakter bulduğunu Ortak Sandık'a götürür." });
-            steps.Add(new Step { Title = "Çatlak kolonu destekle", Detail = () => $"Turuncu kolonun dibinde {GameInput.Prompt(InputPrompt.Interact)}: 2 Kalas ile ahşap destek dikilir." });
+            steps.Add(new Step { Title = "Kırık kolonu yeniden dik", Detail = () => $"Kırık (Lv1) kolonun dibinde {GameInput.Prompt(InputPrompt.Interact)}: 4 Kalas & Hurda ile Lv2'ye çıkar." });
             steps.Add(new Step { Title = "Zamanı durdur", Detail = () => $"{GameInput.Prompt(InputPrompt.Pause)}: durdur, tekrar basınca devam. Planı durdurulmuş zamanda yap." });
             steps.Add(new Step { Title = "Tezgahta üret", Detail = () => $"Çalışma Tezgahı'nda {GameInput.Prompt(InputPrompt.Interact)}: bir tarif seç (ör. Mermi Paketi)." });
             steps.Add(new Step { Title = "Öğlen sefere çık", Detail = () => "Öğle vakti giriş katındaki dış kapıya git, haritadan lokasyon seç. İstersen yoldaş al." });
@@ -116,7 +116,7 @@ namespace AftershockIsle.UI
 
         void OnColumn(ColumnStateChanged evt)
         {
-            if (evt.Column.State == ColumnState.Supported) steps[2].Done = true;
+            if (evt.LeveledUp) steps[2].Done = true;
         }
 
         void OnSpeed(TimeSpeedChanged evt)

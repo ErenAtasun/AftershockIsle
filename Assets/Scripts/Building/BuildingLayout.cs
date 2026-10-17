@@ -52,10 +52,12 @@ namespace AftershockIsle.Building
         /// <summary>Engelin önünde durulacak mesafe; çalışma noktası da burasıdır.</summary>
         public const float BlockerStandOff = 0.4f;
 
-        [SerializeField] float floorHeight = 4.5f;
+        // Blender binasının birebir ölçüleri (Building.fbx): kat 3.5 m, iç genişlik 18 m, derinlik 4 m, duvar 0.35 m.
+        // ModelManager modeli bu ölçülere göre ölçeklediği için farklı değer binayı esnetir.
+        [SerializeField] float floorHeight = 3.5f;
         [SerializeField] float width = 18f;
-        [SerializeField] float depth = 6.5f;
-        [SerializeField] float wallThickness = 0.3f;
+        [SerializeField] float depth = 4f;
+        [SerializeField] float wallThickness = 0.35f;
         [Tooltip("Karakterlerin duvara girmemesi için kat kenarından bırakılan pay")]
         [SerializeField] float edgePadding = 0.6f;
         [Tooltip("Merdivenlerin bina merkezine göre Z konumu")]
@@ -63,13 +65,16 @@ namespace AftershockIsle.Building
         [Tooltip("Karakterin arka duvara ve ön kenara bırakacağı pay")]
         [SerializeField] float depthPadding = 0.45f;
 
-        [SerializeField] string[] floorNames = { "Bodrum", "Giriş Katı", "Yaşam / Tezgah", "Çatı" };
+        // Blender binasıyla aynı: bodrum + 3 kat + çatı.
+        [SerializeField] string[] floorNames = { "Bodrum", "Giriş Katı", "Yaşam / Tezgah", "3. Kat", "Çatı" };
 
+        // Blender'daki merdivenler -6, +6, -6; 3. kattan çatıya duvar merdiveni +5'te.
         [SerializeField] LadderDef[] ladders =
         {
             new LadderDef(0, -6f),
             new LadderDef(1, 6f),
             new LadderDef(2, -6f),
+            new LadderDef(3, 5f),
         };
 
         readonly List<NavBlocker> blockers = new List<NavBlocker>();
@@ -80,6 +85,7 @@ namespace AftershockIsle.Building
         public float Depth => depth;
         public float WallThickness => wallThickness;
         public int FloorCount => floorNames.Length;
+        public int RoofFloor => FloorCount - 1;
         public IReadOnlyList<LadderDef> Ladders => ladders;
         public float WalkPlaneZ => transform.position.z;
         public float MinX => transform.position.x - width * 0.5f + edgePadding;

@@ -142,7 +142,8 @@ namespace AftershockIsle.Crisis
                 foreach (var survivor in Survivor.All)
                 {
                     if (survivor == null || survivor.IsDead) continue;
-                    if (survivor.Mover.CurrentFloor == 3 && survivor.Tasks.State == TaskState.Working)
+                    var building = survivor.Mover.Building;
+                    if (building != null && survivor.Mover.CurrentFloor == building.RoofFloor && survivor.Tasks.State == TaskState.Working)
                     {
                         survivor.Condition.AddStress(0.65f * dt);
                     }

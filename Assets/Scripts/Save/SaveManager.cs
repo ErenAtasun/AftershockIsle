@@ -747,7 +747,9 @@ namespace AftershockIsle.Save
                     if (match == null && roster != null && !sData.isDead)
                     {
                         // Sahnede olmayan (kurtarılmış) kazazedeyi oluştur
-                        int floor = Mathf.Clamp(Mathf.RoundToInt(sData.position.y / 4.5f), 0, 3);
+                        var layout = FindFirstObjectByType<BuildingLayout>();
+                        int floor = layout != null ? layout.FloorAtHeight(sData.position.y + 0.25f)
+                            : Mathf.Clamp(Mathf.RoundToInt(sData.position.y / 4.5f), 0, 4);
                         match = roster.Spawn(sData.displayName, (SkillBranch)sData.branch, floor, sData.position.x);
                     }
 

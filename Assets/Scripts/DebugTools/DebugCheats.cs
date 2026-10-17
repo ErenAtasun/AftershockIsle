@@ -36,8 +36,13 @@ namespace AftershockIsle.DebugTools
 
             if (GameInput.DebugCrackPressed)
             {
-                var intact = SupportColumn.All.Where(c => c.State == ColumnState.Intact).ToList();
-                if (intact.Count > 0) intact[Random.Range(0, intact.Count)].SetState(ColumnState.Cracked);
+                // Kırık olmayan rastgele bir kolonu bir seviye düşürür.
+                var standing = SupportColumn.All.Where(c => c.State != ColumnState.Broken).ToList();
+                if (standing.Count > 0)
+                {
+                    var column = standing[Random.Range(0, standing.Count)];
+                    column.SetState(column.State == ColumnState.Reinforced ? ColumnState.Cracked : ColumnState.Broken);
+                }
             }
 
             if (GameInput.DebugResourcesPressed)

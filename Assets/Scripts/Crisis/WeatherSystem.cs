@@ -80,8 +80,7 @@ namespace AftershockIsle.Crisis
                 return;
             }
 
-            // Bir önceki günden farklı veya ağırlıklı rastgele hava durumu seç
-            var next = (WeatherType)Random.Range(0, 5);
+            var next = PickWeather(evt.Day, CurrentWeather);
             SetWeather(next);
 
             // Asit/Kül yağmuru yağdığında su bidonlarını +1 kova doldurur
@@ -93,6 +92,36 @@ namespace AftershockIsle.Crisis
                         ws.RestoreState(Mathf.Min(5, ws.Charges + 1));
                 }
             }
+        }
+
+        /// <summary>
+        /// Ağırlıklı hava seçimi: açık hava en sık; sis 2. günden, sert havalar (asit, fırtına, soğuk) 3. günden itibaren gelir.
+        /// Aynı sert hava iki gün üst üste gelmez; 6. günden sonra açık hava seyrekleşir (oyun zorlaşır).
+        /// </summary>
+        static WeatherType PickWeather(int day, WeatherType previous)
+        {
+            float clear = day >= 6 ? 28f : 40f;
+            float harsh = day >= 3 ? 1f : 0f;
+            float[] weights =
+            {
+                clear,           // Clear
+                18f,             // DenseFog
+                15f * harsh,     // AcidRain
+                15f * harsh,     // Storm
+                12f * harsh,     // ColdWave
+            };
+            if (previous != WeatherType.Clear) weights[(int)previous] = 0f;
+
+            float total = 0f;
+            foreach (float weight in weights) total += weight;
+
+            float roll = Random.value * total;
+            for (int i = 0; i < weights.Length; i++)
+            {
+                roll -= weights[i];
+                if (roll <= 0f && weights[i] > 0f) return (WeatherType)i;
+            }
+            return WeatherType.Clear;
         }
 
         public void SetWeather(WeatherType weather)

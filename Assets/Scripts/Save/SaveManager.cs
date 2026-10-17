@@ -10,7 +10,6 @@ using AftershockIsle.Economy;
 using AftershockIsle.Endgame;
 using AftershockIsle.Expedition;
 using AftershockIsle.Interaction;
-using AftershockIsle.Player;
 using AftershockIsle.Skills;
 using UnityEngine;
 
@@ -102,14 +101,41 @@ namespace AftershockIsle.Save
             }
         }
 
+        // Sefer sırasında kayda girmeyen durum (saha, çanta, süre) olduğu için o sırada gelen otomatik kayıt sefer bitince alınır.
+        bool autosavePending;
+
         void OnDayStarted(DayStarted evt)
         {
-            // Yeni gün başladığında otomatik kayıt al
-            if (evt.Day >= 1)
-            {
-                SaveGame(AutoSaveFile);
-                SaveGame(DefaultSaveFile);
-            }
+            if (evt.Day < 1) return;
+            autosavePending = true;
+            TryAutosave();
+        }
+
+        void Update()
+        {
+            if (autosavePending) TryAutosave();
+        }
+
+        void TryAutosave()
+        {
+            if (!CanSave(out _)) return;
+            autosavePending = false;
+            SaveGame(AutoSaveFile);
+            SaveGame(DefaultSaveFile);
+        }
+
+        /// <summary>Şu an kayıt alınabilir mi. Sefer sürerken (saha durumu kayda girmez) ya da oyun bitmişken alınmaz.</summary>
+        public static bool CanSave(out string reason)
+        {
+            var expeditions = ExpeditionSystem.Instance;
+            var session = FindFirstObjectByType<GameSession>();
+            if (expeditions != null && expeditions.Stage != ExpeditionStage.None && expeditions.Stage != ExpeditionStage.ChoosingSite)
+                reason = "Sefer sürerken kayıt alınamaz. Kâşif dönünce kaydet.";
+            else if (session != null && session.Outcome != GameOutcome.None)
+                reason = "Oyun bitti; kayıt alınamaz.";
+            else
+                reason = null;
+            return reason == null;
         }
 
         public static void EnsureDirectory()
@@ -138,6 +164,12 @@ namespace AftershockIsle.Save
 
         public bool SaveGame(string filename = DefaultSaveFile)
         {
+            if (!CanSave(out string reason))
+            {
+                Debug.Log($"[SaveManager] Kayıt alınmadı: {reason}");
+                return false;
+            }
+
             try
             {
                 var data = CaptureSaveData();

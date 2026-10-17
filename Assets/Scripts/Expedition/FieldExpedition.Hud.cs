@@ -1,6 +1,5 @@
 using System.Text;
 using AftershockIsle.CameraControl;
-using AftershockIsle.Characters;
 using AftershockIsle.Core;
 using AftershockIsle.Crafting;
 using AftershockIsle.Economy;
@@ -37,11 +36,12 @@ namespace AftershockIsle.Expedition
 
         void OnGUI()
         {
+            UiTheme.Apply();
             if (!IsActive || !SideViewCamera.ViewingField || ModalMenu.IsOpen || cam == null) return;
 
-            centered ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 12, fontStyle = FontStyle.Bold };
-            small ??= new GUIStyle(GUI.skin.label) { fontSize = 12, wordWrap = true };
-            prompt ??= new GUIStyle(GUI.skin.box) { alignment = TextAnchor.MiddleCenter, fontSize = 13, fontStyle = FontStyle.Bold };
+            centered ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 14, fontStyle = FontStyle.Bold };
+            small ??= new GUIStyle(GUI.skin.label) { fontSize = 14, wordWrap = true };
+            prompt ??= new GUIStyle(GUI.skin.box) { alignment = TextAnchor.MiddleCenter, fontSize = 14, fontStyle = FontStyle.Bold };
 
             DrawHurtOverlay();
             DrawWorldLabels();
@@ -57,10 +57,12 @@ namespace AftershockIsle.Expedition
             var previous = GUI.color;
             GUI.color = new Color(0.8f, 0f, 0f, hurtFlash * 0.6f);
             const float edge = 60f;
-            GUI.DrawTexture(new Rect(0, 0, Screen.width, edge), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(0, Screen.height - edge, Screen.width, edge), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(0, 0, edge, Screen.height), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(Screen.width - edge, 0, edge, Screen.height), Texture2D.whiteTexture);
+            float width = UiTheme.Width;
+            float height = UiTheme.Height;
+            GUI.DrawTexture(new Rect(0, 0, width, edge), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(0, height - edge, width, edge), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(0, 0, edge, height), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(width - edge, 0, edge, height), Texture2D.whiteTexture);
             GUI.color = previous;
         }
 
@@ -123,7 +125,8 @@ namespace AftershockIsle.Expedition
 
             var screen = cam.WorldToScreenPoint(anchor + Vector3.up * 1.7f);
             if (screen.z < 0f) return;
-            GUI.Box(new Rect(screen.x - 60f, Screen.height - screen.y - 13f, 120f, 26f), text, prompt);
+            var at = UiTheme.ToGui(screen);
+            GUI.Box(new Rect(at.x - 60f, at.y - 13f, 120f, 26f), text, prompt);
         }
 
         void DrawLabel(Vector3 world, string text, Color color)
@@ -133,7 +136,8 @@ namespace AftershockIsle.Expedition
 
             var previous = GUI.contentColor;
             GUI.contentColor = color;
-            GUI.Label(new Rect(screen.x - 80f, Screen.height - screen.y - 10f, 160f, 20f), text, centered);
+            var at = UiTheme.ToGui(screen);
+            GUI.Label(new Rect(at.x - 80f, at.y - 10f, 160f, 20f), text, centered);
             GUI.contentColor = previous;
         }
 
@@ -141,7 +145,8 @@ namespace AftershockIsle.Expedition
         {
             var screen = cam.WorldToScreenPoint(world);
             if (screen.z < 0f) return;
-            DrawBarRect(new Rect(screen.x - width * 0.5f, Screen.height - screen.y, width, 5f), fraction, color);
+            var at = UiTheme.ToGui(screen);
+            DrawBarRect(new Rect(at.x - width * 0.5f, at.y, width, 5f), fraction, color);
         }
 
         static void DrawBarRect(Rect rect, float fraction, Color color)
@@ -157,7 +162,7 @@ namespace AftershockIsle.Expedition
         void DrawPanel()
         {
             const float width = 440f;
-            var rect = new Rect((Screen.width - width) * 0.5f, 10, width, companion != null ? 130 : 112);
+            var rect = new Rect((UiTheme.Width - width) * 0.5f, 10, width, companion != null ? 130 : 112);
             GUI.Box(rect, GUIContent.none);
             GUILayout.BeginArea(new Rect(rect.x + 8, rect.y + 6, rect.width - 16, rect.height - 12));
 
@@ -189,7 +194,7 @@ namespace AftershockIsle.Expedition
                 $"{GameInput.Prompt(InputPrompt.Crouch)}: çömel    {GameInput.Prompt(InputPrompt.Dodge)}: kaçış    " +
                 $"{GameInput.Prompt(InputPrompt.Interact)}: etkileşim    {GameInput.Prompt(InputPrompt.Heal)}: ilk yardım ({kits} kit)    " +
                 $"{GameInput.Prompt(InputPrompt.SwitchCharacter)}: sığınağa dön";
-            GUI.Label(new Rect(0, Screen.height - 30, Screen.width, 24), text, centered);
+            GUI.Label(new Rect(0, UiTheme.Height - 30, UiTheme.Width, 24), text, centered);
         }
 
         string BagText()

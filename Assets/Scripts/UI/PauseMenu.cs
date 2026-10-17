@@ -1,28 +1,38 @@
 using AftershockIsle.Core;
 using AftershockIsle.Save;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 namespace AftershockIsle.UI
 {
     /// <summary>
-    /// Esc / Start ile açılan duraklatma menüsü: devam, kaydet, yeniden başla, ana menü, çıkış. Gamepad ile gezilir.
+    /// Esc / Start ile açılan duraklatma menüsü (uGUI, koddan kurulur): devam, ayarlar, ana menü, kaydet, yeniden başla, çıkış.
     /// Açıkken oyun donar ve klavye kısayolları (Space/1/2) çalışmaz; oyun bitmişse zamana dokunmaz.
     /// </summary>
     public class PauseMenu : MonoBehaviour
     {
         public const string MainMenuScene = "MainMenu";
+        const float MenuScale = 0.9f;
 
         [SerializeField] TimeManager timeManager;
         [SerializeField] GameSession session;
 
         bool open;
         TimeSpeed resumeSpeed;
-        GUIStyle titleStyle;
-        GUIStyle buttonStyle;
-        GUIStyle noticeStyle;
-        readonly MenuNav nav = new MenuNav();
-        float saveFeedbackTimer;
+        float saveFeedbackUntil;
+        string saveFeedback;
+        bool saveFeedbackOk;
+
+        GameObject root;
+        SettingsPanel settings;
+        GameObject resumeButton;
+        GameObject saveButton;
+        GameObject firstButton;
+        Text feedback;
+
+        public static bool IsOpen { get; private set; }
 
         void Awake()
         {
@@ -30,14 +40,32 @@ namespace AftershockIsle.UI
             if (session == null) session = FindFirstObjectByType<GameSession>();
         }
 
+        void Start()
+        {
+            UiFactory.EnsureEventSystem();
+            Build();
+            root.SetActive(false);
+        }
+
         void Update()
         {
-            if (saveFeedbackTimer > 0f) saveFeedbackTimer -= Time.unscaledDeltaTime;
+            if (root == null) return;
+
+            bool ended = session.Outcome != GameOutcome.None;
+            feedback.text = Time.unscaledTime < saveFeedbackUntil ? saveFeedback : "";
+            feedback.color = saveFeedbackOk ? UiFactory.Good : UiFactory.Danger;
+            resumeButton.SetActive(!ended);
+            saveButton.SetActive(!ended);
+
+            if (settings.ConsumedBack) return;
             if (GameInput.EscapePressed) SetOpen(!open);
             if (!open) return;
 
-            nav.Tick();
-            if (GameInput.MenuBackPressed && session.Outcome == GameOutcome.None) SetOpen(false);
+            ModalMenu.MarkOpen();
+            if (GameInput.MenuBackPressed && !ended) SetOpen(false);
+
+            if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject == null && GameInput.UsingGamepad)
+                Select(FirstVisible());
         }
 
         void OnDisable()
@@ -45,11 +73,16 @@ namespace AftershockIsle.UI
             if (open) SetOpen(false);
         }
 
+        void OnDestroy() => IsOpen = false;
+
         void SetOpen(bool value)
         {
             if (open == value) return;
             open = value;
-            if (open) nav.Reset();
+            IsOpen = value;
+            root.SetActive(value);
+            if (open) Select(FirstVisible());
+            else settings.Close();
 
             if (session.Outcome != GameOutcome.None) return;
 
@@ -66,69 +99,69 @@ namespace AftershockIsle.UI
             }
         }
 
-        void OnGUI()
+        GameObject FirstVisible() => resumeButton.activeSelf ? resumeButton : firstButton;
+
+        void Build()
         {
-            if (!open) return;
+            var skin = GameAssets.Ui;
+            var canvas = UiFactory.Canvas("Duraklatma Menüsü", 100, transform, MenuScale).transform;
+            root = UiFactory.Rect("Menü", canvas).gameObject;
+            UiFactory.Stretch((RectTransform)root.transform);
 
-            titleStyle ??= new GUIStyle(GUI.skin.label)
+            var dim = UiFactory.Panel(root.transform, "Karartma", new Color(0f, 0f, 0f, 0.65f));
+            UiFactory.Stretch(dim.rectTransform);
+
+            if (skin != null && skin.pausedTitle != null)
             {
-                fontSize = 30,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleCenter,
-            };
-            buttonStyle ??= new GUIStyle(GUI.skin.button) { fontSize = 18 };
-            noticeStyle ??= new GUIStyle(GUI.skin.label)
+                var title = UiFactory.Image(root.transform, "Başlık", skin.pausedTitle, Color.white);
+                UiFactory.Place(title.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 300f), new Vector2(680f, 130f));
+            }
+            else
             {
-                fontSize = 16,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleCenter,
-            };
-
-            // Menü açıkken arkadaki dünyaya tıklanmasın.
-            UIBlocker.Add(new Rect(0, 0, Screen.width, Screen.height));
-
-            var previous = GUI.color;
-            GUI.color = new Color(0f, 0f, 0f, 0.6f);
-            GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture);
-            GUI.color = previous;
-
-            const float width = 320f;
-            float x = (Screen.width - width) * 0.5f;
-            float y = Screen.height * 0.5f - 180f;
-
-            GUI.Label(new Rect(x, y, width, 50), "DURAKLATILDI", titleStyle);
-            y += 60f;
-
-            if (saveFeedbackTimer > 0f)
-            {
-                var prevColor = GUI.color;
-                GUI.color = new Color(0.4f, 1f, 0.4f);
-                GUI.Label(new Rect(x, y, width, 30), "✓ Oyun Başarıyla Kaydedildi!", noticeStyle);
-                GUI.color = prevColor;
-                y += 35f;
+                var title = UiFactory.Label(root.transform, "DURAKLATILDI", 84, UiFactory.Text);
+                UiFactory.Place(title.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 300f), new Vector2(900f, 120f));
             }
 
-            nav.BeginDraw();
-            bool ended = session.Outcome != GameOutcome.None;
-            if (!ended)
+            // Yuvarlak butonlar: devam, ayarlar, ana menü.
+            resumeButton = Round(skin != null ? skin.playButton : null, "Devam", -220f, () => SetOpen(false));
+            var gear = Round(skin != null ? skin.settingsButton : null, "Ayarlar", 0f, () => settings.Open());
+            Round(skin != null ? skin.closeButton : null, "Ana Menü", 220f, () => SceneManager.LoadScene(MainMenuScene));
+            firstButton = gear;
+
+            saveButton = Wide("Oyunu Kaydet", -110f, () =>
             {
-                Button(ref y, x, width, "Devam Et", () => SetOpen(false));
-                Button(ref y, x, width, "Oyunu Kaydet", () =>
-                {
-                    if (SaveManager.Instance != null && SaveManager.Instance.SaveGame())
-                        saveFeedbackTimer = 3f;
-                });
-            }
-            Button(ref y, x, width, "Yeniden Başla", () => SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex));
-            Button(ref y, x, width, "Ana Menü", () => SceneManager.LoadScene(MainMenuScene));
-            Button(ref y, x, width, "Çık", QuitGame);
-            nav.EndDraw();
+                saveFeedbackOk = SaveManager.CanSave(out string reason) && SaveManager.Instance != null && SaveManager.Instance.SaveGame();
+                saveFeedback = saveFeedbackOk ? "Oyun başarıyla kaydedildi." : reason ?? "Kayıt alınamadı.";
+                saveFeedbackUntil = Time.unscaledTime + 3f;
+            }, UiFactory.Good);
+            Wide("Yeniden Başla", -195f, () => SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex), null);
+            Wide("Oyundan Çık", -280f, QuitGame, UiFactory.Danger);
+
+            feedback = UiFactory.Label(root.transform, "", 28, UiFactory.Good);
+            UiFactory.Place(feedback.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -360f), new Vector2(800f, 50f));
+
+            settings = SettingsPanel.Create(canvas, () => Select(firstButton));
         }
 
-        void Button(ref float y, float x, float width, string text, System.Action onActivate)
+        GameObject Round(Sprite sprite, string caption, float x, System.Action onClick)
         {
-            nav.Button(new Rect(x, y, width, 46), new GUIContent(text), onActivate, true, buttonStyle);
-            y += 56f;
+            var button = UiFactory.SpriteButton(root.transform, caption, sprite, new Vector2(140f, 140f), onClick, caption);
+            UiFactory.Place((RectTransform)button.transform, new Vector2(0.5f, 0.5f), new Vector2(x, 120f), new Vector2(140f, 140f));
+            var label = UiFactory.Label(root.transform, caption, 28, UiFactory.Text);
+            UiFactory.Place(label.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(x, 25f), new Vector2(220f, 40f));
+            return button.gameObject;
+        }
+
+        GameObject Wide(string text, float y, System.Action onClick, Color? color)
+        {
+            var button = UiFactory.TextButton(root.transform, text, new Vector2(400f, 70f), onClick, color);
+            UiFactory.Place((RectTransform)button.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, y), new Vector2(400f, 70f));
+            return button.gameObject;
+        }
+
+        static void Select(GameObject target)
+        {
+            if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(target);
         }
 
         public static void QuitGame()

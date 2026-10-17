@@ -1,0 +1,17 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 87f465e4cc4e04b43bf92f7236428caf, type: 3}
+  m_Name: GameAssets
+  m_EditorClassIdentifier: Assembly-CSharp::AftershockIsle.Core.GameAssets
+  characters: {fileID: 11400000, guid: a8843ef806b6e5f42ae08495adbbeb1f, type: 2}
+  fieldArt: {fileID: 11400000, guid: 8a51a57c15b4676428c5999d15d4ea2a, type: 2}
+  ui: {fileID: 11400000, guid: 3f839532e9e594e4c9a998f5d9ae4863, type: 2}

@@ -205,8 +205,9 @@ namespace AftershockIsle.UI
 
         void OnGUI()
         {
-            wrapStyle ??= new GUIStyle(GUI.skin.label) { wordWrap = true, fontSize = 12 };
-            titleStyle ??= new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, fontSize = 13 };
+            UiTheme.Apply();
+            wrapStyle ??= new GUIStyle(GUI.skin.label) { wordWrap = true, fontSize = 14 };
+            titleStyle ??= new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, fontSize = 14 };
 
             if (hasCurrent && tutorialEnabled) DrawHint();
             if (helpOpen) DrawHelp();
@@ -215,7 +216,7 @@ namespace AftershockIsle.UI
         void DrawHint()
         {
             const float width = 520f;
-            var rect = new Rect((Screen.width - width) * 0.5f, Screen.height - 190f, width, 112f);
+            var rect = new Rect((UiTheme.Width - width) * 0.5f, UiTheme.Height - 190f, width, 112f);
             UIBlocker.Add(rect);
 
             GUILayout.BeginArea(rect, GUI.skin.box);
@@ -236,8 +237,8 @@ namespace AftershockIsle.UI
 
         void DrawHelp()
         {
-            helpRect.x = (Screen.width - helpRect.width) * 0.5f;
-            helpRect.y = (Screen.height - helpRect.height) * 0.5f;
+            helpRect.x = (UiTheme.Width - helpRect.width) * 0.5f;
+            helpRect.y = (UiTheme.Height - helpRect.height) * 0.5f;
             UIBlocker.Add(helpRect);
             GUI.Window(HelpWindowId, helpRect, DrawHelpContents, $"Kontrol Rehberi   ({GameInput.Prompt(InputPrompt.Help)}: kapat)");
         }

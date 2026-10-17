@@ -505,11 +505,12 @@ namespace AftershockIsle.Building
 
         void OnGUI()
         {
+            UiTheme.Apply();
             if (SideViewCamera.ViewingField) return;
 
-            barTitleStyle ??= new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, fontSize = 13 };
-            barSubStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 11, wordWrap = true };
-            tooltipStyle ??= new GUIStyle(GUI.skin.box) { fontSize = 12, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+            barTitleStyle ??= new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, fontSize = 14 };
+            barSubStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 13, wordWrap = true };
+            tooltipStyle ??= new GUIStyle(GUI.skin.box) { fontSize = 14, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
 
             var bench = Workbench.Instance;
             int unplacedTotal = bench != null ? bench.TotalUnplacedCount : 0;
@@ -519,7 +520,7 @@ namespace AftershockIsle.Building
             {
                 if (unplacedTotal > 0)
                 {
-                    var alertRect = new Rect(Screen.width * 0.5f - 190f, 52f, 380f, 34f);
+                    var alertRect = new Rect(UiTheme.Width * 0.5f - 190f, 52f, 380f, 34f);
                     UIBlocker.Add(alertRect);
                     GUI.color = new Color(0.95f, 0.85f, 0.3f);
                     if (GUI.Button(alertRect, $"📦 Kuruluma Hazır {unplacedTotal} Yapı Var! — Eve Yerleştir [B]"))
@@ -534,7 +535,7 @@ namespace AftershockIsle.Building
             // Yerleştirme Modu Açıkken Alt/Üst Kontrol Paneli
             float panelW = 720f;
             float panelH = 122f;
-            var panelRect = new Rect((Screen.width - panelW) * 0.5f, Screen.height - panelH - 14f, panelW, panelH);
+            var panelRect = new Rect((UiTheme.Width - panelW) * 0.5f, UiTheme.Height - panelH - 14f, panelW, panelH);
             UIBlocker.Add(panelRect);
             GUI.Box(panelRect, GUIContent.none);
 

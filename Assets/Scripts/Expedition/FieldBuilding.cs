@@ -158,10 +158,10 @@ namespace AftershockIsle.Expedition
         void BuildHouse(Rect r)
         {
             Prop("Raf", ArtKey.Dresser, FaceRight, new Vector3(r.xMin + 0.3f, 0f, r.center.y + 0.6f), new Vector3(0.55f, 1.6f, 2f), true, FurnitureColor);
-            Prop("Masa", ArtKey.Table, 0f, new Vector3(r.center.x + 0.6f, 0f, r.center.y - 0.2f), new Vector3(1.6f, 0.8f, 0.9f), true, FurnitureColor);
-            Prop("Sandalye", ArtKey.Chair, FaceCamera, new Vector3(r.center.x + 0.6f, 0f, r.center.y + 0.65f), new Vector3(0.5f, 0.9f, 0.5f), false, FurnitureColor);
+            Prop("Masa", ArtKey.Table, 0f, new Vector3(r.center.x + 0.6f, 0f, r.center.y - 0.2f), new Vector3(1.6f, 1.05f, 0.9f), true, FurnitureColor);
+            Prop("Sandalye", ArtKey.Chair, FaceCamera, new Vector3(r.center.x + 0.6f, 0f, r.center.y + 0.65f), new Vector3(0.7f, 1.25f, 0.7f), false, FurnitureColor);
 
-            Spot(new Vector3(r.xMax - 0.9f, 0f, r.yMax - 0.35f), new Vector3(1.1f, 1.1f, 0.55f), ArtKey.Dresser, FaceCamera);
+            Spot(new Vector3(r.xMax - 0.9f, 0f, r.yMax - 0.35f), new Vector3(1.3f, 1.3f, 0.65f), ArtKey.Dresser, FaceCamera);
             Spot(new Vector3(r.xMin + 1.6f, 0f, r.yMax - 0.5f), new Vector3(0.9f, 0.8f, 0.9f), ArtKey.Crate, 0f);
             Spot(new Vector3(r.xMax - 1.1f, 0f, r.yMin + 0.8f), new Vector3(0.9f, 0.8f, 0.9f), ArtKey.Crate, 0f);
         }
@@ -172,27 +172,27 @@ namespace AftershockIsle.Expedition
             float divider = r.center.x;
             WallAlongZ("Ara Duvar", divider, r.yMin, r.yMax, r.yMin + 1.3f, 1.4f, 0f, DoorHeight, InnerWallColor);
 
-            Prop("Kayıt Masası", ArtKey.Table, 0f, new Vector3(r.xMin + 2.2f, 0f, r.center.y), new Vector3(1.8f, 0.8f, 0.8f), true, FurnitureColor);
-            Prop("Yangın Tüpü", ArtKey.Extinguisher, FaceCamera, new Vector3(r.xMin + 0.3f, 0f, r.yMin + 0.4f), new Vector3(0.3f, 0.6f, 0.3f), false, Color.red);
-            Prop("Yatak", ArtKey.Bed, 90f, new Vector3(divider + 2f, 0f, r.yMax - 0.6f), new Vector3(2f, 0.55f, 1f), true, FurnitureColor);
-            Prop("Yatak", ArtKey.Bed, 90f, new Vector3(divider + 4.6f, 0f, r.yMax - 0.6f), new Vector3(2f, 0.55f, 1f), true, FurnitureColor);
+            Prop("Kayıt Masası", ArtKey.Table, 0f, new Vector3(r.xMin + 2.2f, 0f, r.center.y), new Vector3(1.8f, 1.1f, 0.9f), true, FurnitureColor);
+            Prop("Yangın Tüpü", ArtKey.Extinguisher, FaceCamera, new Vector3(r.xMin + 0.3f, 0f, r.yMin + 0.4f), new Vector3(0.4f, 0.85f, 0.3f), false, Color.red);
+            Prop("Yatak", ArtKey.Bed, 90f, new Vector3(divider + 2f, 0f, r.yMax - 0.6f), new Vector3(2.2f, 0.9f, 1.1f), true, FurnitureColor);
+            Prop("Yatak", ArtKey.Bed, 90f, new Vector3(divider + 4.6f, 0f, r.yMax - 0.6f), new Vector3(2.2f, 0.9f, 1.1f), true, FurnitureColor);
 
-            Spot(new Vector3(r.xMin + 1.2f, 0f, r.yMax - 0.35f), new Vector3(1.1f, 1.1f, 0.55f), ArtKey.Dresser, FaceCamera);
-            Spot(new Vector3(r.xMax - 0.35f, 0f, r.center.y - 0.6f), new Vector3(0.55f, 1.1f, 1.1f), ArtKey.Dresser, FaceLeft);
+            Spot(new Vector3(r.xMin + 1.2f, 0f, r.yMax - 0.35f), new Vector3(1.3f, 1.3f, 0.65f), ArtKey.Dresser, FaceCamera);
+            Spot(new Vector3(r.xMax - 0.35f, 0f, r.center.y - 0.6f), new Vector3(0.65f, 1.3f, 1.3f), ArtKey.Dresser, FaceLeft);
             Spot(new Vector3(divider + 1.2f, 0f, r.yMin + 0.8f), new Vector3(0.9f, 0.8f, 0.9f), ArtKey.Crate, 0f);
         }
 
         void BuildWorkshop(Rect r)
         {
-            Prop("Tezgah", ArtKey.Table, 0f, new Vector3(r.center.x - 1.6f, 0f, r.center.y), new Vector3(2f, 0.9f, 0.9f), true, FurnitureColor);
-            Prop("Tezgah", ArtKey.Table, 0f, new Vector3(r.center.x + 1.6f, 0f, r.center.y), new Vector3(2f, 0.9f, 0.9f), true, FurnitureColor);
+            Prop("Tezgah", ArtKey.Table, 0f, new Vector3(r.center.x - 1.6f, 0f, r.center.y), new Vector3(2f, 1.1f, 0.9f), true, FurnitureColor);
+            Prop("Tezgah", ArtKey.Table, 0f, new Vector3(r.center.x + 1.6f, 0f, r.center.y), new Vector3(2f, 1.1f, 0.9f), true, FurnitureColor);
             Prop("Raf", ArtKey.Dresser, FaceRight, new Vector3(r.xMin + 0.3f, 0f, r.center.y + 0.8f), new Vector3(0.55f, 1.6f, 2.2f), true, FurnitureColor);
             Prop("Kasa", ArtKey.Crate, 0f, new Vector3(r.xMax - 0.6f, 0f, r.yMax - 1.8f), new Vector3(0.9f, 0.85f, 0.9f), true, FurnitureColor);
             Prop("Kasa", ArtKey.Crate, 0f, new Vector3(r.xMax - 0.6f, 0.85f, r.yMax - 1.8f), new Vector3(0.8f, 0.8f, 0.8f), true, FurnitureColor);
-            Prop("Kova", ArtKey.Bucket, 0f, new Vector3(r.center.x, 0f, r.yMin + 0.5f), new Vector3(0.4f, 0.45f, 0.4f), false, FurnitureColor);
+            Prop("Kova", ArtKey.Bucket, 0f, new Vector3(r.center.x, 0f, r.yMin + 0.5f), new Vector3(0.5f, 0.6f, 0.5f), false, FurnitureColor);
 
-            Spot(new Vector3(r.center.x, 0f, r.yMax - 0.35f), new Vector3(1.1f, 1.1f, 0.55f), ArtKey.Dresser, FaceCamera);
-            Spot(new Vector3(r.xMin + 0.35f, 0f, r.yMin + 1.2f), new Vector3(0.55f, 1.1f, 1.1f), ArtKey.Dresser, FaceRight);
+            Spot(new Vector3(r.center.x, 0f, r.yMax - 0.35f), new Vector3(1.3f, 1.3f, 0.65f), ArtKey.Dresser, FaceCamera);
+            Spot(new Vector3(r.xMin + 0.35f, 0f, r.yMin + 1.2f), new Vector3(0.65f, 1.3f, 1.3f), ArtKey.Dresser, FaceRight);
             Spot(new Vector3(r.xMax - 1f, 0f, r.yMin + 0.9f), new Vector3(0.9f, 0.8f, 0.9f), ArtKey.Crate, 0f);
         }
 

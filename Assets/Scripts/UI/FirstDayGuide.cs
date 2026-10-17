@@ -7,6 +7,7 @@ using AftershockIsle.Crafting;
 using AftershockIsle.Economy;
 using AftershockIsle.Expedition;
 using AftershockIsle.Player;
+using AftershockIsle.Save;
 using UnityEngine;
 
 namespace AftershockIsle.UI
@@ -57,6 +58,7 @@ namespace AftershockIsle.UI
             EventBus.Subscribe<RecipeCrafted>(OnCrafted);
             EventBus.Subscribe<ExpeditionStarted>(OnExpedition);
             EventBus.Subscribe<UpkeepResolved>(OnUpkeep);
+            EventBus.Subscribe<GameLoaded>(OnGameLoaded);
         }
 
         void OnDisable()
@@ -67,6 +69,14 @@ namespace AftershockIsle.UI
             EventBus.Unsubscribe<RecipeCrafted>(OnCrafted);
             EventBus.Unsubscribe<ExpeditionStarted>(OnExpedition);
             EventBus.Unsubscribe<UpkeepResolved>(OnUpkeep);
+            EventBus.Unsubscribe<GameLoaded>(OnGameLoaded);
+        }
+
+        // Adımlar kayda yazılmaz: ilk günden sonraki bir kayıt yüklendiyse oyuncu temelleri zaten biliyor, rehber çıkmaz.
+        void OnGameLoaded(GameLoaded evt)
+        {
+            if (dayCycle == null) dayCycle = FindFirstObjectByType<DayCycle>();
+            if (evt.Success && dayCycle != null && dayCycle.Day > 1) hidden = true;
         }
 
         void Start()
@@ -120,15 +130,17 @@ namespace AftershockIsle.UI
 
         void OnGUI()
         {
+            UiTheme.Apply();
             if (hidden || ModalMenu.IsOpen || SideViewCamera.ViewingField) return;
 
-            titleStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 12, fontStyle = FontStyle.Bold };
-            detailStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 11, wordWrap = true };
+            titleStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 14, fontStyle = FontStyle.Bold };
+            detailStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 13, wordWrap = true };
 
             // İlk yapılmayan adım ayrıntısıyla gösterilir, gerisi tek satır.
             Step next = steps.Find(step => !step.Done);
             float height = 30f + steps.Count * 20f + 52f;
-            var rect = new Rect(Screen.width - 312, 108, 300, height);
+            // Kaynak rozetleri ve sefer etiketinin (GameHud) altında.
+            var rect = new Rect(UiTheme.Width - 312, 150f, 300, height);
             UIBlocker.Add(rect);
             GUI.Box(rect, GUIContent.none);
             GUILayout.BeginArea(new Rect(rect.x + 8, rect.y + 6, rect.width - 16, rect.height - 12));

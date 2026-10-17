@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0e650139f5b55bc498ec027f8c20298e, type: 3}
+  m_Name: UiSkin
+  m_EditorClassIdentifier: Assembly-CSharp::AftershockIsle.UI.UiSkin
+  settingsPanel: {fileID: 21300000, guid: a94339a4cfd383e46a224d5a4c7a3855, type: 3}
+  pausedTitle: {fileID: 21300000, guid: ac90be6241114d94ea9a4d58724747b0, type: 3}
+  startButton: {fileID: 21300000, guid: f3214602b092eba46a469f2d0a800fcf, type: 3}
+  howToButton: {fileID: 21300000, guid: dc71ec48d40e40146a8cc28b5bb98277, type: 3}
+  playButton: {fileID: 21300000, guid: 7aaed453a94108b4687006887320533d, type: 3}
+  settingsButton: {fileID: 21300000, guid: 36475045ee1d2cf4a9952a43e6f86780, type: 3}
+  closeButton: {fileID: 21300000, guid: 0490750f1137b194c901606148e9b0dc, type: 3}
+  scrapBadge: {fileID: 21300000, guid: f367c961da131be45a5137e98f7fd862, type: 3}
+  metalBadge: {fileID: 21300000, guid: 7cd1f5697f70fde40b6342b17c982513, type: 3}
+  electricBadge: {fileID: 21300000, guid: 2a4231bff1270e241bd86cdcc0b917f5, type: 3}
+  hungerFrames:
+  - {fileID: -2099567526, guid: 592bf66af7bc66340a118f34499cb897, type: 3}
+  - {fileID: 389663935, guid: 592bf66af7bc66340a118f34499cb897, type: 3}
+  - {fileID: -1216841119, guid: 592bf66af7bc66340a118f34499cb897, type: 3}
+  - {fileID: 1120907764, guid: 592bf66af7bc66340a118f34499cb897, type: 3}
+  stressFrames:
+  - {fileID: 674073417, guid: 247c3e3573af1834abd293304124c3a8, type: 3}
+  - {fileID: 1141252007, guid: 247c3e3573af1834abd293304124c3a8, type: 3}
+  - {fileID: -713984360, guid: 247c3e3573af1834abd293304124c3a8, type: 3}
+  - {fileID: -1408098915, guid: 247c3e3573af1834abd293304124c3a8, type: 3}

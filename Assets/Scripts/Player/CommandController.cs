@@ -360,15 +360,15 @@ namespace AftershockIsle.Player
 
         void OnGUI()
         {
+            UiTheme.Apply();
             if (SideViewCamera.ViewingField || ModalMenu.IsOpen || cam == null) return;
 
-            promptStyle ??= new GUIStyle(GUI.skin.box) { fontSize = 13, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
-            statusStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 11, wordWrap = true, alignment = TextAnchor.UpperCenter };
-            hintStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 12, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+            promptStyle ??= new GUIStyle(GUI.skin.box) { fontSize = 14, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+            statusStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 13, wordWrap = true, alignment = TextAnchor.UpperCenter };
+            hintStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 14, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
 
             if (Selected != null && Nearby != null) DrawNearbyPrompt();
             else if (Selected != null && nearbyLadder.Valid) DrawLadderPrompt();
-            DrawControlHints();
         }
 
         void DrawNearbyPrompt()
@@ -376,8 +376,9 @@ namespace AftershockIsle.Player
             var screen = cam.WorldToScreenPoint(Nearby.transform.position + Vector3.up * 1.4f);
             if (screen.z < 0f) return;
 
-            float x = screen.x;
-            float y = Screen.height - screen.y;
+            var at = UiTheme.ToGui(screen);
+            float x = at.x;
+            float y = at.y;
             string text = $"[{GameInput.Prompt(InputPrompt.Interact)}] {Nearby.ActionLabel}: {Nearby.DisplayName}";
             float width = Mathf.Max(160f, promptStyle.CalcSize(new GUIContent(text)).x + 16f);
             GUI.Box(new Rect(x - width * 0.5f, y - 28f, width, 26f), text, promptStyle);
@@ -400,18 +401,8 @@ namespace AftershockIsle.Player
             string direction = nearbyLadder.TargetFloor > Selected.Mover.CurrentFloor ? "Yukarı çık" : "Aşağı in";
             string text = $"[{GameInput.Prompt(InputPrompt.Interact)}] {direction}: {building.GetFloorName(nearbyLadder.TargetFloor)}";
             float width = Mathf.Max(160f, promptStyle.CalcSize(new GUIContent(text)).x + 16f);
-            GUI.Box(new Rect(screen.x - width * 0.5f, Screen.height - screen.y - 13f, width, 26f), text, promptStyle);
-        }
-
-        void DrawControlHints()
-        {
-            string text = Selected == null
-                ? $"{GameInput.Prompt(InputPrompt.SwitchCharacter)}: karakter seç    {GameInput.Prompt(InputPrompt.Pause)}: duraklat    " +
-                  $"{GameInput.Prompt(InputPrompt.SkillTree)}: yetenekler    {GameInput.Prompt(InputPrompt.Help)}: rehber"
-                : $"{GameInput.Prompt(InputPrompt.Move)}: yürü    {GameInput.Prompt(InputPrompt.Interact)}: etkileş / merdiven    " +
-                  $"{GameInput.Prompt(InputPrompt.Cancel)}: dur    {GameInput.Prompt(InputPrompt.SwitchCharacter)}: karakter    " +
-                  $"{GameInput.Prompt(InputPrompt.Pause)}: duraklat    {GameInput.Prompt(InputPrompt.Speed)}: hız";
-            GUI.Label(new Rect(0, Screen.height - 26, Screen.width, 22), text, hintStyle);
+            var at = UiTheme.ToGui(screen);
+            GUI.Box(new Rect(at.x - width * 0.5f, at.y - 13f, width, 26f), text, promptStyle);
         }
     }
 }

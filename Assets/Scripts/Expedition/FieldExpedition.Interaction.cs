@@ -1,4 +1,3 @@
-using AftershockIsle.Building;
 using AftershockIsle.CameraControl;
 using AftershockIsle.Core;
 using AftershockIsle.Economy;

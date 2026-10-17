@@ -104,7 +104,9 @@ namespace AftershockIsle.EditorTools
             root.position = bottomCenter;
 
             var model = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root);
+            model.transform.localPosition = Vector3.zero;
             model.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+            model.transform.localScale = Vector3.one;
             ApplyMaterial(model, key);
 
             float natural = WorldBounds(model).size.y;

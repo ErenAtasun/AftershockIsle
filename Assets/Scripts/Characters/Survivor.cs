@@ -127,9 +127,11 @@ namespace AftershockIsle.Characters
         // Kapsül ve vizör gizlenir; oyun mantığı (collider, yön) kökte kalır, model onu izler.
         void AttachModel()
         {
-            if (characters == null) return;
+            // Önce otomatik güncellenen kayıt (yeni model eklenince sahne kurulmadan gelir), yoksa sahnedeki referans.
+            var library = GameAssets.Characters != null ? GameAssets.Characters : characters;
+            if (library == null) return;
 
-            view = CharacterView.Attach(characters, transform, transform, ModelHeight, transform.position);
+            view = CharacterView.Attach(library, transform, transform, ModelHeight, transform.position);
             if (view == null) return;
 
             if (body != null) body.enabled = false;

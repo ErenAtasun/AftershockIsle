@@ -42,12 +42,23 @@ namespace AftershockIsle.Crisis
         readonly HashSet<int> triggeredDays = new HashSet<int>();
         int motherGiftDueDay = -1;
         ActiveEncounter activeEvent;
-        float triggerAtPhaseSecond = 12f;
+        // Kapı karşılaşmaları: her gün değil (2. gün hep, sonra ~%65), sabahın farklı bir anında; aynı karşılaşma
+        // dördü de görülmeden tekrar gelmez. Günün kararı gün numarasından türetilir, böylece kayıt yüklenince değişmez.
+        const int EncounterCount = 4;
+        const int EncounterChancePercent = 65;
+        readonly List<int> encounterDeck = new List<int>();
+        int lastEncounter = -1;
 
         Rect windowRect = new Rect(0, 0, 540, 310);
         GUIStyle titleStyle;
         GUIStyle bodyStyle;
         readonly MenuNav nav = new MenuNav();
+
+        // Olay penceresi açıkken zaman TimeManager üzerinden durur; kapanınca önceki hıza döner.
+        TimeManager timeManager;
+        DayCycle dayCycle;
+        TimeSpeed resumeSpeed = TimeSpeed.Normal;
+        bool holdingTime;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void EnsureInstance()
@@ -124,35 +135,57 @@ namespace AftershockIsle.Crisis
         {
             if (activeEvent != null)
             {
-                Time.timeScale = 0f;
+                // Duraklatma menüsü açılıp kapandıysa zaman yöneticisini yeniden etkinleştirmiş olabilir; seçim yapılana kadar kilitli kalsın.
+                if (holdingTime && timeManager != null && timeManager.enabled && !PauseMenu.IsOpen)
+                {
+                    timeManager.SetSpeed(TimeSpeed.Paused);
+                    timeManager.enabled = false;
+                }
                 nav.Tick();
                 return;
             }
 
             if (SideViewCamera.ViewingField || PlacementController.IsPlacementActive) return;
 
-            var cycle = FindFirstObjectByType<DayCycle>();
+            if (dayCycle == null) dayCycle = FindFirstObjectByType<DayCycle>();
+            var cycle = dayCycle;
             if (cycle == null || cycle.Day < 2) return;
 
             if (cycle.Phase == DayPhase.Morning &&
-                cycle.PhaseElapsed >= triggerAtPhaseSecond &&
+                cycle.PhaseElapsed >= TriggerSecond(cycle.Day) &&
                 !triggeredDays.Contains(cycle.Day))
             {
                 triggeredDays.Add(cycle.Day);
-                TriggerDoorEncounterForDay(cycle.Day);
+                if (HasEncounter(cycle.Day)) TriggerEncounter(DrawEncounter());
             }
         }
 
-        int debugEncounterCursor = 2;
+        static int DayHash(int day) => (int)(((uint)day * 2654435761u) >> 8);
 
-        public void TriggerNextDoorEncounter()
+        static bool HasEncounter(int day) => day == 2 || DayHash(day) % 100 < EncounterChancePercent;
+
+        static float TriggerSecond(int day) => 8f + DayHash(day) % 30;
+
+        // Desteden çek: hepsi görülene kadar tekrar yok, deste yenilenince son gelen başa düşmez.
+        int DrawEncounter()
         {
-            TriggerDoorEncounterForDay(debugEncounterCursor++);
+            if (encounterDeck.Count == 0)
+                for (int i = 0; i < EncounterCount; i++)
+                    if (i != lastEncounter || EncounterCount == 1) encounterDeck.Add(i);
+
+            int pick = encounterDeck[Random.Range(0, encounterDeck.Count)];
+            encounterDeck.Remove(pick);
+            lastEncounter = pick;
+            return pick;
         }
 
-        public void TriggerDoorEncounterForDay(int day)
+        int debugEncounterCursor;
+
+        /// <summary>Test: karşılaşmaları sırayla açar.</summary>
+        public void TriggerNextDoorEncounter() => TriggerEncounter(debugEncounterCursor++ % EncounterCount);
+
+        void TriggerEncounter(int encounterIndex)
         {
-            int encounterIndex = (day - 2) % 4;
             var storage = ResourceStorage.Instance;
             if (storage == null) return;
 
@@ -339,6 +372,7 @@ namespace AftershockIsle.Crisis
 
             activeEvent = encounter;
             nav.Reset();
+            HoldTime();
         }
 
         void ResolveNightShelterTension()
@@ -383,20 +417,42 @@ namespace AftershockIsle.Crisis
         void CloseModal()
         {
             activeEvent = null;
-            var tm = FindFirstObjectByType<TimeManager>();
-            if (tm != null) tm.SetSpeed(tm.Speed);
-            else Time.timeScale = 1f;
+            ReleaseTime();
+        }
+
+        void HoldTime()
+        {
+            if (holdingTime) return;
+            if (timeManager == null) timeManager = FindFirstObjectByType<TimeManager>();
+            if (timeManager == null) return;
+
+            resumeSpeed = timeManager.IsPaused ? TimeSpeed.Normal : timeManager.Speed;
+            timeManager.SetSpeed(TimeSpeed.Paused);
+            // Seçim yapılmadan Space ile zaman yeniden başlatılamasın.
+            timeManager.enabled = false;
+            holdingTime = true;
+        }
+
+        void ReleaseTime()
+        {
+            if (!holdingTime) return;
+            holdingTime = false;
+            if (timeManager == null) return;
+
+            timeManager.enabled = true;
+            timeManager.SetSpeed(resumeSpeed);
         }
 
         void OnGUI()
         {
+            UiTheme.Apply();
             if (activeEvent == null) return;
 
-            titleStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 15, fontStyle = FontStyle.Bold };
-            bodyStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 13, wordWrap = true };
+            titleStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 16, fontStyle = FontStyle.Bold };
+            bodyStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 14, wordWrap = true };
 
-            windowRect.x = (Screen.width - windowRect.width) * 0.5f;
-            windowRect.y = (Screen.height - windowRect.height) * 0.5f;
+            windowRect.x = (UiTheme.Width - windowRect.width) * 0.5f;
+            windowRect.y = (UiTheme.Height - windowRect.height) * 0.5f;
             UIBlocker.Add(windowRect);
 
             GUI.Window(8812, windowRect, DrawModalWindow, activeEvent.Title);
@@ -430,6 +486,7 @@ namespace AftershockIsle.Crisis
                 foreach (var d in savedDays) triggeredDays.Add(d);
             motherGiftDueDay = savedMotherGiftDay;
             activeEvent = null;
+            ReleaseTime();
         }
     }
 }

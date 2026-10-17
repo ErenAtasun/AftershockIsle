@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using AftershockIsle.Characters;
 using AftershockIsle.Core;
 using AftershockIsle.Crafting;
 using AftershockIsle.Economy;

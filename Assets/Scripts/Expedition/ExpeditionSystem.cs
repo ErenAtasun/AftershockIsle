@@ -126,6 +126,10 @@ namespace AftershockIsle.Expedition
 
             // Eski sahnelerde serileştirilmiş saha verisi olmayabilir.
             if (sites == null || sites.Length == 0 || sites[0].lootSpots <= 0) sites = ExpeditionSite.Defaults();
+            // Otomatik güncellenen kayıt öncelikli: yeni model eklenince sahneyi yeniden kurmak gerekmez.
+            if (GameAssets.FieldArt != null) fieldArt = GameAssets.FieldArt;
+            if (GameAssets.Characters != null) characterLibrary = GameAssets.Characters;
+
             field = gameObject.AddComponent<FieldExpedition>();
             field.Characters = characterLibrary;
         }

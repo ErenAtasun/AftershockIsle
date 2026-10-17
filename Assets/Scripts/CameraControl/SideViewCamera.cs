@@ -2,6 +2,7 @@ using AftershockIsle.Building;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
 using AftershockIsle.Crisis;
+using AftershockIsle.UI;
 using UnityEngine;
 
 namespace AftershockIsle.CameraControl
@@ -92,6 +93,7 @@ namespace AftershockIsle.CameraControl
         {
             if (building == null) building = FindFirstObjectByType<BuildingLayout>();
             GetComponent<Camera>().fieldOfView = fieldOfView;
+            pitch = GameSettings.CameraPitch;
             transform.rotation = Quaternion.Euler(pitch, 0f, 0f);
 
             fieldFocus = null;
@@ -109,13 +111,17 @@ namespace AftershockIsle.CameraControl
         {
             EventBus.Subscribe<SurvivorSelected>(OnSurvivorSelected);
             EventBus.Subscribe<AftershockImpact>(OnAftershockImpact);
+            EventBus.Subscribe<SettingsChanged>(OnSettingsChanged);
         }
+
+        void OnSettingsChanged(SettingsChanged evt) => pitch = GameSettings.CameraPitch;
 
         void OnDisable()
         {
             GameInput.StopRumble();
             EventBus.Unsubscribe<SurvivorSelected>(OnSurvivorSelected);
             EventBus.Unsubscribe<AftershockImpact>(OnAftershockImpact);
+            EventBus.Unsubscribe<SettingsChanged>(OnSettingsChanged);
         }
 
         void OnAftershockImpact(AftershockImpact evt)
@@ -205,16 +211,17 @@ namespace AftershockIsle.CameraControl
             int next = 0;
             for (int i = 0; i < PitchPresets.Length; i++)
                 if (pitch >= PitchPresets[i] - 0.5f) next = (i + 1) % PitchPresets.Length;
-            pitch = PitchPresets[next];
+            GameSettings.CameraPitch = PitchPresets[next];
             pitchNoticeUntil = Time.unscaledTime + 2.5f;
         }
 
         void OnGUI()
         {
+            UiTheme.Apply();
             if (Time.unscaledTime > pitchNoticeUntil) return;
 
             pitchStyle ??= new GUIStyle(GUI.skin.box) { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
-            GUI.Box(new Rect((Screen.width - 260f) * 0.5f, Screen.height * 0.5f - 120f, 260f, 40f), $"Kamera eğimi: {pitch:0}°  (F5)", pitchStyle);
+            GUI.Box(new Rect((UiTheme.Width - 260f) * 0.5f, UiTheme.Height * 0.5f - 120f, 260f, 40f), $"Kamera eğimi: {pitch:0}°  (F5)", pitchStyle);
         }
 
         Vector3 FieldFocusPoint()

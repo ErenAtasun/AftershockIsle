@@ -1,11 +1,12 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace AftershockIsle.UI
 {
     /// <summary>
-    /// IMGUI panellerinin ekran alanları. Dünya tıklamaları (seçim/emir) bu alanların üstündeyse yok sayılır.
-    /// Paneller her OnGUI'de alanlarını yeniden bildirir.
+    /// IMGUI panellerinin ekran alanları ve uGUI göstergesi. Dünya tıklamaları (seçim/emir) bunların üstündeyse yok sayılır.
+    /// IMGUI paneller her OnGUI'de alanlarını yeniden bildirir; uGUI için EventSystem sorulur.
     /// </summary>
     public static class UIBlocker
     {
@@ -19,7 +20,9 @@ namespace AftershockIsle.UI
         /// <summary>Input System ekran koordinatı (sol alt köşe orijin) bir panelin üstünde mi.</summary>
         public static bool IsPointerOver(Vector2 screenPosition)
         {
-            var guiPoint = new Vector2(screenPosition.x, Screen.height - screenPosition.y);
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return true;
+
+            var guiPoint = UiTheme.ToGui(screenPosition);
             foreach (var rect in rects)
                 if (rect.Contains(guiPoint)) return true;
             return false;

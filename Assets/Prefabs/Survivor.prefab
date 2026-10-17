@@ -366,6 +366,7 @@ MonoBehaviour:
   selectionIndicator: {fileID: 7806124693499061223}
   body: {fileID: 4060615655526739555}
   carriedVisual: {fileID: 5477436850934469399}
+  characters: {fileID: 11400000, guid: a8843ef806b6e5f42ae08495adbbeb1f, type: 2}
   heavyCarrySpeed: 0.75
   maxHealth: 100
 --- !u!114 &2546579053852945183

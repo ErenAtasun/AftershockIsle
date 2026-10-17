@@ -108,6 +108,8 @@ namespace AftershockIsle.Expedition
         bool rescueAvailable;
         int extraRaiders;
         FieldArtLibrary art;
+        // Kapsül gövdenin yerine geçen karakter modelleri: kapsüle yapılan Tint çağrıları modele yönlenir.
+        readonly Dictionary<Renderer, CharacterView> views = new Dictionary<Renderer, CharacterView>();
 
         WeaponKind weapon = WeaponKind.Slingshot;
         float fireCooldown;
@@ -151,6 +153,9 @@ namespace AftershockIsle.Expedition
         GUIStyle small;
         GUIStyle prompt;
         Camera cam;
+
+        /// <summary>Karakter modeli kütüphanesi (null ise kâşif, yoldaş ve düşmanlar kapsül olarak kalır).</summary>
+        public CharacterLibrary Characters { get; set; }
 
         public FieldOutcome Outcome { get; private set; } = FieldOutcome.Idle;
         public bool IsActive => Outcome == FieldOutcome.Active && explorer != null;
@@ -199,6 +204,7 @@ namespace AftershockIsle.Expedition
             buildings.Clear();
             enemies.Clear();
             enemyByCollider.Clear();
+            views.Clear();
             enemyAimLines.Clear();
             tracers.Clear();
             coverPoints.Clear();
@@ -240,6 +246,7 @@ namespace AftershockIsle.Expedition
             root = null;
             companion = null;
             partner = null;
+            views.Clear();
             explorer = null;
             Outcome = FieldOutcome.Idle;
         }

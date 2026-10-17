@@ -326,6 +326,7 @@ namespace AftershockIsle.Expedition
             face.localRotation = Quaternion.identity;
             face.localScale = new Vector3(0.5f, 0.15f, 0.2f);
 
+            if (!dog) DressCharacter(body, enemyRoot, height);
             var enemy = new FieldEnemy(this, kind, enemyRoot, body.GetComponent<Renderer>(), enemyController);
             enemies.Add(enemy);
             enemyByCollider[enemyController] = enemy;
@@ -355,6 +356,24 @@ namespace AftershockIsle.Expedition
             nose.localPosition = new Vector3(0f, 0.3f, 0.55f);
             nose.localRotation = Quaternion.identity;
             nose.localScale = new Vector3(0.3f, 0.2f, 0.5f);
+            DressCharacter(body, avatarRoot, 1.8f);
+        }
+
+        /// <summary>
+        /// Kapsül gövdenin yerine karakter modeli koyar (kütüphane yoksa kapsül kalır). Kapsül ve üstündeki yön/yüz
+        /// parçaları gizlenir ama yerinde durur: duruş (çömelme), eğilme ve renk değişimi kapsül üzerinden modele geçer.
+        /// </summary>
+        void DressCharacter(Transform capsule, Transform root, float height)
+        {
+            if (Characters == null) return;
+
+            var renderer = capsule.GetComponent<Renderer>();
+            var view = CharacterView.Attach(Characters, capsule, root, height, root.position);
+            if (view == null) return;
+
+            foreach (var part in capsule.GetComponentsInChildren<Renderer>())
+                if (!view.Owns(part)) part.enabled = false;
+            views[renderer] = view;
         }
 
         // Yoldaş kâşifin hemen arkasında doğar.
@@ -384,6 +403,7 @@ namespace AftershockIsle.Expedition
             nose.localRotation = Quaternion.identity;
             nose.localScale = new Vector3(0.3f, 0.2f, 0.5f);
 
+            DressCharacter(body, companionRoot, 1.8f);
             companion = new FieldCompanion(this, partner, companionRoot, body.GetComponent<Renderer>(), companionController, color, groundY);
         }
 
@@ -413,6 +433,12 @@ namespace AftershockIsle.Expedition
 
         public void Tint(Renderer target, Color color)
         {
+            if (views.TryGetValue(target, out var view) && view != null)
+            {
+                view.SetTint(color);
+                return;
+            }
+
             block ??= new MaterialPropertyBlock();
             target.GetPropertyBlock(block);
             block.SetColor(BaseColorId, color);

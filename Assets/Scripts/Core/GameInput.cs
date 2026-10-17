@@ -79,13 +79,13 @@ namespace AftershockIsle.Core
         }
 
         /// <summary>F / A (Çarpı): en yakın nesneyle etkileş (sığınakta iş ver, sahada ara/çık).</summary>
-        public static bool InteractPressed => WasPressed(interact);
+        public static bool InteractPressed => WasPressed(ref interact);
 
         /// <summary>Sahada Space / B (Daire): kaçış atılması.</summary>
-        public static bool DodgePressed => WasPressed(dodge);
+        public static bool DodgePressed => WasPressed(ref dodge);
 
         /// <summary>Sahada R / Y (Üçgen): Yaşam Kiti ile ilk yardım.</summary>
-        public static bool HealPressed => WasPressed(heal);
+        public static bool HealPressed => WasPressed(ref heal);
 
         /// <summary>Sahada sol tık / RT: ateş.</summary>
         public static bool FirePressed =>
@@ -341,7 +341,8 @@ namespace AftershockIsle.Core
             return direction;
         }
 
-        static bool WasPressed(InputAction action)
+        // ref: eylem alanı EnsureActions çalıştıktan sonra okunur (değer olarak verilseydi ilk çağrıda null olurdu).
+        static bool WasPressed(ref InputAction action)
         {
             EnsureActions();
             return action.WasPressedThisFrame();

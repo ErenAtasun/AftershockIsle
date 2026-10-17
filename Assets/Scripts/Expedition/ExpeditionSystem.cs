@@ -57,6 +57,8 @@ namespace AftershockIsle.Expedition
         [SerializeField] ExpeditionSite[] sites = ExpeditionSite.Defaults();
         [Tooltip("Dış sahada kullanılan modeller (sahne kurucu doldurur). Boşsa saha kutularla kurulur.")]
         [SerializeField] FieldArtLibrary fieldArt;
+        [Tooltip("Saha kâşifi, yoldaş ve insan düşmanların kullandığı karakter modeli (sahne kurucu doldurur). Boşsa kapsül.")]
+        [SerializeField] CharacterLibrary characterLibrary;
 
         static readonly Dictionary<SkillBranch, string> rescueNames = new Dictionary<SkillBranch, string>
         {
@@ -125,6 +127,7 @@ namespace AftershockIsle.Expedition
             // Eski sahnelerde serileştirilmiş saha verisi olmayabilir.
             if (sites == null || sites.Length == 0 || sites[0].lootSpots <= 0) sites = ExpeditionSite.Defaults();
             field = gameObject.AddComponent<FieldExpedition>();
+            field.Characters = characterLibrary;
         }
 
         void OnDestroy()

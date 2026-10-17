@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dbb7dae58f2549942a755dfa01b72376, type: 3}
+  m_Name: CharacterLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::AftershockIsle.Characters.CharacterLibrary
+  prefab: {fileID: 919132149155446097, guid: ace63bc50a4814e4a8facd9e3ad234b3, type: 3}
+  moveClip: {fileID: -4572650651892053679, guid: ace63bc50a4814e4a8facd9e3ad234b3, type: 3}
+  idleClip: {fileID: 0}
+  idlePoseTime: 0.41
+  moveSpeedReference: 4.1
+  bodyMaterial: {fileID: 2100000, guid: 832a823a72abe824fbeda26ad8d36855, type: 2}
+  hairMaterial: {fileID: 2100000, guid: a770ac757c278ee41b783defad4d63c4, type: 2}
+  hasTextures: 1
+  hairColor: {r: 0.16, g: 0.11, b: 0.08, a: 1}
+  yawOffset: 0

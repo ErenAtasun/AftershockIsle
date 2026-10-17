@@ -41,6 +41,8 @@ namespace AftershockIsle.Characters
         [SerializeField] GameObject selectionIndicator;
         [SerializeField] Renderer body;
         [SerializeField] Renderer carriedVisual;
+        [Tooltip("Doluysa kapsül yerine iskeletli karakter modeli kullanılır (sahne kurucu atar).")]
+        [SerializeField] CharacterLibrary characters;
         [SerializeField, Range(0.1f, 1f)] float heavyCarrySpeed = 0.75f;
         [SerializeField] float maxHealth = 100f;
 
@@ -48,7 +50,10 @@ namespace AftershockIsle.Characters
         readonly List<ResourceAmount> bag = new List<ResourceAmount>();
         readonly List<TraitId> traits = new List<TraitId>();
         MaterialPropertyBlock block;
+        CharacterView view;
         float trappedRemaining;
+
+        const float ModelHeight = 1.75f;
 
         /// <summary>Ölüler de dahil sahnedeki tüm kazazedeler.</summary>
         public static IReadOnlyList<Survivor> All => all;
@@ -115,7 +120,21 @@ namespace AftershockIsle.Characters
             Health = maxHealth;
             SetSelected(false);
             RefreshCarry();
+            AttachModel();
             RefreshBodyColor();
+        }
+
+        // Kapsül ve vizör gizlenir; oyun mantığı (collider, yön) kökte kalır, model onu izler.
+        void AttachModel()
+        {
+            if (characters == null) return;
+
+            view = CharacterView.Attach(characters, transform, transform, ModelHeight, transform.position);
+            if (view == null) return;
+
+            if (body != null) body.enabled = false;
+            var visor = transform.Find("Visor");
+            if (visor != null && visor.TryGetComponent<Renderer>(out var visorRenderer)) visorRenderer.enabled = false;
         }
 
         void OnEnable() => all.Add(this);
@@ -255,12 +274,15 @@ namespace AftershockIsle.Characters
         void RefreshBodyColor()
         {
             if (body == null) return;
-            SetColor(body, branch switch
+
+            var color = branch switch
             {
                 SkillBranch.Construction => new Color(0.95f, 0.55f, 0.2f),
                 SkillBranch.Exploration => new Color(0.35f, 0.8f, 0.35f),
                 _ => new Color(0.3f, 0.6f, 0.95f),
-            });
+            };
+            SetColor(body, color);
+            if (view != null) view.SetTint(color);
         }
 
         void SetColor(Renderer target, Color color)

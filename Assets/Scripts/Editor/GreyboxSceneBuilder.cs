@@ -116,6 +116,7 @@ namespace AftershockIsle.EditorTools
             SetRef(expeditions, "timeManager", timeManager);
             SetRef(expeditions, "dayCycle", dayCycle);
             SetRef(expeditions, "fieldArt", ModelSkins.BuildFieldArtLibrary());
+            SetRef(expeditions, "characterLibrary", CharacterLibraryBuilder.Build());
             systems.AddComponent<ExpeditionWindow>();
             systems.AddComponent<WorkbenchWindow>();
             systems.AddComponent<TutorialHints>();
@@ -601,6 +602,7 @@ namespace AftershockIsle.EditorTools
             Object.DestroyImmediate(ring.GetComponent<Collider>());
 
             SetRef(survivor, "selectionIndicator", ring);
+            SetRef(survivor, "characters", CharacterLibraryBuilder.Build());
 
             var prefab = PrefabUtility.SaveAsPrefabAsset(root, $"{PrefabFolder}/Survivor.prefab");
             Object.DestroyImmediate(root);

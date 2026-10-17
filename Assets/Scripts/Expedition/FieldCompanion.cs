@@ -61,6 +61,7 @@ namespace AftershockIsle.Expedition
         public void Hurt()
         {
             flash = 0.12f;
+            if (body != null) body.GetComponentInParent<CharacterView>()?.PlayHit();
         }
 
         public void Tick(float dt)
@@ -125,6 +126,7 @@ namespace AftershockIsle.Expedition
             if (shotTimer > 0f) return;
 
             shotTimer = ShotInterval * Random.Range(0.85f, 1.2f);
+            if (body != null) body.GetComponentInParent<CharacterView>()?.PlayFire();
             field.CompanionShoot(this, target, ShotDamage, Random.value <= Accuracy, ShotNoise);
         }
 

@@ -326,7 +326,20 @@ namespace AftershockIsle.Expedition
             face.localRotation = Quaternion.identity;
             face.localScale = new Vector3(0.5f, 0.15f, 0.2f);
 
-            if (!dog) DressCharacter(body, enemyRoot, height);
+            if (!dog)
+            {
+                var enemyView = DressCharacter(body, enemyRoot, height);
+                if (enemyView != null)
+                {
+                    var enemyGun = kind switch
+                    {
+                        FieldEnemyKind.Gunner => GunModelKind.AssaultRifle,
+                        FieldEnemyKind.Brute => GunModelKind.Shotgun,
+                        _ => GunModelKind.Pistol,
+                    };
+                    enemyView.SetGun(enemyGun, 1);
+                }
+            }
             var enemy = new FieldEnemy(this, kind, enemyRoot, body.GetComponent<Renderer>(), enemyController);
             enemies.Add(enemy);
             enemyByCollider[enemyController] = enemy;
@@ -357,23 +370,45 @@ namespace AftershockIsle.Expedition
             nose.localRotation = Quaternion.identity;
             nose.localScale = new Vector3(0.3f, 0.2f, 0.5f);
             DressCharacter(body, avatarRoot, 1.8f);
+            RefreshAvatarWeapon();
         }
+
+        void RefreshAvatarWeapon()
+        {
+            var view = ViewFor(avatarRenderer);
+            if (view == null) return;
+
+            var (gunKind, variant) = weapon switch
+            {
+                WeaponKind.Pistol => (GunModelKind.Pistol, 0),
+                WeaponKind.Smg => (GunModelKind.Smg, 0),
+                WeaponKind.Shotgun => (GunModelKind.Shotgun, 0),
+                WeaponKind.AssaultRifle => (GunModelKind.AssaultRifle, 0),
+                WeaponKind.SniperRifle => (GunModelKind.SniperRifle, 0),
+                _ => (GunModelKind.Pistol, 1),
+            };
+            view.SetGun(gunKind, variant);
+        }
+
+        public CharacterView ViewFor(Renderer target) =>
+            target != null && views.TryGetValue(target, out var view) ? view : null;
 
         /// <summary>
         /// Kapsül gövdenin yerine karakter modeli koyar (kütüphane yoksa kapsül kalır). Kapsül ve üstündeki yön/yüz
         /// parçaları gizlenir ama yerinde durur: duruş (çömelme), eğilme ve renk değişimi kapsül üzerinden modele geçer.
         /// </summary>
-        void DressCharacter(Transform capsule, Transform root, float height)
+        CharacterView DressCharacter(Transform capsule, Transform root, float height)
         {
-            if (Characters == null) return;
+            if (Characters == null) return null;
 
             var renderer = capsule.GetComponent<Renderer>();
             var view = CharacterView.Attach(Characters, capsule, root, height, root.position);
-            if (view == null) return;
+            if (view == null) return null;
 
             foreach (var part in capsule.GetComponentsInChildren<Renderer>())
                 if (!view.Owns(part)) part.enabled = false;
             views[renderer] = view;
+            return view;
         }
 
         // Yoldaş kâşifin hemen arkasında doğar.
@@ -403,7 +438,8 @@ namespace AftershockIsle.Expedition
             nose.localRotation = Quaternion.identity;
             nose.localScale = new Vector3(0.3f, 0.2f, 0.5f);
 
-            DressCharacter(body, companionRoot, 1.8f);
+            var companionView = DressCharacter(body, companionRoot, 1.8f);
+            companionView?.SetGun(GunModelKind.Smg, 1);
             companion = new FieldCompanion(this, partner, companionRoot, body.GetComponent<Renderer>(), companionController, color, groundY);
         }
 

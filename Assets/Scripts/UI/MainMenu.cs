@@ -48,19 +48,31 @@ namespace AftershockIsle.UI
             var skin = GameAssets.Ui;
             var canvas = UiFactory.Canvas("Ana Menü", 0, transform, MenuScale).transform;
 
-            var background = UiFactory.Panel(canvas, "Arka Plan", new Color(0.09f, 0.1f, 0.13f, 1f));
+            Sprite banner = skin != null ? skin.mainMenuBackground : null;
+            var background = UiFactory.Panel(canvas, "Arka Plan", banner != null ? Color.white : new Color(0.09f, 0.1f, 0.13f, 1f));
             UiFactory.Stretch(background.rectTransform);
-            background.sprite = null;
-
-            var title = UiFactory.Label(canvas, "AFTERSHOCK", 120, UiFactory.Accent);
-            UiFactory.Place(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -70f), new Vector2(1400f, 150f));
-            var isle = UiFactory.Label(canvas, "I S L E", 54, UiFactory.Text);
-            UiFactory.Place(isle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -205f), new Vector2(800f, 70f));
-            var subtitle = UiFactory.Label(canvas, "Çöken binayı ayakta tut. Hayatta kal. Çatıdan tahliye ol.", 26, new Color(0.85f, 0.85f, 0.8f), outline: false);
-            UiFactory.Place(subtitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -275f), new Vector2(1200f, 40f));
+            if (banner != null)
+            {
+                background.sprite = banner;
+                background.type = Image.Type.Simple;
+                background.preserveAspect = false;
+                var fitter = background.gameObject.AddComponent<AspectRatioFitter>();
+                fitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+                fitter.aspectRatio = banner.rect.height > 0f ? banner.rect.width / banner.rect.height : 16f / 9f;
+            }
+            else
+            {
+                background.sprite = null;
+                var title = UiFactory.Label(canvas, "AFTERSHOCK", 120, UiFactory.Accent);
+                UiFactory.Place(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -70f), new Vector2(1400f, 150f));
+                var isle = UiFactory.Label(canvas, "I S L E", 54, UiFactory.Text);
+                UiFactory.Place(isle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -205f), new Vector2(800f, 70f));
+                var subtitle = UiFactory.Label(canvas, "Çöken binayı ayakta tut. Hayatta kal. Çatıdan tahliye ol.", 26, new Color(0.85f, 0.85f, 0.8f), outline: false);
+                UiFactory.Place(subtitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -275f), new Vector2(1200f, 40f));
+            }
 
             var column = UiFactory.Rect("Butonlar", canvas);
-            UiFactory.Place(column, new Vector2(0.5f, 0.5f), new Vector2(0f, -110f), new Vector2(600f, 600f));
+            UiFactory.Place(column, new Vector2(0.5f, 0.5f), new Vector2(0f, -135f), new Vector2(600f, 600f));
 
             bool hasSave = SaveManager.HasSave();
             float y = hasSave ? 150f : 90f;

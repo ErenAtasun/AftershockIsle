@@ -345,6 +345,7 @@ namespace AftershockIsle.Expedition
             dodgeCooldown = DodgeCooldown;
             CancelSearch(false);
             Tint(avatarRenderer, new Color(0.75f, 0.9f, 1f));
+            ViewFor(avatarRenderer)?.PlayJump();
         }
     }
 }

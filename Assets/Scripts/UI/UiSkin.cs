@@ -11,6 +11,7 @@ namespace AftershockIsle.UI
     public class UiSkin : ScriptableObject
     {
         [Header("Paneller ve yazılar")]
+        public Sprite mainMenuBackground;
         public Sprite settingsPanel;
         public Sprite pausedTitle;
 

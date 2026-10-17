@@ -17,6 +17,7 @@ namespace AftershockIsle.EditorTools
     public class GameAssetsSync : AssetPostprocessor
     {
         const string WatchedRoot = "Assets/Models/";
+        const string WatchedGunsRoot = "Assets/Low Poly Guns/";
         const string ResourcesFolder = "Assets/Resources";
         const string GameAssetsPath = ResourcesFolder + "/GameAssets.asset";
         const string UiSkinPath = "Assets/Art/UiSkin.asset";
@@ -26,17 +27,30 @@ namespace AftershockIsle.EditorTools
 
         static void OnPostprocessAllAssets(string[] imported, string[] deleted, string[] moved, string[] movedFrom)
         {
-            if (imported.Concat(deleted).Concat(moved).Concat(movedFrom).Any(path => path.Replace('\\', '/').StartsWith(WatchedRoot)))
+            if (imported.Concat(deleted).Concat(moved).Concat(movedFrom).Any(path =>
+                {
+                    string p = path.Replace('\\', '/');
+                    return p.StartsWith(WatchedRoot) || p.StartsWith(WatchedGunsRoot);
+                }))
+            {
                 Schedule();
+            }
         }
 
-        // Proje açılınca kayıt yoksa bir kez kur.
+        // Proje açılınca ya da yeni karakter/silah/arayüz paketleri henüz işlenmemişse bir kez kur.
         [InitializeOnLoadMethod]
         static void EnsureOnLoad()
         {
             EditorApplication.delayCall += () =>
             {
-                if (AssetDatabase.LoadAssetAtPath<GameAssets>(GameAssetsPath) == null) Schedule();
+                var assets = AssetDatabase.LoadAssetAtPath<GameAssets>(GameAssetsPath);
+                if (assets == null || assets.characters == null || assets.characters.prefab == null ||
+                    assets.characters.guns == null || assets.characters.guns.Length == 0 ||
+                    !AssetDatabase.GetAssetPath(assets.characters.prefab).Replace('\\', '/').Contains("Basic Shooter Pack") ||
+                    assets.ui == null || assets.ui.mainMenuBackground == null)
+                {
+                    Schedule();
+                }
             };
         }
 
@@ -112,9 +126,21 @@ namespace AftershockIsle.EditorTools
             foreach (string guid in AssetDatabase.FindAssets("t:Texture2D", new[] { "Assets/Models" }))
             {
                 string path = AssetDatabase.GUIDToAssetPath(guid).Replace('\\', '/');
+                string file = Path.GetFileNameWithoutExtension(path);
+                string lowerFile = file.ToLowerInvariant();
+
+                if (path.Contains("/UI/") || lowerFile.Contains("anabanner") || lowerFile.Contains("anasayfa") || lowerFile.Contains("mainmenu"))
+                {
+                    EnsureSpriteImport(path);
+                    var bannerSprite = AssetDatabase.LoadAssetAtPath<Sprite>(path)
+                                       ?? AssetDatabase.LoadAllAssetsAtPath(path).OfType<Sprite>().FirstOrDefault();
+                    if (bannerSprite != null)
+                        skin.mainMenuBackground = bannerSprite;
+                    continue;
+                }
+
                 if (!path.Contains(UiFolderSuffix)) continue;
 
-                string file = Path.GetFileNameWithoutExtension(path);
                 if (!file.StartsWith("Asset ") || !int.TryParse(file.Substring(6), out int number)) continue;
                 if (!UiSlots.TryGetValue(number, out string slot)) continue;
 

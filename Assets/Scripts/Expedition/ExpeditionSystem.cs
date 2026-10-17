@@ -170,7 +170,7 @@ namespace AftershockIsle.Expedition
             yield return WalkThroughDoor(explorer, building.MaxX, OutsideX);
             explorer.gameObject.SetActive(false);
             Stage = ExpeditionStage.Away;
-            field.Begin(explorer, CurrentSite, building, BagSlots, ExtractionTime, RescueVictimAvailable);
+            field.Begin(explorer, CurrentSite, building, BagSlots, ExtractionTime, RescueVictimAvailable, dayCycle.Day);
         }
 
         IEnumerator ReturnRoutine(Survivor explorer, IReadOnlyList<ResourceAmount> loot, string hazardReport, bool rescuing)

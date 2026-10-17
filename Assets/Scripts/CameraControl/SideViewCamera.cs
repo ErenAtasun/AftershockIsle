@@ -10,6 +10,8 @@ namespace AftershockIsle.CameraControl
     /// Kesit kamerası: rotasyon kilitli, yalnızca X/Y'de yumuşak takip. Seçili karakteri izler;
     /// WASD/oklar takibi bırakıp serbest kaydırır, F tekrar odaklar, tekerlek yakınlaştırır.
     /// Duraklatmada da odaları inceleyebilmek için unscaled zaman kullanır.
+    /// Dış sefer sırasında saha görünümüne geçer: kamera kâşifi yukarıdan eğik açıyla izler,
+    /// böylece haritanın içine/ekrana doğru (Z) hareket okunur. Tab/Select iki görünüm arasında geçer.
     /// </summary>
     [RequireComponent(typeof(Camera))]
     public class SideViewCamera : MonoBehaviour
@@ -24,6 +26,14 @@ namespace AftershockIsle.CameraControl
         [SerializeField] float smoothTime = 0.25f;
         [SerializeField] float targetHeightOffset = 1.2f;
         [SerializeField] float shakeAmplitude = 0.35f;
+
+        [Header("Dış saha")]
+        [Tooltip("Kameranın aşağı bakış açısı (derece)")]
+        [SerializeField] float fieldPitch = 32f;
+        [SerializeField] float fieldDistance = 17f;
+        [SerializeField] float fieldMinDistance = 11f;
+        [SerializeField] float fieldMaxDistance = 26f;
+        [SerializeField] float fieldHeightOffset = 0.8f;
 
         static Transform fieldFocus;
         static bool viewField;
@@ -48,6 +58,8 @@ namespace AftershockIsle.CameraControl
         Vector3 smoothedFocus;
         Vector3 velocity;
         float targetDistance;
+        float targetFieldDistance;
+        float currentFieldDistance;
 
         void Awake()
         {
@@ -60,6 +72,9 @@ namespace AftershockIsle.CameraControl
             focus = new Vector3(transform.position.x, transform.position.y, building.WalkPlaneZ);
             smoothedFocus = focus;
             targetDistance = distance;
+            targetFieldDistance = fieldDistance;
+            currentFieldDistance = fieldDistance;
+            GameInput.FieldControlsActive = false;
         }
 
         void OnEnable()
@@ -92,6 +107,7 @@ namespace AftershockIsle.CameraControl
 
             if (fieldFocus != null && GameInput.ViewSwitchPressed) viewField = !viewField;
             bool showField = ViewingField;
+            GameInput.FieldControlsActive = showField;
             if (showField != wasViewingField)
             {
                 wasViewingField = showField;
@@ -101,15 +117,19 @@ namespace AftershockIsle.CameraControl
                 smoothedFocus = showField ? FieldFocusPoint() : focus;
             }
 
+            // Görünüm değişince açı yumuşakça döner (konum odakla birlikte hemen geçer).
+            var targetRotation = showField ? Quaternion.Euler(fieldPitch, 0f, 0f) : Quaternion.identity;
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, 1f - Mathf.Exp(-8f * dt));
+
             if (showField)
             {
                 float fieldScroll = GameInput.ScrollDelta;
                 if (fieldScroll != 0f)
-                    targetDistance = Mathf.Clamp(targetDistance - Mathf.Sign(fieldScroll) * zoomStep, minDistance, maxDistance);
+                    targetFieldDistance = Mathf.Clamp(targetFieldDistance - Mathf.Sign(fieldScroll) * zoomStep, fieldMinDistance, fieldMaxDistance);
 
-                smoothedFocus = Vector3.SmoothDamp(smoothedFocus, FieldFocusPoint(), ref velocity, smoothTime, Mathf.Infinity, dt);
-                distance = Mathf.Lerp(distance, targetDistance, 1f - Exp(dt));
-                transform.position = smoothedFocus - Vector3.forward * distance;
+                smoothedFocus = Vector3.SmoothDamp(smoothedFocus, FieldFocusPoint(), ref velocity, smoothTime * 0.6f, Mathf.Infinity, dt);
+                currentFieldDistance = Mathf.Lerp(currentFieldDistance, targetFieldDistance, 1f - Exp(dt));
+                transform.position = smoothedFocus - transform.forward * currentFieldDistance;
                 return;
             }
 
@@ -135,13 +155,13 @@ namespace AftershockIsle.CameraControl
             smoothedFocus = Vector3.SmoothDamp(smoothedFocus, focus, ref velocity, smoothTime, Mathf.Infinity, dt);
             distance = Mathf.Lerp(distance, targetDistance, 1f - Mathf.Exp(-10f * dt));
 
-            transform.position = smoothedFocus - Vector3.forward * distance + ShakeOffset();
+            transform.position = smoothedFocus - transform.forward * distance + ShakeOffset();
         }
 
         Vector3 FieldFocusPoint()
         {
             var point = fieldFocus != null ? fieldFocus.position : focus;
-            return new Vector3(point.x, point.y + targetHeightOffset, building.WalkPlaneZ);
+            return new Vector3(point.x, point.y + fieldHeightOffset, point.z);
         }
 
         static float Exp(float dt) => Mathf.Exp(-10f * dt);

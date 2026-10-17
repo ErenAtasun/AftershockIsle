@@ -1,4 +1,5 @@
 using System.Text;
+using AftershockIsle.CameraControl;
 using AftershockIsle.Economy;
 using AftershockIsle.Expedition;
 using AftershockIsle.Skills;
@@ -50,7 +51,8 @@ namespace AftershockIsle.UI
                 case ExpeditionStage.Departing:
                 case ExpeditionStage.Away:
                 case ExpeditionStage.Returning:
-                    DrawStatusPanel(expeditions);
+                    // Saha görünümünde FieldExpedition kendi panelini çizer.
+                    if (!SideViewCamera.ViewingField) DrawStatusPanel(expeditions);
                     break;
             }
         }
@@ -77,7 +79,7 @@ namespace AftershockIsle.UI
                     if (explorer != null && field != null)
                         GUILayout.Label($"Can {explorer.Health:0}/{explorer.MaxHealth:0}   Çanta {field.UsedSlots}/{field.BagSlots}   Kalan {Mathf.CeilToInt(expeditions.Remaining)} sn" +
                                         (expeditions.IsRescuing ? "   [kazazede kurtarıldı]" : ""));
-                    GUILayout.Label("Tab: sahaya geç ve kâşifi yönet.");
+                    GUILayout.Label("Tab / Select: sahaya geç ve kâşifi yönet.");
                     break;
             }
 

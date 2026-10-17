@@ -75,7 +75,7 @@ namespace AftershockIsle.UI
         void OnHelicopterInbound(HelicopterInbound evt) => ShowNotice("SİNYAL ULAŞTI! Tahliye helikopteri yolda.", 6f);
 
         void OnExpeditionStarted(ExpeditionStarted evt) =>
-            ShowNotice($"{evt.Explorer.DisplayName} {evt.Site.name} için yola çıktı. Tab ile sahaya geç; sağ tık: yürü / saldır / ara.");
+            ShowNotice($"{evt.Explorer.DisplayName} {evt.Site.name} için yola çıktı. Sahada WASD / sol çubukla yürü, F / A ile ara.");
 
         void OnExpeditionReturned(ExpeditionReturned evt)
         {

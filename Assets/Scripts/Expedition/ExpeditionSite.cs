@@ -35,6 +35,8 @@ namespace AftershockIsle.Expedition
         public int lootSpots = 4;
         public int dogs = 1;
         public int raiders = 1;
+        public int brutes;
+        public int throwers;
         public float fieldLength = 36f;
         public LootEntry[] loot;
         [Tooltip("Aranan noktada tuzak/göçük çıkma türü ve ihtimali")]
@@ -66,7 +68,7 @@ namespace AftershockIsle.Expedition
             {
                 name = "Yıkık Klinik",
                 description = "Bol ilaç ve bandaj (Yaşam Kiti). Yangın ve duman riski.",
-                duration = 100f, lootSpots = 4, dogs = 1, raiders = 2,
+                duration = 100f, lootSpots = 4, dogs = 1, raiders = 1, throwers = 1,
                 loot = new[]
                 {
                     new LootEntry(ResourceType.Supplies, 1, 2, 70f),
@@ -80,7 +82,7 @@ namespace AftershockIsle.Expedition
             {
                 name = "Terk Edilmiş Atölye",
                 description = "Elektronik çip, akü ve telsiz parçaları. Çürük çatı riski.",
-                duration = 110f, lootSpots = 4, dogs = 0, raiders = 3,
+                duration = 110f, lootSpots = 4, dogs = 0, raiders = 2, brutes = 1,
                 loot = new[]
                 {
                     new LootEntry(ResourceType.Electronics, 1, 1, 50f),
@@ -94,7 +96,7 @@ namespace AftershockIsle.Expedition
             {
                 name = "Enkaz Alanı",
                 description = "Enkaz altında mahsur kalanlar var. Mahsur kalanı çıkarmak uzun sürer; kurtarılan kişi +1 iş gücü ve yeni yetenek dalı getirir, ama günlük tüketimi de artırır.",
-                duration = 100f, lootSpots = 2, dogs = 2, raiders = 1,
+                duration = 100f, lootSpots = 2, dogs = 2, raiders = 1, throwers = 1,
                 loot = new[] { new LootEntry(ResourceType.Scrap, 1, 2, 100f) },
                 hazard = ExpeditionHazard.Collapse, hazardChance = 0.1f, hazardDamage = 15f,
                 isRescueSite = true,

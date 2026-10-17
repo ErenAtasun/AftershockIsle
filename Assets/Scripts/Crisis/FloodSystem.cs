@@ -54,7 +54,21 @@ namespace AftershockIsle.Crisis
 
         /// <summary>0–100 arası bodrum su seviyesi.</summary>
         public float Level { get; private set; }
-        public bool IsPipeBurst => pipe != null && pipe.IsBurst;
+        public bool IsPipeBurst => Pipe != null && Pipe.IsBurst;
+
+        // Sahneye konan boru prefabı greybox borunun yerini alınca (o kapatılır) aktif olana geç.
+        BurstPipe Pipe
+        {
+            get
+            {
+                if (pipe == null || !pipe.isActiveAndEnabled)
+                {
+                    var active = FindFirstObjectByType<BurstPipe>();
+                    if (active != null) pipe = active;
+                }
+                return pipe;
+            }
+        }
         public bool IsElectrified => PowerGrid.IsOn && Level >= shockThreshold;
         public bool IsFull => Level >= 100f;
         public float CollapseCountdown => fullCollapseDelay - fullTimer;
@@ -76,7 +90,7 @@ namespace AftershockIsle.Crisis
         }
 
         /// <summary>Boruyu patlatır (afet takvimi veya artçı sarsıntı zinciri).</summary>
-        public bool TryBurstPipe() => pipe != null && pipe.Burst();
+        public bool TryBurstPipe() => Pipe != null && Pipe.Burst();
 
         public float FullTimer => fullTimer;
 

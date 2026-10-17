@@ -44,7 +44,6 @@ namespace AftershockIsle.EditorTools
         // Sandalye boyu (m): karakter 1,75 m olduğu için eski 0,95 küçük kalıyordu.
         const float ChairHeight = 1.25f;
 
-        [MenuItem("Aftershock/Greybox Sahnesini Oluştur")]
         public static void Build()
         {
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
@@ -721,7 +720,8 @@ namespace AftershockIsle.EditorTools
                     case string s: prop.stringValue = s; break;
                     case bool b: prop.boolValue = b; break;
                     case float f: prop.floatValue = f; break;
-                    case int i when prop.propertyType == SerializedPropertyType.Enum: prop.enumValueIndex = i; break;
+                    // Enum'a sıra numarası değil değerin kendisi yazılır (ColumnState gibi 1, 3, 4 değerli enum'lar için).
+                    case int i when prop.propertyType == SerializedPropertyType.Enum: prop.intValue = i; break;
                     case int i: prop.intValue = i; break;
                     default: Debug.LogError($"'{field}' için desteklenmeyen tür: {value?.GetType().Name}"); break;
                 }
@@ -775,7 +775,6 @@ namespace AftershockIsle.EditorTools
             EditorSceneManager.SaveScene(scene, MenuScenePath);
         }
 
-        [MenuItem("Aftershock/Ana Menü Sahnesini Oluştur")]
         public static void BuildMainMenu()
         {
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
@@ -785,7 +784,6 @@ namespace AftershockIsle.EditorTools
             Debug.Log($"Ana menü sahnesi kuruldu: {MenuScenePath}.");
         }
 
-        [MenuItem("Aftershock/Model Yöneticisini Kur ve Güncelle")]
         public static void InstallAndRefreshModelManager()
         {
             var building = Object.FindFirstObjectByType<BuildingLayout>();
@@ -833,7 +831,6 @@ namespace AftershockIsle.EditorTools
             return manager;
         }
 
-        [MenuItem("Aftershock/Etkileşimli Eşya Prefablarını Oluştur")]
         public static void BuildPropPrefabs()
         {
             const string PropsPrefabFolder = "Assets/Prefabs/Props";
@@ -1029,6 +1026,39 @@ namespace AftershockIsle.EditorTools
                 EditorUtility.SetDirty(mat);
                 return mat;
             }
+        public static void AddCandleLightToSelected()
+        {
+            var go = UnityEditor.Selection.activeGameObject;
+            if (go == null)
+            {
+                Debug.LogWarning("Lütfen önce Hierarchy veya Scene ekranından mum (veya ışık) objesini seçin.");
+                return;
+            }
+
+            var manager = Object.FindFirstObjectByType<ModelManager>();
+            if (manager != null)
+            {
+                manager.ConfigureCandleLightOnObject(go);
+                manager.RefreshAll();
+            }
+            else
+            {
+                var light = go.GetComponentInChildren<Light>(true) ?? new GameObject("Mum_Isigi").AddComponent<Light>();
+                if (light.transform.parent != go.transform)
+                {
+                    light.transform.SetParent(go.transform, false);
+                    light.transform.localPosition = new Vector3(0f, 0.25f, -0.08f);
+                }
+                light.type = LightType.Point;
+                light.color = new Color(1.0f, 0.58f, 0.22f);
+                light.intensity = 0.85f;
+                light.range = 3.2f;
+                light.shadows = LightShadows.Soft;
+            }
+
+            EditorSceneManager.MarkSceneDirty(go.scene);
+            Debug.Log($"'{go.name}' objesine karanlık tema uyumlu sıcak mum ışığı eklendi / güncellendi.", go);
+        }
         }
     }
 

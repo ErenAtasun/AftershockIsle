@@ -7,21 +7,17 @@ Shader "Aftershock/CelBuilding"
         _NoiseScale ("Leke Ölçeği", Float) = 1.8
         _NoiseThreshold ("Leke Eşiği (0-1, Yüksek = Az Leke)", Range(0, 1)) = 0.74
         _NoiseStrength ("Leke Görünürlüğü (0-1)", Range(0, 1)) = 1.0
-        _CornerAO ("Oda Köşe Kararması (AO)", Range(0, 1)) = 0.32
+        _CornerAO ("Oda Köşe Kararması (AO)", Range(0, 1)) = 0.35
+        _MinAmbient ("Karanlık Tema Alt Işık Limiti", Range(0.0, 0.85)) = 0.06
+        _PointLightSoftness ("Lamba Işığı Gücü", Range(0.2, 3.0)) = 1.3
+        _SunStrength ("Pencereden Giren Gün Işığı Gücü", Range(0, 2)) = 1.0
+        _ToonLightDir ("Çizim Işığı Yönü (Blender -0.3,-0.8,0.5)", Vector) = (-0.3, 0.5, -0.8, 0)
+        _ToonAmount ("Çizim Tonu Etkisi (0 = yok)", Range(0, 1)) = 0.45
+        _Brightness ("Genel Parlaklık", Range(0, 2)) = 1.0
         [Toggle] _UseBasementDamp ("Bodrum Yeşil Rutubet Şeridi", Float) = 0
         _DampColor ("Rutubet Yeşili", Color) = (0.35, 0.40, 0.27, 1)
         _DampBorderColor ("Rutubet Üst Gri Geçiş", Color) = (0.46, 0.48, 0.45, 1)
         _DampHeight ("Rutubet Yüksekliği (Dünya Y)", Float) = 0.98
-
-        [Header(Blender ElCizimi Tonlari)]
-        _ToonLightDir ("Çizim Işığı Yönü (Blender -0.3,-0.8,0.5)", Vector) = (-0.3, 0.5, -0.8, 0)
-        _ShadowTone ("Gölge Tonu", Range(0, 1.5)) = 0.5
-        _MidTone ("Orta Ton", Range(0, 1.5)) = 0.74
-        _LitTone ("Aydınlık Ton", Range(0, 1.5)) = 0.92
-        _ShadowStep ("Gölge Eşiği", Range(0, 1)) = 0.38
-        _LitStep ("Aydınlık Eşiği", Range(0, 1)) = 0.62
-        _Brightness ("Genel Parlaklık (Koyu Tema)", Range(0, 1.5)) = 0.82
-        _SceneLightInfluence ("Sahne Işığı Etkisi (elektrik kesintisi vb.)", Range(0, 1)) = 0.25
     }
 
     SubShader
@@ -38,6 +34,12 @@ Shader "Aftershock/CelBuilding"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
+            #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            // PC renderer Forward+ kullanıyor: lambalar ancak kümelenmiş ışık döngüsüyle okunur.
+            #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -49,18 +51,16 @@ Shader "Aftershock/CelBuilding"
                 float _NoiseThreshold;
                 float _NoiseStrength;
                 float _CornerAO;
+                float _MinAmbient;
+                float _PointLightSoftness;
+                float _SunStrength;
+                float4 _ToonLightDir;
+                float _ToonAmount;
+                float _Brightness;
                 float _UseBasementDamp;
                 float4 _DampColor;
                 float4 _DampBorderColor;
                 float _DampHeight;
-                float4 _ToonLightDir;
-                float _ShadowTone;
-                float _MidTone;
-                float _LitTone;
-                float _ShadowStep;
-                float _LitStep;
-                float _Brightness;
-                float _SceneLightInfluence;
             CBUFFER_END
 
             struct Attributes
@@ -120,7 +120,7 @@ Shader "Aftershock/CelBuilding"
                 float3 N = normalize(input.normalWS);
                 float3 wp = input.positionWS;
 
-                // 1. Prosedürel sıva/beton/pas lekeleri (Blender Noise + ColorRamp)
+                // 1. Prosedürel sıva/beton/pas lekeleri
                 float n = fbm(wp * _NoiseScale);
                 float patchMask = smoothstep(_NoiseThreshold - 0.02, _NoiseThreshold + 0.02, n) * _NoiseStrength;
                 float3 col = lerp(_BaseColor.rgb, _PatchColor.rgb, patchMask);
@@ -135,7 +135,6 @@ Shader "Aftershock/CelBuilding"
                     {
                         float3 dampDark = _DampColor.rgb * 0.82;
                         col = lerp(_DampColor.rgb, dampDark, patchMask * 0.85);
-                        // Yeşil ile gri sınır arasındaki ince koyu kontur çizgisi
                         float lineMask = 1.0 - smoothstep(0.0, 0.035, abs(h));
                         col *= (1.0 - lineMask * 0.35);
                     }
@@ -147,45 +146,62 @@ Shader "Aftershock/CelBuilding"
                     }
                 }
 
-                // 3. Oda içi köşe/kenar kararması (Blender'daki yumuşak iç köşe AO gölgeleri)
+                // 3. Oda içi köşe/kenar kararması (AO)
                 if (_CornerAO > 0.001)
                 {
-                    // Her kat 3.5m yüksekliğinde (0..3.5, 3.5..7.0, 7.0..10.5, 10.5..14.0)
                     float floorLocalY = frac(max(0.0, wp.y) / 3.5) * 3.5;
                     float distToFloorOrCeil = min(floorLocalY, 3.5 - floorLocalY);
                     float verticalCorner = 1.0 - smoothstep(0.0, 0.55, distToFloorOrCeil);
 
-                    // Arka duvara (z ~ +2.0) yakınlık
                     float distToBackWall = abs(2.0 - wp.z);
                     float backCorner = 1.0 - smoothstep(0.0, 0.65, distToBackWall);
 
-                    // Dış yan duvarlara (x ~ +-9.0) yakınlık
                     float distToSideWall = min(abs(wp.x - 9.0), abs(wp.x + 9.0));
                     float sideCorner = 1.0 - smoothstep(0.0, 0.65, distToSideWall);
 
-                    // Yüzey yönüne göre köşe AO birleşimi
-                    float isHorizontalSurface = step(0.5, abs(N.y)); // Tavan veya Zemin
+                    float isHorizontalSurface = step(0.5, abs(N.y));
                     float aoFactor = isHorizontalSurface > 0.5
                         ? max(backCorner, sideCorner * 0.8)
                         : max(verticalCorner, sideCorner * 0.85);
 
-                    // İnce kirli doku ile köşe gölgesini doğal kırp
                     aoFactor *= (0.85 + 0.30 * n);
                     col *= (1.0 - saturate(aoFactor * _CornerAO));
                 }
 
-                // 4. Blender "ElCizimi" grubu: sahneden bağımsız sabit çizim ışığı, keskin üç ton bandı.
-                // Blender ışığı (-0.3,-0.8,0.5) Unity eksenlerinde (-0.3,0.5,-0.8): arka duvar aydınlık,
-                // sol duvar orta, tavanın altı gölge tonunda kalır.
+                // 4. This War of Mine tarzı ışık: ortam neredeyse karanlık; pencerelerden giren gölgeli soğuk gün ışığı
+                //    ve odalardaki sarkan ampullerin ışık havuzları sahneyi taşır. Şalter inince lambalar söner.
+                float4 shadowCoord = TransformWorldToShadowCoord(wp);
+                Light mainLight = GetMainLight(shadowCoord);
+                float sunNdotL = saturate(dot(N, mainLight.direction));
+                float3 sun = mainLight.color * (sunNdotL * mainLight.shadowAttenuation * _SunStrength);
+
+                float3 ambient = max(SampleSH(N), float3(_MinAmbient, _MinAmbient, _MinAmbient));
+
+                float3 lamps = float3(0.0, 0.0, 0.0);
+                #if defined(_ADDITIONAL_LIGHTS)
+                InputData inputData = (InputData)0;
+                inputData.positionWS = wp;
+                inputData.normalWS = N;
+                inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
+                uint lightCount = GetAdditionalLightsCount();
+                LIGHT_LOOP_BEGIN(lightCount)
+                    Light lamp = GetAdditionalLight(lightIndex, wp, half4(1, 1, 1, 1));
+                    // Duvarlar ampule yan baksa da hafif aydınlansın (wrap), gölge ve mesafe sönümü korunur.
+                    float wrap = saturate(dot(N, lamp.direction) * 0.7 + 0.3);
+                    lamps += lamp.color * (lamp.distanceAttenuation * lamp.shadowAttenuation * wrap * _PointLightSoftness);
+                LIGHT_LOOP_END
+                #endif
+
+                float3 totalLight = ambient + sun + lamps;
+                // Ampulün dibindeki duvar bembeyaz patlamasın (yumuşak tavan).
+                totalLight = totalLight / (1.0 + totalLight * 0.18);
+
+                // 5. Blender "ElCizimi" form tonu: sabit çizim ışığına göre üç bant, hafifçe karışır.
                 float lam = dot(N, normalize(_ToonLightDir.xyz)) * 0.5 + 0.5;
-                float tone = lam < _ShadowStep ? _ShadowTone : (lam < _LitStep ? _MidTone : _LitTone);
+                float tone = lam < 0.38 ? 0.6 : (lam < 0.62 ? 0.82 : 1.0);
+                tone = lerp(1.0, tone, _ToonAmount);
 
-                // Sahne ışığı (şalter, gün döngüsü) yalnızca hafifçe karışır; çizim tonlarını bozmaz.
-                Light mainLight = GetMainLight();
-                float3 sceneLight = saturate(SampleSH(N) + mainLight.color * 0.35);
-                float3 lightTint = lerp(float3(1.0, 1.0, 1.0), sceneLight, _SceneLightInfluence);
-
-                float3 finalCol = col * tone * _Brightness * lightTint;
+                float3 finalCol = col * totalLight * tone * _Brightness;
                 return half4(finalCol, 1.0);
             }
             ENDHLSL

@@ -107,6 +107,17 @@ namespace AftershockIsle.Crafting
             Instance = this;
         }
 
+        // Sahneye konan tezgah prefabı eski greybox tezgahın yerini alınca (o kapatılır) Instance aktif olanı göstersin.
+        void OnEnable() => Instance = this;
+
+        void OnDisable()
+        {
+            if (Instance != this) return;
+            Instance = null;
+            foreach (var other in FindObjectsByType<Workbench>(FindObjectsSortMode.None))
+                if (other != this) { Instance = other; break; }
+        }
+
         void OnDestroy()
         {
             if (Instance == this) Instance = null;

@@ -8,6 +8,7 @@ using AftershockIsle.Crafting;
 using AftershockIsle.Crisis;
 using AftershockIsle.Endgame;
 using AftershockIsle.DebugTools;
+using AftershockIsle.Effects;
 using AftershockIsle.Economy;
 using AftershockIsle.Expedition;
 using AftershockIsle.Interaction;
@@ -28,6 +29,7 @@ namespace AftershockIsle.EditorTools
     public static class GreyboxSceneBuilder
     {
         const string ScenePath = "Assets/Scenes/Main.unity";
+        const string MenuScenePath = "Assets/Scenes/MainMenu.unity";
         const string MaterialFolder = "Assets/Art/Materials/Greybox";
         const string DataFolder = "Assets/Data";
         const string PrefabFolder = "Assets/Prefabs";
@@ -52,10 +54,13 @@ namespace AftershockIsle.EditorTools
             EnsureFolder(DataFolder);
             EnsureFolder(PrefabFolder);
 
+            // Ana menü yoksa oyun sahnesinden önce onu kur (build sırası için).
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(MenuScenePath) == null) CreateMainMenuScene();
+
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             var palette = new Palette();
 
-            CreateLighting();
+            var sun = CreateLighting();
             var building = CreateBuilding(palette);
             var cam = CreateCamera(building);
 
@@ -112,6 +117,14 @@ namespace AftershockIsle.EditorTools
             systems.AddComponent<WorkbenchWindow>();
             systems.AddComponent<TutorialHints>();
 
+            var pauseMenu = systems.AddComponent<PauseMenu>();
+            SetRef(pauseMenu, "timeManager", timeManager);
+            SetRef(pauseMenu, "session", session);
+
+            SetRef(systems.AddComponent<EffectsPlayer>(), "particleMaterial", palette.Particle);
+            systems.AddComponent<ScreenFeedback>();
+            SetRef(systems.AddComponent<LightingController>(), "sun", sun);
+
             var evacuation = systems.AddComponent<EvacuationSystem>();
             var (helicopter, rotor) = CreateHelicopter(palette);
             SetRef(evacuation, "session", session);
@@ -130,7 +143,7 @@ namespace AftershockIsle.EditorTools
             Configure(hero.GetComponent<Survivor>(), ("displayName", "Ana Karakter"), ("branch", (int)SkillBranch.Construction));
 
             EditorSceneManager.SaveScene(scene, ScenePath);
-            AddSceneToBuildSettings(ScenePath);
+            RegisterScenes();
             Selection.activeGameObject = hero;
 
             Debug.Log($"Greybox sahnesi kuruldu: {ScenePath}. Play'e basıp deneyebilirsin.");
@@ -154,7 +167,7 @@ namespace AftershockIsle.EditorTools
 
         // ---------------------------------------------------------------- Sahne parçaları
 
-        static void CreateLighting()
+        static Light CreateLighting()
         {
             var sun = new GameObject("Sun").AddComponent<Light>();
             sun.type = LightType.Directional;
@@ -164,6 +177,7 @@ namespace AftershockIsle.EditorTools
 
             RenderSettings.ambientMode = AmbientMode.Flat;
             RenderSettings.ambientLight = new Color(0.35f, 0.36f, 0.4f);
+            return sun;
         }
 
         static Camera CreateCamera(BuildingLayout building)
@@ -606,11 +620,40 @@ namespace AftershockIsle.EditorTools
             AssetDatabase.CreateFolder(parent, path.Substring(slash + 1));
         }
 
-        static void AddSceneToBuildSettings(string path)
+        /// <summary>Ana menü her zaman 0. sırada, oyun sahnesi 1. sırada; diğer sahneler arkada kalır.</summary>
+        static void RegisterScenes()
         {
-            var scenes = new List<EditorBuildSettingsScene> { new EditorBuildSettingsScene(path, true) };
-            scenes.AddRange(EditorBuildSettings.scenes.Where(s => s.path != path));
-            EditorBuildSettings.scenes = scenes.ToArray();
+            var ordered = new List<EditorBuildSettingsScene>();
+            foreach (string path in new[] { MenuScenePath, ScenePath })
+                if (AssetDatabase.LoadAssetAtPath<SceneAsset>(path) != null)
+                    ordered.Add(new EditorBuildSettingsScene(path, true));
+
+            ordered.AddRange(EditorBuildSettings.scenes.Where(s => s.path != MenuScenePath && s.path != ScenePath));
+            EditorBuildSettings.scenes = ordered.ToArray();
+        }
+
+        /// <summary>Boş bir sahneye sadece kamera ve ana menü bileşenini koyar.</summary>
+        static void CreateMainMenuScene()
+        {
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            var cam = new GameObject("Main Camera") { tag = "MainCamera" }.AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = new Color(0.06f, 0.07f, 0.09f);
+            cam.gameObject.AddComponent<AudioListener>();
+
+            new GameObject("[Menu]").AddComponent<MainMenu>();
+            EditorSceneManager.SaveScene(scene, MenuScenePath);
+        }
+
+        [MenuItem("Aftershock/Ana Menü Sahnesini Oluştur")]
+        public static void BuildMainMenu()
+        {
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+
+            CreateMainMenuScene();
+            RegisterScenes();
+            Debug.Log($"Ana menü sahnesi kuruldu: {MenuScenePath}.");
         }
 
         /// <summary>Greybox malzemeleri. Varsa mevcut asset'i kullanır ve rengini günceller.</summary>
@@ -643,6 +686,7 @@ namespace AftershockIsle.EditorTools
             public readonly Material WindowFrame = Get("WindowFrame", new Color(0.2f, 0.2f, 0.22f));
             public readonly Material Supplies = Get("Supplies", new Color(0.9f, 0.9f, 0.88f));
             public readonly Material Helicopter = Get("Helicopter", new Color(0.25f, 0.35f, 0.22f));
+            public readonly Material Particle = MakeTransparent(Get("Particle", Color.white, "Universal Render Pipeline/Particles/Unlit"));
 
             // URP Lit'i saydam yüzeye çevirir (Inspector'daki Surface Type: Transparent ile aynı).
             static Material MakeTransparent(Material mat)
@@ -661,13 +705,14 @@ namespace AftershockIsle.EditorTools
                 return mat;
             }
 
-            static Material Get(string name, Color color)
+            static Material Get(string name, Color color, string shaderName = null)
             {
                 string path = $"{MaterialFolder}/{name}.mat";
                 var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
                 if (mat == null)
                 {
-                    var shader = GraphicsSettings.currentRenderPipeline != null
+                    var shader = shaderName != null ? Shader.Find(shaderName) : null;
+                    shader ??= GraphicsSettings.currentRenderPipeline != null
                         ? GraphicsSettings.currentRenderPipeline.defaultShader
                         : Shader.Find("Standard");
                     mat = new Material(shader);

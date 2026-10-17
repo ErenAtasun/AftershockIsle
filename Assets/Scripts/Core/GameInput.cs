@@ -30,6 +30,7 @@ namespace AftershockIsle.Core
         public static bool PumpLeftPressed => Keys != null && Keys.qKey.wasPressedThisFrame;
         public static bool PumpRightPressed => Keys != null && Keys.eKey.wasPressedThisFrame;
 
+        public static bool EscapePressed => Keys != null && Keys.escapeKey.wasPressedThisFrame;
         public static bool HelpTogglePressed => Keys != null && Keys.hKey.wasPressedThisFrame;
         public static bool SkillTreeTogglePressed => Keys != null && Keys.kKey.wasPressedThisFrame;
 

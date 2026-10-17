@@ -128,7 +128,7 @@ namespace AftershockIsle.Characters
 
                 Current = target;
                 workX = mover.Building.ClampX(target.GetWorkX(mover.CurrentFloor, transform.position.x));
-                if (!mover.MoveTo(target.Floor, workX))
+                if (!mover.MoveTo(target.Floor, workX, target.GetWorkZ()))
                 {
                     ReleaseCurrent();
                     FailFront($"{target.DisplayName} noktasına ulaşılamıyor.");
@@ -195,7 +195,8 @@ namespace AftershockIsle.Characters
             }
 
             Vector3 toTarget = Current.transform.position - transform.position;
-            mover.FaceDirection(Mathf.Abs(toTarget.x) > 0.3f ? toTarget : Vector3.forward);
+            toTarget.y = 0f;
+            mover.FaceDirection(toTarget.sqrMagnitude > 0.09f ? toTarget : Vector3.forward);
 
             progress += Time.deltaTime * WorkSpeedMultiplier * SkillTree.WorkSpeedBonus(Current.Category);
             if (progress < Current.WorkDuration) return;

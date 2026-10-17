@@ -4,9 +4,20 @@ using UnityEngine;
 
 namespace AftershockIsle.Characters
 {
-    /// <summary>Karakteri bina grafiği üzerinde yürütür ve merdivenlerde tırmandırır.</summary>
+    /// <summary>
+    /// Karakteri bina grafiği üzerinde yürütür ve merdivenlerde tırmandırır. İki hareket biçimi:
+    /// Yol (iş ve fare emirleri): MoveTo hedefe yol çıkarır; merdivenlere LadderZ çizgisinde yaklaşılır,
+    /// son nokta hedef Z'sidir (nesnenin önü). Doğrudan (klavye/gamepad): Steer ile kat içinde X-Z'de serbest yürür,
+    /// mobilyaların etrafından kayar, yol kapatan engellerde durur.
+    /// </summary>
     public class CharacterMover : MonoBehaviour
     {
+        const float SteerDeadZone = 0.2f;
+        const float SteerAcceleration = 30f;
+        // Derinlikte hareket perspektif yüzünden ekranda hızlı görünür; biraz yavaşlatılır.
+        const float DepthSpeedFactor = 0.85f;
+        const float BodyRadius = 0.3f;
+
         [SerializeField] BuildingLayout building;
         [SerializeField] float walkSpeed = 3f;
         [SerializeField] float climbSpeed = 1.6f;
@@ -15,6 +26,8 @@ namespace AftershockIsle.Characters
         readonly List<Waypoint> path = new List<Waypoint>();
         readonly List<Waypoint> buffer = new List<Waypoint>();
         int pathIndex;
+        Vector2 steerInput;
+        Vector3 steerVelocity;
 
         /// <summary>Taşıma yükü, tükenmişlik ve yetenekler bu çarpanı değiştirir.</summary>
         public float SpeedMultiplier { get; set; } = 1f;
@@ -24,6 +37,7 @@ namespace AftershockIsle.Characters
         public int CurrentFloor { get; private set; }
         public bool IsMoving => pathIndex < path.Count;
         public bool IsClimbing => IsMoving && path[pathIndex].IsClimb;
+        public bool IsSteering => steerInput.sqrMagnitude > SteerDeadZone * SteerDeadZone;
 
         void Awake()
         {
@@ -35,9 +49,15 @@ namespace AftershockIsle.Characters
             CurrentFloor = building.FloorAtHeight(transform.position.y + 0.1f);
         }
 
-        /// <summary>Hedefe yol başlatır. Engel yüzünden tam ulaşılamıyorsa en yakın noktaya gider ve false döner.</summary>
-        public bool MoveTo(int floor, float x)
+        /// <summary>
+        /// Hedefe yol başlatır. z verilmezse aynı katta mevcut derinlik korunur, kat değişiyorsa merdiven çizgisinde kalınır.
+        /// Engel yüzünden tam ulaşılamıyorsa en yakın noktaya gider ve false döner.
+        /// </summary>
+        public bool MoveTo(int floor, float x, float? z = null)
         {
+            steerInput = Vector2.zero;
+            steerVelocity = Vector3.zero;
+
             bool reachable;
             if (IsClimbing)
             {
@@ -53,8 +73,43 @@ namespace AftershockIsle.Characters
                 reachable = building.FindPath(CurrentFloor, transform.position.x, floor, x, path);
             }
 
+            ApplyDepth(z, floor);
             pathIndex = 0;
             return reachable;
+        }
+
+        // Yol bulma X-Y'dedir; Z burada atanır: merdiven öncesi ve tırmanış LadderZ, son nokta hedef derinlik.
+        void ApplyDepth(float? targetZ, int targetFloor)
+        {
+            bool changesFloor = false;
+            foreach (var waypoint in path)
+                if (waypoint.IsClimb) changesFloor = true;
+
+            float finalZ = targetZ.HasValue ? building.ClampZ(targetZ.Value)
+                : changesFloor ? building.LadderZ
+                : building.ClampZ(transform.position.z);
+
+            for (int i = 0; i < path.Count; i++)
+            {
+                var waypoint = path[i];
+                bool ladder = waypoint.IsClimb || (i + 1 < path.Count && path[i + 1].IsClimb);
+                waypoint.Position.z = ladder ? building.LadderZ : finalZ;
+                path[i] = waypoint;
+            }
+        }
+
+        /// <summary>
+        /// Doğrudan kontrol girdisi (x: sağ-sol, y: odanın içine / dışına). Her kare verilir; sıfırsa karakter durur.
+        /// Verildiği anda varsa yol iptal edilir (tırmanış bitene kadar beklenir).
+        /// </summary>
+        public void Steer(Vector2 input)
+        {
+            steerInput = Vector2.ClampMagnitude(input, 1f);
+            if (IsSteering && IsMoving && !IsClimbing)
+            {
+                path.Clear();
+                pathIndex = 0;
+            }
         }
 
         /// <summary>Durduğu yerde verilen yöne döner (ör. çalışırken nesneye bakmak için).</summary>
@@ -74,14 +129,20 @@ namespace AftershockIsle.Characters
 
             path.Clear();
             pathIndex = 0;
+            steerInput = Vector2.zero;
+            steerVelocity = Vector3.zero;
         }
 
         void Update()
         {
-            if (!IsMoving || Frozen) return;
-
             float dt = Time.deltaTime;
-            if (dt <= 0f) return;
+            if (dt <= 0f || Frozen) return;
+
+            if (!IsMoving)
+            {
+                UpdateSteering(dt);
+                return;
+            }
 
             var waypoint = path[pathIndex];
             float speed = (waypoint.IsClimb ? climbSpeed : walkSpeed) * SpeedMultiplier;
@@ -100,6 +161,29 @@ namespace AftershockIsle.Characters
                 path.Clear();
                 pathIndex = 0;
             }
+        }
+
+        void UpdateSteering(float dt)
+        {
+            var desired = IsSteering
+                ? new Vector3(steerInput.x, 0f, steerInput.y * DepthSpeedFactor) * (walkSpeed * SpeedMultiplier)
+                : Vector3.zero;
+            steerVelocity = Vector3.MoveTowards(steerVelocity, desired, SteerAcceleration * dt);
+            if (steerVelocity.sqrMagnitude < 0.0001f) return;
+
+            var from = transform.position;
+            var next = from + steerVelocity * dt;
+
+            // Yol kapatan engeller (moloz, çöken tavan) tüm derinliği keser; mobilyanın etrafından ise kayılır.
+            next.x = building.LimitWalk(CurrentFloor, from.x, next.x);
+            next.z = building.ClampZ(next.z);
+            next = FloorObstacles.PushOut(building, CurrentFloor, next, BodyRadius);
+            next.x = building.LimitWalk(CurrentFloor, from.x, next.x);
+            next.z = building.ClampZ(next.z);
+            next.y = building.FloorY(CurrentFloor);
+
+            transform.position = next;
+            Face(steerVelocity, dt);
         }
 
         void Face(Vector3 direction, float dt)

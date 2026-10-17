@@ -34,8 +34,9 @@ namespace AftershockIsle.Building
     }
 
     /// <summary>
-    /// Binanın kesit ölçüleri ve kat/merdiven grafiği. Hareket X (kat içi) ve Y (merdiven)
-    /// ekseninde kilitlidir; Z sabit yürüme çizgisidir. Kat 0 bodrumdur.
+    /// Binanın kesit ölçüleri ve kat/merdiven grafiği. Yol bulma X (kat içi) ve Y (merdiven) üzerindedir;
+    /// karakterler kat içinde Z'de (odanın içine / dışına) da serbestçe yürüyebilir. Merdivenler LadderZ çizgisindedir.
+    /// Kat 0 bodrumdur.
     /// Yol kapatan moloz gibi engeller kat çizgisinin bir aralığını geçilmez yapar.
     /// </summary>
     public class BuildingLayout : MonoBehaviour
@@ -51,12 +52,16 @@ namespace AftershockIsle.Building
         /// <summary>Engelin önünde durulacak mesafe; çalışma noktası da burasıdır.</summary>
         public const float BlockerStandOff = 0.4f;
 
-        [SerializeField] float floorHeight = 3.5f;
+        [SerializeField] float floorHeight = 4.5f;
         [SerializeField] float width = 18f;
-        [SerializeField] float depth = 4f;
+        [SerializeField] float depth = 6.5f;
         [SerializeField] float wallThickness = 0.3f;
         [Tooltip("Karakterlerin duvara girmemesi için kat kenarından bırakılan pay")]
         [SerializeField] float edgePadding = 0.6f;
+        [Tooltip("Merdivenlerin bina merkezine göre Z konumu")]
+        [SerializeField] float ladderZ = 0.45f;
+        [Tooltip("Karakterin arka duvara ve ön kenara bırakacağı pay")]
+        [SerializeField] float depthPadding = 0.45f;
 
         [SerializeField] string[] floorNames = { "Bodrum", "Giriş Katı", "Yaşam / Tezgah", "Çatı" };
 
@@ -80,6 +85,19 @@ namespace AftershockIsle.Building
         public float MinX => transform.position.x - width * 0.5f + edgePadding;
         public float MaxX => transform.position.x + width * 0.5f - edgePadding;
         public float TopY => FloorY(FloorCount - 1) + floorHeight;
+        public float LadderZOffset => ladderZ;
+        public float LadderZ => transform.position.z + ladderZ;
+        public float MinZ => transform.position.z - depth * 0.5f + depthPadding;
+        public float MaxZ => transform.position.z + depth * 0.5f - depthPadding;
+
+        public float ClampZ(float z) => Mathf.Clamp(z, MinZ, MaxZ);
+
+        /// <summary>Kat içinde fromX'ten toX'e doğrudan yürürken (yol kapatan) engellere takılınca durulacak X.</summary>
+        public float LimitWalk(int floor, float fromX, float toX)
+        {
+            toX = ClampX(toX);
+            return TryFindObstacle(ClampFloor(floor), fromX, toX, out float stopX) ? stopX : toX;
+        }
 
         public string GetFloorName(int floor) => floorNames[ClampFloor(floor)];
 

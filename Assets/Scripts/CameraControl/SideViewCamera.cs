@@ -7,11 +7,11 @@ using UnityEngine;
 namespace AftershockIsle.CameraControl
 {
     /// <summary>
-    /// Kesit kamerası: rotasyon kilitli, yalnızca X/Y'de yumuşak takip. Seçili karakteri izler;
-    /// WASD/oklar takibi bırakıp serbest kaydırır, F tekrar odaklar, tekerlek yakınlaştırır.
+    /// Kesit kamerası: yalnızca X/Y'de yumuşak takip. Seçili karakteri izler; sağ çubuk (ve seçili karakter yokken
+    /// WASD/oklar) takibi bırakıp serbest kaydırır, F ya da karakter hareketi tekrar odaklar, tekerlek yakınlaştırır.
     /// Duraklatmada da odaları inceleyebilmek için unscaled zaman kullanır.
-    /// Dış sefer sırasında saha görünümüne geçer: kamera kâşifi yukarıdan eğik açıyla izler,
-    /// böylece haritanın içine/ekrana doğru (Z) hareket okunur. Tab/Select iki görünüm arasında geçer.
+    /// Sığınak ve dış saha aynı eğik açıyla (yukarıdan bakış) görülür; böylece derinlik iki yerde de okunur.
+    /// Dış sefer sırasında saha görünümüne geçer ve kâşifi izler. Tab/Select iki görünüm arasında geçer.
     /// </summary>
     [RequireComponent(typeof(Camera))]
     public class SideViewCamera : MonoBehaviour
@@ -27,9 +27,10 @@ namespace AftershockIsle.CameraControl
         [SerializeField] float targetHeightOffset = 1.2f;
         [SerializeField] float shakeAmplitude = 0.35f;
 
+        [Tooltip("Kameranın aşağı bakış açısı (derece); sığınak ve saha için ortak")]
+        [SerializeField, Range(0f, 45f)] float pitch = 20f;
+
         [Header("Dış saha")]
-        [Tooltip("Kameranın aşağı bakış açısı (derece)")]
-        [SerializeField] float fieldPitch = 32f;
         [SerializeField] float fieldDistance = 17f;
         [SerializeField] float fieldMinDistance = 11f;
         [SerializeField] float fieldMaxDistance = 26f;
@@ -48,6 +49,15 @@ namespace AftershockIsle.CameraControl
             viewField = target != null;
         }
 
+        /// <summary>Seferde bir kâşif var mı (saha görünümüne geçilebilir mi).</summary>
+        public static bool HasField => fieldFocus != null;
+
+        /// <summary>Saha ya da sığınak görünümünü açar (saha yoksa etkisiz).</summary>
+        public static void ShowField(bool show)
+        {
+            if (fieldFocus != null) viewField = show;
+        }
+
         Survivor selected;
         bool wasViewingField;
         Vector3 baseFocus;
@@ -60,12 +70,17 @@ namespace AftershockIsle.CameraControl
         float targetDistance;
         float targetFieldDistance;
         float currentFieldDistance;
+        float pitchNoticeUntil;
+        GUIStyle pitchStyle;
+
+        // Test kısayolu (F5) ile sırayla denenen açılar.
+        static readonly float[] PitchPresets = { 15f, 20f, 25f, 30f };
 
         void Awake()
         {
             if (building == null) building = FindFirstObjectByType<BuildingLayout>();
             GetComponent<Camera>().fieldOfView = fieldOfView;
-            transform.rotation = Quaternion.identity;
+            transform.rotation = Quaternion.Euler(pitch, 0f, 0f);
 
             fieldFocus = null;
             viewField = false;
@@ -117,9 +132,10 @@ namespace AftershockIsle.CameraControl
                 smoothedFocus = showField ? FieldFocusPoint() : focus;
             }
 
-            // Görünüm değişince açı yumuşakça döner (konum odakla birlikte hemen geçer).
-            var targetRotation = showField ? Quaternion.Euler(fieldPitch, 0f, 0f) : Quaternion.identity;
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, 1f - Mathf.Exp(-8f * dt));
+            if (GameInput.DebugCameraPitchPressed) CyclePitch();
+
+            // Açı değişince (test kısayolu) yumuşakça döner.
+            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.Euler(pitch, 0f, 0f), 1f - Mathf.Exp(-8f * dt));
 
             if (showField)
             {
@@ -133,13 +149,16 @@ namespace AftershockIsle.CameraControl
                 return;
             }
 
-            Vector2 pan = GameInput.PanAxis;
+            // Seçili karakter varken WASD onu yürütür; kamera sadece sağ çubukla kaydırılır.
+            Vector2 pan = GameInput.CameraPanAxis;
+            if (selected == null) pan = Vector2.ClampMagnitude(pan + GameInput.PanAxis, 1f);
+            bool steeringSelected = selected != null && GameInput.CharacterMove.sqrMagnitude > 0.09f;
             if (pan != Vector2.zero)
             {
                 following = false;
                 focus += (Vector3)pan * (panSpeed * dt * (distance / 24f));
             }
-            else if (GameInput.FocusPressed && selected != null)
+            else if ((GameInput.FocusPressed || steeringSelected) && selected != null)
             {
                 following = true;
             }
@@ -156,6 +175,23 @@ namespace AftershockIsle.CameraControl
             distance = Mathf.Lerp(distance, targetDistance, 1f - Mathf.Exp(-10f * dt));
 
             transform.position = smoothedFocus - transform.forward * distance + ShakeOffset();
+        }
+
+        void CyclePitch()
+        {
+            int next = 0;
+            for (int i = 0; i < PitchPresets.Length; i++)
+                if (pitch >= PitchPresets[i] - 0.5f) next = (i + 1) % PitchPresets.Length;
+            pitch = PitchPresets[next];
+            pitchNoticeUntil = Time.unscaledTime + 2.5f;
+        }
+
+        void OnGUI()
+        {
+            if (Time.unscaledTime > pitchNoticeUntil) return;
+
+            pitchStyle ??= new GUIStyle(GUI.skin.box) { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+            GUI.Box(new Rect((Screen.width - 260f) * 0.5f, Screen.height * 0.5f - 120f, 260f, 40f), $"Kamera eğimi: {pitch:0}°  (F5)", pitchStyle);
         }
 
         Vector3 FieldFocusPoint()

@@ -11,7 +11,7 @@ namespace AftershockIsle.Core
     }
 
     /// <summary>
-    /// Space: aktif duraklatma, 1: normal hız, 2: hızlı akış.
+    /// Space / gamepad Y: aktif duraklatma, 1: normal hız, 2: hızlı akış, gamepad X: normal ↔ hızlı.
     /// Oyun mantığı Time.deltaTime kullanır; kamera ve arayüz unscaledDeltaTime kullanır.
     /// </summary>
     [DefaultExecutionOrder(-100)]
@@ -31,6 +31,7 @@ namespace AftershockIsle.Core
             if (GameInput.PausePressed) TogglePause();
             else if (GameInput.NormalSpeedPressed) SetSpeed(TimeSpeed.Normal);
             else if (GameInput.FastSpeedPressed) SetSpeed(TimeSpeed.Fast);
+            else if (GameInput.SpeedTogglePressed) SetSpeed(Speed == TimeSpeed.Fast ? TimeSpeed.Normal : TimeSpeed.Fast);
         }
 
         void OnDestroy() => Time.timeScale = 1f;

@@ -1,5 +1,6 @@
 using System.Text;
 using AftershockIsle.CameraControl;
+using AftershockIsle.Core;
 using AftershockIsle.Economy;
 using AftershockIsle.Expedition;
 using AftershockIsle.Skills;
@@ -10,6 +11,7 @@ namespace AftershockIsle.UI
     /// <summary>
     /// Geçici IMGUI: nodlu şehir haritası ve sığınak görünümündeyken sefer durum paneli (saha HUD'u FieldExpedition'da).
     /// Haritada lokasyona tıklamak sadece seçer; yola çıkmak ayrı onay ister (yanlışlıkla seçimi önler).
+    /// Gamepad: yukarı/aşağı lokasyonlar arasında gez, A seç (odak "Yola Çık"a geçer), B vazgeç.
     /// </summary>
     public class ExpeditionWindow : MonoBehaviour
     {
@@ -24,6 +26,16 @@ namespace AftershockIsle.UI
         ExpeditionStage lastStage;
         float stageOpenedAt;
         ExpeditionSite selectedSite;
+        readonly MenuNav nav = new MenuNav();
+
+        void Update()
+        {
+            var expeditions = ExpeditionSystem.Instance;
+            if (expeditions == null || expeditions.Stage != ExpeditionStage.ChoosingSite) return;
+
+            nav.Tick();
+            if (GameInput.MenuBackPressed) expeditions.CancelMap();
+        }
 
         void OnGUI()
         {
@@ -38,7 +50,11 @@ namespace AftershockIsle.UI
             {
                 lastStage = expeditions.Stage;
                 stageOpenedAt = Time.unscaledTime;
-                if (lastStage == ExpeditionStage.ChoosingSite) selectedSite = null;
+                if (lastStage == ExpeditionStage.ChoosingSite)
+                {
+                    selectedSite = null;
+                    nav.Reset();
+                }
             }
 
             switch (expeditions.Stage)
@@ -79,7 +95,7 @@ namespace AftershockIsle.UI
                     if (explorer != null && field != null)
                         GUILayout.Label($"Can {explorer.Health:0}/{explorer.MaxHealth:0}   Çanta {field.UsedSlots}/{field.BagSlots}   Kalan {Mathf.CeilToInt(expeditions.Remaining)} sn" +
                                         (expeditions.IsRescuing ? "   [kazazede kurtarıldı]" : ""));
-                    GUILayout.Label("Tab / Select: sahaya geç ve kâşifi yönet.");
+                    GUILayout.Label($"{GameInput.Prompt(InputPrompt.SwitchCharacter)} / Select: sahaya geç ve kâşifi yönet.");
                     break;
             }
 
@@ -88,72 +104,68 @@ namespace AftershockIsle.UI
 
         bool InGracePeriod => Time.unscaledTime - stageOpenedAt < InputGraceSeconds;
 
-        // IMGUI butonları sağ tıka da tepki verir; sadece sol tık kabul edilir.
-        bool LeftClickButton(Rect rect, GUIContent content, GUIStyle style)
-        {
-            bool isLeft = Event.current.button == 0;
-            return GUI.Button(rect, content, style) && isLeft && !InGracePeriod;
-        }
-
-        bool LeftClickLayoutButton(string text)
-        {
-            bool isLeft = Event.current.button == 0;
-            return GUILayout.Button(text) && isLeft && !InGracePeriod;
-        }
-
         void DrawMap(int id)
         {
             var expeditions = ExpeditionSystem.Instance;
+            var sites = expeditions.Sites;
+            nav.BeginDraw();
+
             var area = new Rect(10, 25, mapRect.width - 20, mapRect.height - 160);
             GUI.Box(area, GUIContent.none);
 
             var home = new Vector2(area.x + area.width * 0.5f, area.y + area.height * 0.5f);
             var nodeSize = new Vector2(150, 48);
 
-            foreach (var site in expeditions.Sites)
+            for (int i = 0; i < sites.Count; i++)
             {
+                var site = sites[i];
                 var center = new Vector2(area.x + area.width * site.mapPosition.x, area.y + area.height * site.mapPosition.y);
                 DrawRoute(home, center);
 
                 var rect = new Rect(center - nodeSize * 0.5f, nodeSize);
                 string marker = site == selectedSite ? ">> " : "";
                 var content = new GUIContent($"{marker}{site.name}\n{site.duration:0} sn");
-                if (LeftClickButton(rect, content, nodeStyle)) selectedSite = site;
+                nav.Button(rect, content, () => SelectSite(site, sites.Count), !InGracePeriod, nodeStyle);
             }
 
             GUI.Box(new Rect(home - new Vector2(45, 16), new Vector2(90, 32)), "Sığınak");
 
+            // Gamepad ile gezerken odaktaki lokasyonun bilgisi seçmeden de görünür.
+            var shown = selectedSite;
+            if (shown == null && GameInput.UsingGamepad && nav.Focus < sites.Count) shown = sites[nav.Focus];
+
             var info = new Rect(10, mapRect.height - 130, mapRect.width - 20, 90);
             GUILayout.BeginArea(info);
-            if (selectedSite == null)
+            if (shown == null)
             {
                 GUILayout.Label("Bir lokasyon seç. Oyun bu ekranda duraklatıldı.", wrapStyle);
                 GUILayout.Label($"Sefer çantası: {expeditions.BagSlots} slot. Sahada kâşifi sen yönetirsin; sığınak o sırada çalışmaya devam eder.", wrapStyle);
             }
             else
             {
-                GUILayout.Label(selectedSite.name, titleStyle);
-                GUILayout.Label(Details(selectedSite), wrapStyle);
+                GUILayout.Label(shown == selectedSite ? shown.name : $"{shown.name}   ({GameInput.Prompt(InputPrompt.Confirm)}: seç)", titleStyle);
+                GUILayout.Label(Details(shown), wrapStyle);
             }
             GUILayout.EndArea();
 
-            GUI.enabled = selectedSite != null;
-            if (LeftClickButton(new Rect(mapRect.width - 230, mapRect.height - 32, 110, 24), new GUIContent("Yola Çık"), GUI.skin.button))
-            {
-                GUI.enabled = true;
-                expeditions.Depart(selectedSite);
-                return;
-            }
-            GUI.enabled = true;
+            nav.Button(new Rect(mapRect.width - 230, mapRect.height - 32, 110, 24), new GUIContent("Yola Çık"),
+                () => expeditions.Depart(selectedSite), selectedSite != null && !InGracePeriod);
+            nav.Button(new Rect(mapRect.width - 112, mapRect.height - 32, 100, 24),
+                new GUIContent($"Vazgeç ({GameInput.Prompt(InputPrompt.Back)})"), expeditions.CancelMap, !InGracePeriod);
 
-            if (LeftClickButton(new Rect(mapRect.width - 112, mapRect.height - 32, 100, 24), new GUIContent("Vazgeç"), GUI.skin.button))
-                expeditions.CancelMap();
+            nav.EndDraw();
+        }
+
+        void SelectSite(ExpeditionSite site, int departIndex)
+        {
+            selectedSite = site;
+            nav.SetFocus(departIndex);
         }
 
         static string Details(ExpeditionSite site)
         {
             var text = new StringBuilder(site.description);
-            text.Append($"\nSaha süresi: {site.duration:0} sn.  Düşman: {site.dogs + site.raiders}.  Ganimet: ");
+            text.Append($"\nSaha süresi: {site.duration:0} sn.  Düşman: {site.dogs + site.raiders + site.brutes + site.throwers}+.  Ganimet: ");
             for (int i = 0; i < site.loot.Length; i++)
             {
                 if (i > 0) text.Append(", ");

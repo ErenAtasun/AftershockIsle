@@ -6,7 +6,10 @@ using UnityEngine;
 
 namespace AftershockIsle.UI
 {
-    /// <summary>Tezgaha sağ tıklayınca açılan geçici IMGUI üretim menüsü. Seçilen tarif, menüyü açan karaktere iş olarak verilir.</summary>
+    /// <summary>
+    /// Tezgahla etkileşince (sağ tık ya da F / A) açılan geçici IMGUI üretim menüsü. Seçilen tarif, menüyü açan karaktere
+    /// iş olarak verilir. Gamepad: yukarı/aşağı gez, A üret, B kapat.
+    /// </summary>
     public class WorkbenchWindow : MonoBehaviour
     {
         const int WindowId = 4401;
@@ -17,6 +20,7 @@ namespace AftershockIsle.UI
         Vector2 scroll;
         GUIStyle wrapStyle;
         GUIStyle headerStyle;
+        readonly MenuNav nav = new MenuNav();
 
         void OnEnable() => EventBus.Subscribe<WorkbenchMenuRequested>(OnMenuRequested);
         void OnDisable() => EventBus.Unsubscribe<WorkbenchMenuRequested>(OnMenuRequested);
@@ -25,6 +29,14 @@ namespace AftershockIsle.UI
         {
             worker = evt.Worker;
             open = true;
+            nav.Reset();
+        }
+
+        void Update()
+        {
+            if (!open) return;
+            nav.Tick();
+            if (GameInput.MenuBackPressed) open = false;
         }
 
         void OnGUI()
@@ -49,6 +61,7 @@ namespace AftershockIsle.UI
         void DrawWindow(int id)
         {
             var bench = Workbench.Instance;
+            nav.BeginDraw();
             scroll = GUILayout.BeginScrollView(scroll);
 
             for (int tier = 1; tier <= 3; tier++)
@@ -67,11 +80,13 @@ namespace AftershockIsle.UI
             }
 
             GUILayout.EndScrollView();
+            nav.KeepFocusVisible(ref scroll, windowRect.height - 110f);
 
             if (bench.PendingOrder.HasValue)
                 GUILayout.Label($"Bekleyen sipariş: {bench.PendingOrder.Value.Name}", wrapStyle);
 
-            if (GUILayout.Button("Kapat")) open = false;
+            nav.Button($"Kapat ({GameInput.Prompt(InputPrompt.Back)})", () => open = false);
+            nav.EndDraw();
         }
 
         void DrawRecipe(Workbench bench, RecipeInfo recipe)
@@ -81,22 +96,21 @@ namespace AftershockIsle.UI
 
             GUILayout.BeginHorizontal(GUI.skin.box);
             GUILayout.BeginVertical();
-            string suffix = done ? "  (TAMAM)" : recipe.Id == RecipeId.SteelBeam ? $"  (stok {bench.SteelBeams})" : "";
+            string suffix = done ? "  (TAMAM)"
+                : recipe.Id == RecipeId.SteelBeam ? $"  (stok {bench.SteelBeams})"
+                : recipe.Id == RecipeId.AmmoPack ? $"  (stok {bench.Ammo})"
+                : "";
             GUILayout.Label($"{recipe.Name}{suffix}", headerStyle);
             GUILayout.Label(recipe.Description, wrapStyle);
             GUILayout.Label($"Maliyet: {ResourceStorage.FormatCosts(recipe.Costs)}   Süre: {recipe.Duration:0} sn" +
                             (canOrder || done ? "" : $"   → {reason}"), wrapStyle);
             GUILayout.EndVertical();
 
-            GUI.enabled = canOrder;
-            // IMGUI butonları sağ tıka da tepki verir; sadece sol tık kabul edilir.
-            bool isLeft = Event.current.button == 0;
-            if (GUILayout.Button(recipe.IsUpgrade ? "Yükselt" : "Üret", GUILayout.Width(80), GUILayout.Height(40)) && isLeft)
+            nav.Button(recipe.IsUpgrade ? "Yükselt" : "Üret", () =>
             {
                 bench.Order(recipe, worker, GameInput.QueueModifierHeld);
                 open = false;
-            }
-            GUI.enabled = true;
+            }, canOrder, null, GUILayout.Width(84), GUILayout.Height(40));
             GUILayout.EndHorizontal();
         }
     }

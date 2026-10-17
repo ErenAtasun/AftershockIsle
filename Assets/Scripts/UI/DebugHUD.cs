@@ -196,7 +196,7 @@ namespace AftershockIsle.UI
             {
                 var expeditions = ExpeditionSystem.Instance;
                 string rescue = expeditions.IsRescuing ? ", kazazede kurtarıldı" : "";
-                GUILayout.Label($"Seferde: {away.DisplayName} → {expeditions.CurrentSite.name} (kalan {Mathf.CeilToInt(expeditions.Remaining)} sn{rescue}, Can {away.Health:0}) — Tab: saha görünümü");
+                GUILayout.Label($"Seferde: {away.DisplayName} → {expeditions.CurrentSite.name} (kalan {Mathf.CeilToInt(expeditions.Remaining)} sn{rescue}, Can {away.Health:0}) — {GameInput.Prompt(InputPrompt.SwitchCharacter)}: sahaya geç");
             }
 
             var selected = commands.Selected;
@@ -215,8 +215,8 @@ namespace AftershockIsle.UI
             }
 
             GUILayout.Space(6);
-            GUILayout.Label("Sol tık: seç   Sağ tık: git / iş ver   Shift+Sağ: sıraya ekle");
-            GUILayout.Label("Space: duraklat  1/2: hız  WASD: kaydır  F: odakla  K: yetenekler");
+            GUILayout.Label("WASD / sol çubuk: yürü   F / A: etkileş   Tab / LB-RB: karakter");
+            GUILayout.Label("Fare: sol tık seç, sağ tık iş ver (Shift: sıraya ekle)   K / H");
             GUILayout.Label("Test: F6 yangın F7 boru F8 sarsıntı F9 hasar F10 kolon");
             GUILayout.Label("      F11 kaynak+puan  F12 kazazede ekle");
             GUILayout.EndArea();
@@ -294,7 +294,7 @@ namespace AftershockIsle.UI
             {
                 if (pump == null || !pump.IsBeingOperated) continue;
                 GUI.Label(new Rect(0, Screen.height - 100, Screen.width, 24),
-                    "Pompalanıyor — Q / E tuşlarına dönüşümlü bas!", centeredStyle);
+                    $"Pompalanıyor — {GameInput.Prompt(InputPrompt.Pump)} tuşlarına dönüşümlü bas!", centeredStyle);
                 break;
             }
         }

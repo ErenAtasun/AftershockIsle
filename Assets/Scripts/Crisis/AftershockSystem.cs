@@ -184,8 +184,8 @@ namespace AftershockIsle.Crisis
                 var marker = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 marker.name = "ShelterMarker";
                 Destroy(marker.GetComponent<Collider>());
-                marker.transform.position = new Vector3(zone.CenterX, building.FloorY(zone.Floor) + 0.02f, building.WalkPlaneZ);
-                marker.transform.localScale = new Vector3(zone.Width, 0.04f, 1.4f);
+                marker.transform.position = new Vector3(zone.CenterX, building.FloorY(zone.Floor) + 0.02f, zone.CenterZ);
+                marker.transform.localScale = new Vector3(zone.Width, 0.04f, zone.Depth);
                 if (shelterMaterial != null) marker.GetComponent<Renderer>().sharedMaterial = shelterMaterial;
                 shelterMarkers.Add(marker);
             }

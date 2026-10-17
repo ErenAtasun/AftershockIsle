@@ -1,9 +1,10 @@
+using AftershockIsle.Core;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace AftershockIsle.UI
 {
-    /// <summary>Başlangıç sahnesinin geçici IMGUI ana menüsü: oyuna başla, nasıl oynanır, çık.</summary>
+    /// <summary>Başlangıç sahnesinin geçici IMGUI ana menüsü: oyuna başla, nasıl oynanır, çık. Fare, klavye ya da gamepad ile.</summary>
     public class MainMenu : MonoBehaviour
     {
         public const string GameScene = "Main";
@@ -13,8 +14,19 @@ namespace AftershockIsle.UI
         GUIStyle subtitleStyle;
         GUIStyle buttonStyle;
         GUIStyle bodyStyle;
+        readonly MenuNav nav = new MenuNav();
 
-        void Start() => Time.timeScale = 1f;
+        void Start()
+        {
+            Time.timeScale = 1f;
+            nav.Reset();
+        }
+
+        void Update()
+        {
+            nav.Tick();
+            if (GameInput.MenuBackPressed) showHowTo = false;
+        }
 
         void OnGUI()
         {
@@ -40,29 +52,31 @@ namespace AftershockIsle.UI
             y += 140f;
 
             const float width = 320f;
-            if (Button(cx - width * 0.5f, ref y, width, "Oyuna Başla")) SceneManager.LoadScene(GameScene);
-            if (Button(cx - width * 0.5f, ref y, width, showHowTo ? "Rehberi Gizle" : "Nasıl Oynanır")) showHowTo = !showHowTo;
-            if (Button(cx - width * 0.5f, ref y, width, "Çık")) PauseMenu.QuitGame();
+            nav.BeginDraw();
+            Button(cx - width * 0.5f, ref y, width, "Oyuna Başla", () => SceneManager.LoadScene(GameScene));
+            Button(cx - width * 0.5f, ref y, width, showHowTo ? "Rehberi Gizle" : "Nasıl Oynanır", () => showHowTo = !showHowTo);
+            Button(cx - width * 0.5f, ref y, width, "Çık", PauseMenu.QuitGame);
+            nav.EndDraw();
 
             if (showHowTo) DrawHowTo(cx, y + 10f);
         }
 
-        bool Button(float x, ref float y, float width, string text)
+        void Button(float x, ref float y, float width, string text, System.Action onActivate)
         {
-            bool clicked = GUI.Button(new Rect(x, y, width, 50), text, buttonStyle) && Event.current.button == 0;
+            nav.Button(new Rect(x, y, width, 50), new GUIContent(text), onActivate, true, buttonStyle);
             y += 60f;
-            return clicked;
         }
 
         void DrawHowTo(float cx, float y)
         {
             const float width = 640f;
-            var rect = new Rect(cx - width * 0.5f, y, width, 230f);
+            var rect = new Rect(cx - width * 0.5f, y, width, 260f);
             GUI.Box(rect, GUIContent.none);
             GUILayout.BeginArea(new Rect(rect.x + 14, rect.y + 10, rect.width - 28, rect.height - 20));
             GUILayout.Label(
-                "Sol tık: karakter seç.   Sağ tık: boşluğa yürü / nesneye iş ver (Shift: sıraya ekle).\n" +
-                "Space: zamanı durdur (duraklatmada emir verilebilir).   1 / 2: normal / hızlı.   WASD: kamera.   K: yetenekler.   H: kontrol rehberi.\n\n" +
+                "Klavye: WASD karakteri yürütür (W / S merdivene çıkar / iner), F en yakın işi yapar, X durdurur, Tab karakter değiştirir.\n" +
+                "Space zamanı durdurur, 1 / 2 hız. K yetenekler, H rehber. Fare de çalışır: sol tık seç, sağ tık iş ver.\n" +
+                "Gamepad: sol çubuk yürü, A etkileş, B dur, LB / RB karakter, Y duraklat, X hız, sağ çubuk kamera, D-pad sağ yetenekler.\n\n" +
                 "Üç tehdit binanın Yapısal Bütünlük barını eritir: artçı sarsıntı, su baskını ve yangın. Kolonları destekle, sığınaklara kaç, " +
                 "şalteri yönet, suyu boşalt, yangını söndür.\n\n" +
                 "Kazanmak için: tezgahı Kademe 3'e çıkar, çatıdaki telsizi tamir et, çatı molozunu temizle, çatı kolonlarını çelikle güçlendir " +

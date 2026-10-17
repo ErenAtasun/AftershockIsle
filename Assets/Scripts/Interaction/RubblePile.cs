@@ -81,6 +81,9 @@ namespace AftershockIsle.Interaction
             return x + side * (HalfWidth + BuildingLayout.BlockerStandOff);
         }
 
+        // Yolu kapatan yığının yanında, yürüme çizgisinde durulur.
+        public override float GetWorkZ() => blocksPath ? Building.WalkPlaneZ : base.GetWorkZ();
+
         public override bool CanStart(Survivor worker, out string reason)
         {
             reason = remaining > 0 ? null : "Moloz zaten temizlendi.";

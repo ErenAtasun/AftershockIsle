@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace AftershockIsle.UI
 {
-    /// <summary>K ile açılan geçici IMGUI yetenek ağacı penceresi. Duraklatmada da kullanılabilir.</summary>
+    /// <summary>K / D-pad sağ ile açılan geçici IMGUI yetenek ağacı penceresi. Duraklatmada da kullanılabilir.</summary>
     public class SkillTreeWindow : MonoBehaviour
     {
         const int WindowId = 4201;
@@ -13,10 +13,19 @@ namespace AftershockIsle.UI
         bool open;
         Rect windowRect = new Rect(0, 0, ColumnWidth * 3 + 30, 360);
         GUIStyle wrapStyle;
+        readonly MenuNav nav = new MenuNav();
 
         void Update()
         {
-            if (GameInput.SkillTreeTogglePressed) open = !open;
+            if (GameInput.SkillTreeTogglePressed && (open || !ModalMenu.IsOpen))
+            {
+                open = !open;
+                if (open) nav.Reset();
+            }
+            if (!open) return;
+
+            nav.Tick();
+            if (GameInput.MenuBackPressed) open = false;
         }
 
         void OnGUI()
@@ -28,12 +37,13 @@ namespace AftershockIsle.UI
             windowRect.y = (Screen.height - windowRect.height) * 0.5f;
             UIBlocker.Add(windowRect);
 
-            GUI.Window(WindowId, windowRect, DrawWindow, $"Yetenek Ağacı — puan: {SkillTree.Instance.Points}   (K: kapat)");
+            GUI.Window(WindowId, windowRect, DrawWindow, $"Yetenek Ağacı — puan: {SkillTree.Instance.Points}   ({GameInput.Prompt(InputPrompt.SkillTree)} / {GameInput.Prompt(InputPrompt.Back)}: kapat)");
         }
 
         void DrawWindow(int id)
         {
             var tree = SkillTree.Instance;
+            nav.BeginDraw();
             GUILayout.BeginHorizontal();
 
             foreach (SkillBranch branch in System.Enum.GetValues(typeof(SkillBranch)))
@@ -53,6 +63,7 @@ namespace AftershockIsle.UI
 
             GUILayout.EndHorizontal();
             GUILayout.Label("Her yeni gün +1 puan. Bir dal, o dalın uzmanı bir kazazede sığınaktayken açılabilir.", wrapStyle);
+            nav.EndDraw();
         }
 
         void DrawSkill(SkillTree tree, SkillInfo skill)
@@ -60,10 +71,8 @@ namespace AftershockIsle.UI
             bool unlocked = tree.IsUnlocked(skill.Id);
             bool canUnlock = tree.CanUnlock(skill.Id, out string reason);
 
-            GUI.enabled = canUnlock;
             string label = unlocked ? $"[{skill.Tier}] {skill.Name}  (AÇIK)" : $"[{skill.Tier}] {skill.Name}";
-            if (GUILayout.Button(label)) tree.TryUnlock(skill.Id);
-            GUI.enabled = true;
+            nav.Button(label, () => tree.TryUnlock(skill.Id), canUnlock);
 
             GUILayout.Label(skill.Description, wrapStyle);
             if (!unlocked && !canUnlock) GUILayout.Label($"→ {reason}", wrapStyle);

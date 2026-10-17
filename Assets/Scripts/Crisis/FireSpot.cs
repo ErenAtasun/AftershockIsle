@@ -161,6 +161,11 @@ namespace AftershockIsle.Crisis
             return x + (arrival < x ? -flameStandOff : flameStandOff);
         }
 
+        public override float GetWorkZ() => Building.ClampZ(transform.position.z);
+
+        // Alevin içinden yürünebilir (duman zaten hasar verir); serbest yürüyüşte engel sayılmaz.
+        public override bool BlocksMovement => false;
+
         public override void Complete(Survivor worker)
         {
             if (!worker.TryTakeCarried(out _)) return;

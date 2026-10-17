@@ -7,7 +7,7 @@ namespace AftershockIsle.Interaction
 {
     /// <summary>
     /// Manuel su tulumbası. Karakter her darbede biraz su boşaltır ve su bitene kadar kendiliğinden devam eder.
-    /// Biri pompalarken oyuncu Q/E'ye dönüşümlü basarsa her doğru vuruş ekstra su çeker.
+    /// Biri pompalarken oyuncu Q/E'ye (gamepad: LT/RT) dönüşümlü basarsa her doğru vuruş ekstra su çeker.
     /// </summary>
     public class ManualPump : Interactable
     {
@@ -23,7 +23,7 @@ namespace AftershockIsle.Interaction
         public override bool RequiresEmptyHands => true;
         public override bool RepeatAfterComplete => FloodSystem.Instance != null && FloodSystem.Instance.Level > 0.01f;
         public override string StatusText => IsBeingOperated
-            ? "Q / E tuşlarına dönüşümlü bas: daha hızlı pompala!"
+            ? $"{GameInput.Prompt(InputPrompt.Pump)} tuşlarına dönüşümlü bas: daha hızlı pompala!"
             : "Bodrumdaki suyu elle boşaltır.";
 
         /// <summary>Şu an biri tulumbada çalışıyor mu (mini-oyun açık mı).</summary>

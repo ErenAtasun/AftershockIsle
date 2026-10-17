@@ -25,6 +25,8 @@ namespace AftershockIsle.Interaction
 
         // Kapı duvarın içindedir; karakter katın kenarında durur.
         public override float GetWorkX(int fromFloor, float fromX) => Building.MaxX;
+        public override float GetWorkZ() => Building.WalkPlaneZ;
+        public override bool BlocksMovement => false;
 
         public override bool CanStart(Survivor worker, out string reason)
         {

@@ -55,6 +55,34 @@ namespace AftershockIsle.Interaction
         /// <summary>Karakterin duracağı X. Varsayılan: nesnenin önü.</summary>
         public virtual float GetWorkX(int fromFloor, float fromX) => transform.position.x;
 
+        /// <summary>Karakterin duracağı Z (odanın derinliğinde). Varsayılan: nesnenin kameraya bakan yüzünün önü.</summary>
+        public virtual float GetWorkZ()
+        {
+            return TryGetFootprint(out var bounds)
+                ? Building.ClampZ(bounds.min.z - WorkStandOff)
+                : Building.WalkPlaneZ;
+        }
+
+        /// <summary>Kat içinde serbest yürürken bu nesnenin içinden geçilemez mi (mobilya, tezgah, kolon...).</summary>
+        public virtual bool BlocksMovement => true;
+
+        const float WorkStandOff = 0.55f;
+
+        /// <summary>Nesnenin etkin collider'larının dünya sınırı (model giydirilmişse modelin collider'ı).</summary>
+        public bool TryGetFootprint(out Bounds bounds)
+        {
+            bounds = default;
+            bool found = false;
+            foreach (var collider in GetComponentsInChildren<Collider>())
+            {
+                if (!collider.enabled || collider.isTrigger) continue;
+                if (found) bounds.Encapsulate(collider.bounds);
+                else bounds = collider.bounds;
+                found = true;
+            }
+            return found;
+        }
+
         public virtual bool CanStart(Survivor worker, out string reason)
         {
             reason = null;

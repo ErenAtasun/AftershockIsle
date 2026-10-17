@@ -4,8 +4,10 @@ using AftershockIsle.Building;
 using AftershockIsle.CameraControl;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
+using AftershockIsle.Crafting;
 using AftershockIsle.Economy;
 using AftershockIsle.Skills;
+using AftershockIsle.UI;
 using UnityEngine;
 
 namespace AftershockIsle.Expedition
@@ -14,9 +16,12 @@ namespace AftershockIsle.Expedition
 
     /// <summary>
     /// Oynanabilir dış saha: binanın uzağında, X (sağ-sol) ve Z (haritanın içine / ekrana doğru) düzleminde
-    /// serbest bir sokak alanı. Kâşif doğrudan kontrol edilir (WASD ya da sol çubuk); siper nesneleri (araba,
-    /// beton blok, kasa yığını) yolu keser. Noktalar aranır (çanta slotu kadar ganimet), çıkıştan dönülür.
-    /// Sığınak bu sırada çalışmaya devam eder; Tab/Select ile görünüm değişir. Süre dolarsa kâşif kaçarak döner.
+    /// serbest bir sokak alanı. Kâşif doğrudan kontrol edilir (WASD ya da sol çubuk) ve CharacterController ile
+    /// gerçek collider'lara çarpar: siper nesneleri (araba, beton blok, kasa yığını), sınırlar ve girilebilir bina
+    /// (FieldBuilding; içeri girince çatı ve ön duvar gizlenir). Noktalar aranır (çanta slotu kadar ganimet), çıkıştan dönülür.
+    /// Silah: nişan fare ya da sağ çubukla, ateş sol tık / RT; atış ışındır, duvar ve yüksek siper keser.
+    /// Düşmanlar (FieldEnemy) görüş hattı ve sesle fark eder. Sığınak bu sırada çalışmaya devam eder; Tab/LB-RB ile
+    /// görünüm değişir. Süre dolarsa kâşif kaçarak döner.
     /// Can, kâşifin kendi canıdır (Survivor.Health): sahada alınan hasar eve de taşınır.
     /// </summary>
     public class FieldExpedition : MonoBehaviour
@@ -26,6 +31,9 @@ namespace AftershockIsle.Expedition
         const float FrontMargin = 3f;
 
         const float AvatarRadius = 0.35f;
+        const float AvatarHeight = 1.9f;
+        const float BuildingWidth = 10f;
+        const float BuildingDepth = 6.5f;
         const float WalkSpeed = 4.2f;
         // Derinlikte hareket perspektif yüzünden ekranda hızlı görünür; biraz yavaşlatılır.
         const float DepthSpeedFactor = 0.85f;
@@ -44,11 +52,17 @@ namespace AftershockIsle.Expedition
 
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
-        struct Obstacle
+        // Sadece yerleşim için: dışarıdaki nesneler birbirine ve binaya değmesin.
+        struct Placement
         {
             public Vector2 Center;
             public Vector2 Half;
-            public float Height;
+        }
+
+        struct Tracer
+        {
+            public Transform Line;
+            public float Remaining;
         }
 
         struct FloatingText
@@ -60,7 +74,12 @@ namespace AftershockIsle.Expedition
         }
 
         readonly List<FieldSpot> spots = new List<FieldSpot>();
-        readonly List<Obstacle> obstacles = new List<Obstacle>();
+        readonly List<Placement> placements = new List<Placement>();
+        readonly List<FieldBuilding> buildings = new List<FieldBuilding>();
+        readonly List<FieldEnemy> enemies = new List<FieldEnemy>();
+        readonly Dictionary<Collider, FieldEnemy> enemyByCollider = new Dictionary<Collider, FieldEnemy>();
+        readonly Dictionary<FieldEnemy, Transform> enemyAimLines = new Dictionary<FieldEnemy, Transform>();
+        readonly List<Tracer> tracers = new List<Tracer>();
         readonly List<ResourceAmount> bag = new List<ResourceAmount>();
         readonly List<FloatingText> floaters = new List<FloatingText>();
         readonly StringBuilder reportText = new StringBuilder();
@@ -72,9 +91,19 @@ namespace AftershockIsle.Expedition
         int usedSlots;
         float extractionDuration;
         bool rescueAvailable;
+        int extraRaiders;
+
+        WeaponKind weapon = WeaponKind.Slingshot;
+        float fireCooldown;
+        Vector3 aimDirection = Vector3.right;
+        bool aiming;
+        Transform aimLine;
 
         GameObject root;
+        // avatarRoot: yerde duran, CharacterController taşıyan kök. avatar: gövde (merkez), kamera ve etiketler buna bakar.
+        Transform avatarRoot;
         Transform avatar;
+        CharacterController controller;
         Renderer avatarRenderer;
         float originX;
         float groundY;
@@ -112,6 +141,16 @@ namespace AftershockIsle.Expedition
 
         float MaxX => originX + site.fieldLength;
 
+        bool InsideBuilding
+        {
+            get
+            {
+                foreach (var building in buildings)
+                    if (building.ShowingInterior) return true;
+                return false;
+            }
+        }
+
         // ---------------------------------------------------------------- Kurulum / bitiş
 
         public void Begin(Survivor who, ExpeditionSite expeditionSite, BuildingLayout building, int slots, float extraction, bool canRescue, int day)
@@ -128,7 +167,15 @@ namespace AftershockIsle.Expedition
             bag.Clear();
             reportText.Clear();
             spots.Clear();
-            obstacles.Clear();
+            placements.Clear();
+            buildings.Clear();
+            enemies.Clear();
+            enemyByCollider.Clear();
+            enemyAimLines.Clear();
+            tracers.Clear();
+            extraRaiders = Mathf.Clamp((day - 1) / 4, 0, 2);
+            weapon = FieldWeapons.IsAvailable(WeaponKind.Pistol) ? WeaponKind.Pistol : WeaponKind.Slingshot;
+            fireCooldown = 0f;
             floaters.Clear();
             velocity = Vector3.zero;
             dodgeTimer = 0f;
@@ -146,7 +193,7 @@ namespace AftershockIsle.Expedition
 
             BuildField();
             SideViewCamera.SetFieldFocus(avatar);
-            Say($"{GameInput.Prompt(FieldPrompt.Move)}: yürü.  {GameInput.Prompt(FieldPrompt.Interact)}: ara.  " +
+            Say($"{GameInput.Prompt(InputPrompt.Move)}: yürü.  {GameInput.Prompt(InputPrompt.Interact)}: ara.  " +
                 "Çanta dolunca soldaki yeşil çıkışa dön.");
         }
 
@@ -185,15 +232,50 @@ namespace AftershockIsle.Expedition
                 ruin.localScale = new Vector3(Random.Range(2.5f, 4.5f), height, 2f);
             }
 
-            var wall = Make(PrimitiveType.Cube, "Sınır", new Color(0.18f, 0.18f, 0.2f), root.transform);
+            var wall = Make(PrimitiveType.Cube, "Sınır", new Color(0.18f, 0.18f, 0.2f), root.transform, true);
             wall.position = new Vector3(MaxX + 1f, groundY + 1.5f, midZ);
             wall.localScale = new Vector3(0.6f, 3f, FieldDepth + 2f);
 
+            BuildBounds(length, midZ);
+
             exitPoint = new Vector3(originX + 0.6f, groundY, midZ);
             BuildExit(midZ);
+            BuildBuilding(length);
             BuildSpots(length);
             BuildObstacles(length);
+            BuildEnemies(length);
             BuildAvatar(midZ);
+        }
+
+        // Görünmez sınırlar: ön kaldırım, arka harabeler ve çıkışın gerisi.
+        void BuildBounds(float length, float midZ)
+        {
+            Bound(new Vector3(originX + length * 0.5f, groundY + 1f, minZ - AvatarRadius - 0.25f), new Vector3(length + 4f, 2f, 0.5f));
+            Bound(new Vector3(originX + length * 0.5f, groundY + 1f, maxZ + AvatarRadius + 0.25f), new Vector3(length + 4f, 2f, 0.5f));
+            Bound(new Vector3(originX - 0.8f, groundY + 1f, midZ), new Vector3(0.5f, 2f, FieldDepth + 2f));
+        }
+
+        void Bound(Vector3 center, Vector3 size)
+        {
+            var bound = new GameObject("Sınır (görünmez)").AddComponent<BoxCollider>();
+            bound.transform.SetParent(root.transform, false);
+            bound.transform.position = center;
+            bound.size = size;
+        }
+
+        // Sahanın ortasında, arka kenara dayalı girilebilir yapı. Önünde kapıya giden yol boş bırakılır.
+        void BuildBuilding(float length)
+        {
+            float depth = Mathf.Min(BuildingDepth, FieldDepth - 2.5f);
+            var min = new Vector2(originX + length * 0.42f - BuildingWidth * 0.5f, maxZ - depth + AvatarRadius);
+            var building = new FieldBuilding(
+                (type, name, color, solid) => Make(type, name, color, root.transform, solid),
+                min, new Vector2(BuildingWidth, depth - AvatarRadius), groundY);
+            buildings.Add(building);
+
+            var footprint = building.Footprint;
+            AddPlacement(footprint.center, footprint.size * 0.5f);
+            AddPlacement(building.FrontDoor, new Vector2(1.2f, 1.4f));
         }
 
         void BuildExit(float midZ)
@@ -218,31 +300,52 @@ namespace AftershockIsle.Expedition
         void BuildSpots(float length)
         {
             int count = Mathf.Max(1, site.lootSpots);
-            float start = originX + 6f;
-            float span = length - 8f;
+            var building = buildings.Count > 0 ? buildings[0] : null;
+            var insidePositions = building != null ? building.SpotPositions : (IReadOnlyList<Vector3>)new List<Vector3>();
 
-            for (int i = 0; i < count; i++)
+            // Değerli olanın yarısı binanın içinde: içerisi dar ama ganimet orada.
+            int inside = Mathf.Min(insidePositions.Count - (site.isRescueSite ? 1 : 0), Mathf.Max(1, count / 2));
+            for (int i = 0; i < inside; i++) AddLootSpot(insidePositions[i]);
+
+            int outside = count - inside;
+            float start = originX + 5f;
+            float span = length - 7f;
+            for (int i = 0; i < outside; i++)
             {
-                float x = start + span * (count == 1 ? 0.5f : i / (float)(count - 1)) + Random.Range(-1.2f, 1.2f);
-                float z = Random.Range(minZ + 1f, maxZ - 1f);
-                var visual = Make(PrimitiveType.Cube, "Aranacak Nokta", new Color(0.55f, 0.38f, 0.2f), root.transform);
-                visual.position = new Vector3(x, groundY + 0.45f, z);
-                visual.localScale = new Vector3(1.1f, 0.9f, 0.8f);
-                spots.Add(new FieldSpot(visual, FieldSpotKind.Loot, SearchDuration, "Aranacak yer"));
-                AddObstacle(new Vector2(x, z), new Vector2(0.55f, 0.4f), 0.9f);
+                for (int attempt = 0; attempt < 20; attempt++)
+                {
+                    float x = start + span * (outside == 1 ? 0.5f : i / (float)(outside - 1)) + Random.Range(-2f, 2f);
+                    var center = new Vector2(x, Random.Range(minZ + 0.9f, maxZ - 0.9f));
+                    if (!IsFree(center, new Vector2(0.55f, 0.4f), 0.8f)) continue;
+
+                    AddLootSpot(new Vector3(center.x, groundY, center.y));
+                    break;
+                }
             }
 
             if (!site.isRescueSite) return;
 
-            float rescueZ = Random.Range(minZ + 1.5f, maxZ - 1.5f);
+            // Mahsur kalan binanın içinde (yoksa sahanın sonunda).
+            var rescueAt = building != null && insidePositions.Count > 0
+                ? insidePositions[insidePositions.Count - 1]
+                : new Vector3(MaxX - 3f, groundY, Random.Range(minZ + 1.5f, maxZ - 1.5f));
             var victim = Make(PrimitiveType.Capsule, "Mahsur Kalan", new Color(0.4f, 0.85f, 0.95f), root.transform);
-            victim.position = new Vector3(MaxX - 3f, groundY + 0.35f, rescueZ);
+            victim.position = rescueAt + Vector3.up * 0.35f;
             victim.localScale = new Vector3(0.7f, 0.5f, 0.7f);
             victim.rotation = Quaternion.Euler(0f, 0f, 90f);
             spots.Add(new FieldSpot(victim, FieldSpotKind.Rescue, extractionDuration > 0f ? extractionDuration : RescueDuration, "Mahsur kalan"));
         }
 
-        // Siperlik nesneler. Aşama 3'te siper alma bunlara bağlanacak; şimdilik yolu kesip rota seçtiren engeller.
+        void AddLootSpot(Vector3 groundPoint)
+        {
+            var visual = Make(PrimitiveType.Cube, "Aranacak Nokta", new Color(0.55f, 0.38f, 0.2f), root.transform, true);
+            visual.position = groundPoint + Vector3.up * 0.45f;
+            visual.localScale = new Vector3(1.1f, 0.9f, 0.8f);
+            spots.Add(new FieldSpot(visual, FieldSpotKind.Loot, SearchDuration, "Aranacak yer"));
+            AddPlacement(new Vector2(groundPoint.x, groundPoint.z), new Vector2(0.55f, 0.4f));
+        }
+
+        // Siperlik nesneler. Siper alma sonraki aşamada bunlara bağlanacak; şimdilik yolu kesip rota seçtiren engeller.
         void BuildObstacles(float length)
         {
             int target = Mathf.RoundToInt(length / 5f);
@@ -270,7 +373,7 @@ namespace AftershockIsle.Expedition
 
         bool IsFree(Vector2 center, Vector2 half, float gap)
         {
-            foreach (var other in obstacles)
+            foreach (var other in placements)
             {
                 if (Mathf.Abs(center.x - other.Center.x) < half.x + other.Half.x + gap &&
                     Mathf.Abs(center.y - other.Center.y) < half.y + other.Half.y + gap) return false;
@@ -280,16 +383,14 @@ namespace AftershockIsle.Expedition
 
         void BuildObstacleVisual(int kind, Vector2 center, Vector2 half, bool turned)
         {
-            float height;
             switch (kind)
             {
                 case 0:
                 {
-                    height = 1.4f;
-                    var body = Make(PrimitiveType.Cube, "Araba", new Color(0.3f, 0.36f, 0.45f), root.transform);
+                    var body = Make(PrimitiveType.Cube, "Araba", new Color(0.3f, 0.36f, 0.45f), root.transform, true);
                     body.position = new Vector3(center.x, groundY + 0.45f, center.y);
                     body.localScale = new Vector3(half.x * 2f, 0.7f, half.y * 2f);
-                    var cabin = Make(PrimitiveType.Cube, "Kabin", new Color(0.25f, 0.3f, 0.38f), root.transform);
+                    var cabin = Make(PrimitiveType.Cube, "Kabin", new Color(0.25f, 0.3f, 0.38f), root.transform, true);
                     cabin.position = new Vector3(center.x, groundY + 1.05f, center.y);
                     cabin.localScale = turned
                         ? new Vector3(half.x * 1.8f, 0.55f, half.y * 1.1f)
@@ -298,18 +399,17 @@ namespace AftershockIsle.Expedition
                 }
                 case 1:
                 {
-                    height = 1.0f;
-                    var slab = Make(PrimitiveType.Cube, "Beton Blok", new Color(0.55f, 0.55f, 0.52f), root.transform);
+                    const float height = 1.0f;
+                    var slab = Make(PrimitiveType.Cube, "Beton Blok", new Color(0.55f, 0.55f, 0.52f), root.transform, true);
                     slab.position = new Vector3(center.x, groundY + height * 0.5f, center.y);
                     slab.localScale = new Vector3(half.x * 2f, height, half.y * 2f);
                     break;
                 }
                 default:
                 {
-                    height = 1.7f;
                     for (int level = 0; level < 2; level++)
                     {
-                        var crate = Make(PrimitiveType.Cube, "Kasa", new Color(0.42f, 0.3f, 0.18f), root.transform);
+                        var crate = Make(PrimitiveType.Cube, "Kasa", new Color(0.42f, 0.3f, 0.18f), root.transform, true);
                         crate.position = new Vector3(center.x + (level == 1 ? 0.08f : 0f), groundY + 0.42f + level * 0.85f, center.y);
                         crate.localScale = new Vector3(half.x * 2f - level * 0.15f, 0.84f, half.y * 2f - level * 0.15f);
                     }
@@ -317,18 +417,112 @@ namespace AftershockIsle.Expedition
                 }
             }
 
-            AddObstacle(center, half, height);
+            AddPlacement(center, half);
         }
 
-        void AddObstacle(Vector2 center, Vector2 half, float height) =>
-            obstacles.Add(new Obstacle { Center = center, Half = half, Height = height });
+        void AddPlacement(Vector2 center, Vector2 half) =>
+            placements.Add(new Placement { Center = center, Half = half });
+
+        void BuildEnemies(float length)
+        {
+            var kinds = new List<FieldEnemyKind>();
+            for (int i = 0; i < site.dogs; i++) kinds.Add(FieldEnemyKind.Dog);
+            for (int i = 0; i < site.raiders + extraRaiders; i++) kinds.Add(FieldEnemyKind.Raider);
+            for (int i = 0; i < site.brutes; i++) kinds.Add(FieldEnemyKind.Brute);
+            for (int i = 0; i < site.throwers; i++) kinds.Add(FieldEnemyKind.Gunner);
+            for (int i = kinds.Count - 1; i > 0; i--)
+            {
+                int j = Random.Range(0, i + 1);
+                (kinds[i], kinds[j]) = (kinds[j], kinds[i]);
+            }
+
+            var building = buildings.Count > 0 ? buildings[0] : null;
+            for (int i = 0; i < kinds.Count; i++)
+            {
+                // Biri binanın içinde bekler (ganimetin yanında); diğerleri sokağa dağılır, çıkışa yakın yer güvenli.
+                Vector3 position;
+                if (i == 0 && building != null && kinds.Count >= 2)
+                {
+                    var interior = building.Interior;
+                    position = new Vector3(interior.center.x - 1f, groundY, interior.center.y + 0.8f);
+                }
+                else if (!TryFindFree(originX + 9f, MaxX - 1.5f, 0.6f, out position))
+                {
+                    continue;
+                }
+
+                SpawnEnemy(kinds[i], position);
+            }
+        }
+
+        bool TryFindFree(float fromX, float toX, float radius, out Vector3 position)
+        {
+            for (int attempt = 0; attempt < 30; attempt++)
+            {
+                var center = new Vector2(Random.Range(fromX, toX), Random.Range(minZ + 0.8f, maxZ - 0.8f));
+                bool insideBuilding = false;
+                foreach (var building in buildings)
+                    if (building.Footprint.Contains(center)) insideBuilding = true;
+                if (insideBuilding || !IsFree(center, Vector2.one * radius, 0.4f)) continue;
+
+                AddPlacement(center, Vector2.one * radius);
+                position = new Vector3(center.x, groundY, center.y);
+                return true;
+            }
+            position = default;
+            return false;
+        }
+
+        void SpawnEnemy(FieldEnemyKind kind, Vector3 position)
+        {
+            var enemyRoot = new GameObject(kind.ToString()).transform;
+            enemyRoot.SetParent(root.transform, false);
+            enemyRoot.SetPositionAndRotation(position, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
+
+            bool dog = kind == FieldEnemyKind.Dog;
+            bool brute = kind == FieldEnemyKind.Brute;
+            float height = dog ? 0.8f : brute ? 2.2f : 1.8f;
+            float radius = brute ? 0.5f : 0.35f;
+
+            var enemyController = enemyRoot.gameObject.AddComponent<CharacterController>();
+            enemyController.radius = radius;
+            enemyController.height = height;
+            enemyController.center = new Vector3(0f, height * 0.5f + 0.02f, 0f);
+            enemyController.stepOffset = 0.1f;
+            enemyController.skinWidth = 0.03f;
+
+            var body = Make(dog ? PrimitiveType.Cube : PrimitiveType.Capsule, "Gövde", FieldEnemy.ColorFor(kind), enemyRoot);
+            body.localRotation = Quaternion.identity;
+            body.localScale = dog ? new Vector3(0.45f, 0.55f, 0.95f) : new Vector3(radius * 2f, height * 0.5f, radius * 2f);
+            body.localPosition = new Vector3(0f, dog ? 0.35f : height * 0.5f, 0f);
+
+            var face = Make(PrimitiveType.Cube, "Yüz", new Color(0.15f, 0.12f, 0.1f), body);
+            face.localPosition = new Vector3(0f, dog ? 0.2f : 0.3f, 0.5f);
+            face.localRotation = Quaternion.identity;
+            face.localScale = new Vector3(0.5f, 0.15f, 0.2f);
+
+            var enemy = new FieldEnemy(this, kind, enemyRoot, body.GetComponent<Renderer>(), enemyController);
+            enemies.Add(enemy);
+            enemyByCollider[enemyController] = enemy;
+        }
 
         void BuildAvatar(float midZ)
         {
-            var body = Make(PrimitiveType.Capsule, explorer.DisplayName, BranchColor(explorer), root.transform);
+            avatarRoot = new GameObject(explorer.DisplayName).transform;
+            avatarRoot.SetParent(root.transform, false);
+            avatarRoot.SetPositionAndRotation(new Vector3(originX + 2f, groundY, midZ), Quaternion.LookRotation(Vector3.right));
+
+            controller = avatarRoot.gameObject.AddComponent<CharacterController>();
+            controller.radius = AvatarRadius;
+            controller.height = AvatarHeight;
+            controller.center = new Vector3(0f, AvatarHeight * 0.5f + 0.02f, 0f);
+            controller.stepOffset = 0.1f;
+            controller.skinWidth = 0.03f;
+
+            var body = Make(PrimitiveType.Capsule, "Gövde", BranchColor(explorer), avatarRoot);
+            body.localPosition = new Vector3(0f, 0.95f, 0f);
+            body.localRotation = Quaternion.identity;
             body.localScale = new Vector3(0.7f, 0.95f, 0.7f);
-            body.position = new Vector3(originX + 2f, groundY + 0.95f, midZ);
-            body.rotation = Quaternion.LookRotation(Vector3.right);
             avatar = body;
             avatarRenderer = body.GetComponent<Renderer>();
 
@@ -345,18 +539,19 @@ namespace AftershockIsle.Expedition
             _ => new Color(0.3f, 0.6f, 0.95f),
         };
 
-        Transform Make(PrimitiveType type, string objectName, Color color, Transform parent)
+        /// <summary>Renkli ilkel nesne. solid: collider'ı kalır (kâşif çarpar; ileride mermi ve görüş hattını keser).</summary>
+        Transform Make(PrimitiveType type, string objectName, Color color, Transform parent, bool solid = false)
         {
             var go = GameObject.CreatePrimitive(type);
             go.name = objectName;
             var collider = go.GetComponent<Collider>();
-            if (collider != null) Destroy(collider);
+            if (collider != null && !solid) Destroy(collider);
             go.transform.SetParent(parent, true);
             Tint(go.GetComponent<Renderer>(), color);
             return go.transform;
         }
 
-        void Tint(Renderer target, Color color)
+        public void Tint(Renderer target, Color color)
         {
             block ??= new MaterialPropertyBlock();
             target.GetPropertyBlock(block);
@@ -369,8 +564,6 @@ namespace AftershockIsle.Expedition
         void Update()
         {
             if (!IsActive) return;
-
-            GameInput.RefreshActiveDevice();
 
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
@@ -386,20 +579,28 @@ namespace AftershockIsle.Expedition
             }
 
             // Sığınağa bakarken kâşif yerinde bekler (karakter kontrolü sadece saha görünümünde).
-            bool controlling = SideViewCamera.ViewingField;
-            Vector2 input = controlling ? GameInput.FieldMove : Vector2.zero;
+            bool controlling = SideViewCamera.ViewingField && !ModalMenu.IsOpen;
+            Vector2 input = controlling ? GameInput.CharacterMove : Vector2.zero;
+
+            fireCooldown -= dt;
+            UpdateAim(controlling);
 
             if (controlling)
             {
-                if (GameInput.FieldDodgePressed) TryDodge(input);
-                if (GameInput.FieldHealPressed) UseMedkit();
-                if (GameInput.FieldInteractPressed) Interact();
+                if (GameInput.DodgePressed) TryDodge(input);
+                if (GameInput.HealPressed) UseMedkit();
+                if (GameInput.InteractPressed) Interact();
+                if (GameInput.SwitchWeaponPressed) SwitchWeapon();
+                if (GameInput.FirePressed) TryFire();
             }
 
             UpdateMovement(input, dt);
+            foreach (var enemy in enemies) enemy.Tick(dt);
+            UpdateTracers(dt);
             UpdateSearch(input, dt);
             UpdateFlash(dt);
             foreach (var spot in spots) spot.Refresh(Tint);
+            foreach (var building in buildings) building.UpdateCutaway(avatarRoot.position);
             UpdateFloaters(dt);
 
             if (explorer.IsDead) Outcome = FieldOutcome.Died;
@@ -421,55 +622,27 @@ namespace AftershockIsle.Expedition
                 velocity = Vector3.MoveTowards(velocity, desired, Acceleration * dt);
             }
 
-            avatar.position = ResolveCollisions(avatar.position + velocity * dt);
+            controller.Move(velocity * dt);
 
-            var flat = new Vector3(velocity.x, 0f, velocity.z);
+            // Nişan alırken nişan yönüne bakar (geri geri yürüyerek ateş edilebilir), almıyorsa yürüdüğü yöne.
+            var flat = aiming ? aimDirection : new Vector3(velocity.x, 0f, velocity.z);
             if (flat.sqrMagnitude > 0.05f)
-                avatar.rotation = Quaternion.RotateTowards(avatar.rotation, Quaternion.LookRotation(flat), TurnSpeed * dt);
-        }
+                avatarRoot.rotation = Quaternion.RotateTowards(avatarRoot.rotation, Quaternion.LookRotation(flat), TurnSpeed * dt);
 
-        // Kâşif bir daire; engeller eksene hizalı dikdörtgen. Daire dikdörtgenin dışına itilir, sonra alan sınırına kenetlenir.
-        Vector3 ResolveCollisions(Vector3 position)
-        {
-            var point = new Vector2(position.x, position.z);
-
-            for (int pass = 0; pass < 2; pass++)
+            // Çarpışma kayması kökü hafifçe yukarı itebilir; saha düz, yükseklik sabit tutulur.
+            if (Mathf.Abs(avatarRoot.position.y - groundY) > 0.01f)
             {
-                foreach (var obstacle in obstacles)
-                {
-                    var offset = point - obstacle.Center;
-                    var closest = new Vector2(
-                        Mathf.Clamp(offset.x, -obstacle.Half.x, obstacle.Half.x),
-                        Mathf.Clamp(offset.y, -obstacle.Half.y, obstacle.Half.y));
-                    var away = offset - closest;
-                    float distance = away.magnitude;
-
-                    if (distance >= AvatarRadius) continue;
-
-                    if (distance > 0.0001f)
-                    {
-                        point += away / distance * (AvatarRadius - distance);
-                        continue;
-                    }
-
-                    // Merkez dikdörtgenin içinde: en kısa eksenden dışarı çıkar.
-                    float pushX = obstacle.Half.x - Mathf.Abs(offset.x) + AvatarRadius;
-                    float pushZ = obstacle.Half.y - Mathf.Abs(offset.y) + AvatarRadius;
-                    if (pushX < pushZ) point.x += Mathf.Sign(offset.x == 0f ? 1f : offset.x) * pushX;
-                    else point.y += Mathf.Sign(offset.y == 0f ? 1f : offset.y) * pushZ;
-                }
+                controller.enabled = false;
+                avatarRoot.position = new Vector3(avatarRoot.position.x, groundY, avatarRoot.position.z);
+                controller.enabled = true;
             }
-
-            point.x = Mathf.Clamp(point.x, originX - 0.2f, MaxX - AvatarRadius);
-            point.y = Mathf.Clamp(point.y, minZ, maxZ);
-            return new Vector3(point.x, position.y, point.y);
         }
 
         void TryDodge(Vector2 input)
         {
             if (IsDodging || dodgeCooldown > 0f) return;
 
-            dodgeDirection = input.sqrMagnitude > 0.04f ? new Vector3(input.x, 0f, input.y) : avatar.forward;
+            dodgeDirection = input.sqrMagnitude > 0.04f ? new Vector3(input.x, 0f, input.y) : avatarRoot.forward;
             dodgeDirection.y = 0f;
             dodgeDirection.Normalize();
 
@@ -477,6 +650,204 @@ namespace AftershockIsle.Expedition
             dodgeCooldown = DodgeCooldown;
             CancelSearch(false);
             Tint(avatarRenderer, new Color(0.75f, 0.9f, 1f));
+        }
+
+        // ---------------------------------------------------------------- Silah
+
+        public Vector3 AvatarFeet => avatarRoot != null ? avatarRoot.position : Vector3.zero;
+        public Vector3 AvatarChest => AvatarFeet + Vector3.up * 1.25f;
+        Vector3 Muzzle => AvatarChest + aimDirection * 0.4f;
+        WeaponInfo CurrentWeapon => FieldWeapons.Get(weapon);
+
+        // Gamepad: sağ çubuk; fare: imlecin göğüs hizasındaki düzlemde gösterdiği nokta. İkisi de yoksa baktığı yön.
+        void UpdateAim(bool controlling)
+        {
+            aiming = false;
+            if (controlling)
+            {
+                var stick = GameInput.AimStick;
+                if (stick != Vector2.zero)
+                {
+                    aimDirection = new Vector3(stick.x, 0f, stick.y).normalized;
+                    aiming = true;
+                }
+                else if (!GameInput.UsingGamepad && cam != null)
+                {
+                    var ray = cam.ScreenPointToRay(GameInput.PointerPosition);
+                    float planeY = AvatarChest.y;
+                    if (Mathf.Abs(ray.direction.y) > 0.0001f)
+                    {
+                        float t = (planeY - ray.origin.y) / ray.direction.y;
+                        var flat = ray.GetPoint(t) - AvatarChest;
+                        flat.y = 0f;
+                        if (t > 0f && flat.sqrMagnitude > 0.04f)
+                        {
+                            aimDirection = flat.normalized;
+                            aiming = true;
+                        }
+                    }
+                }
+            }
+            if (!aiming) aimDirection = avatarRoot.forward;
+
+            UpdateAimLine(controlling);
+        }
+
+        void UpdateAimLine(bool show)
+        {
+            if (aimLine == null) aimLine = Make(PrimitiveType.Cube, "Nişan Çizgisi", new Color(1f, 0.3f, 0.25f), root.transform);
+            aimLine.gameObject.SetActive(show && aiming);
+            if (!aimLine.gameObject.activeSelf) return;
+
+            float range = CurrentWeapon.Range;
+            float length = Physics.Raycast(Muzzle, aimDirection, out var hit, range, ~0, QueryTriggerInteraction.Ignore) ? hit.distance : range;
+            PlaceLine(aimLine, Muzzle, aimDirection, length, 0.03f);
+        }
+
+        static void PlaceLine(Transform line, Vector3 from, Vector3 direction, float length, float thickness)
+        {
+            line.position = from + direction * (length * 0.5f);
+            line.rotation = Quaternion.LookRotation(direction);
+            line.localScale = new Vector3(thickness, thickness, length);
+        }
+
+        void SwitchWeapon()
+        {
+            var next = weapon == WeaponKind.Slingshot ? WeaponKind.Pistol : WeaponKind.Slingshot;
+            if (!FieldWeapons.IsAvailable(next))
+            {
+                Say("Tabanca yok: tezgahta (Kademe 2) üretilir.");
+                return;
+            }
+            weapon = next;
+            Say($"Silah: {CurrentWeapon.Name}");
+        }
+
+        void TryFire()
+        {
+            if (fireCooldown > 0f || IsDodging || searchTarget != null) return;
+
+            var info = CurrentWeapon;
+            if (info.UsesAmmo && (Workbench.Instance == null || !Workbench.Instance.TryUseAmmo()))
+            {
+                Say("Mermi yok! Tezgahta Mermi Paketi üret ya da sapana geç.");
+                fireCooldown = 0.3f;
+                return;
+            }
+
+            fireCooldown = info.Interval;
+            var direction = Quaternion.Euler(0f, Random.Range(-info.Spread, info.Spread), 0f) * aimDirection;
+            var from = Muzzle;
+
+            float length = info.Range;
+            if (Physics.Raycast(from, direction, out var hit, info.Range, ~0, QueryTriggerInteraction.Ignore))
+            {
+                length = hit.distance;
+                if (enemyByCollider.TryGetValue(hit.collider, out var enemy) && !enemy.IsDead)
+                {
+                    enemy.TakeHit(info.Damage, AvatarFeet);
+                    Float($"-{info.Damage:0}", hit.point + Vector3.up * 0.5f, Color.white);
+                }
+            }
+
+            ShowTracer(from, direction, length, new Color(1f, 0.9f, 0.5f));
+            if (info.Noise > 0f) MakeNoise(AvatarFeet, info.Noise);
+        }
+
+        void ShowTracer(Vector3 from, Vector3 direction, float length, Color color)
+        {
+            var line = Make(PrimitiveType.Cube, "İz", color, root.transform);
+            PlaceLine(line, from, direction, length, 0.05f);
+            tracers.Add(new Tracer { Line = line, Remaining = 0.06f });
+        }
+
+        void UpdateTracers(float dt)
+        {
+            for (int i = tracers.Count - 1; i >= 0; i--)
+            {
+                var tracer = tracers[i];
+                tracer.Remaining -= dt;
+                if (tracer.Remaining > 0f)
+                {
+                    tracers[i] = tracer;
+                    continue;
+                }
+                if (tracer.Line != null) Destroy(tracer.Line.gameObject);
+                tracers.RemoveAt(i);
+            }
+        }
+
+        /// <summary>Atış sesi: yarıçaptaki düşmanlar sesin geldiği yere bakmaya gider.</summary>
+        void MakeNoise(Vector3 position, float radius)
+        {
+            foreach (var enemy in enemies)
+                if (!enemy.IsDead && Vector3.Distance(enemy.Position, position) <= radius) enemy.Hear(position);
+        }
+
+        // ---------------------------------------------------------------- Düşmanların kullandığı
+
+        /// <summary>İki nokta arasında duvar, araba, kasa yığını yoksa true (kâşifin kendisi engel sayılmaz).</summary>
+        public bool HasLineOfSight(Vector3 from, Vector3 to)
+        {
+            if (!Physics.Linecast(from, to, out var hit, ~0, QueryTriggerInteraction.Ignore)) return true;
+            return hit.collider == controller;
+        }
+
+        public void AlertAllies(FieldEnemy source, Vector3 position, float radius)
+        {
+            foreach (var enemy in enemies)
+                if (enemy != source && !enemy.IsDead && Vector3.Distance(enemy.Position, position) <= radius) enemy.Hear(AvatarFeet);
+        }
+
+        public void Spotted(FieldEnemy enemy) =>
+            Float("!", enemy.Position + Vector3.up * (enemy.LabelHeight + 0.3f), new Color(1f, 0.4f, 0.3f));
+
+        public void ShowAimLine(FieldEnemy enemy, Vector3 from, Vector3 direction, float range, bool locked)
+        {
+            if (!enemyAimLines.TryGetValue(enemy, out var line) || line == null)
+            {
+                line = Make(PrimitiveType.Cube, "Düşman Nişanı", Color.red, root.transform);
+                enemyAimLines[enemy] = line;
+            }
+
+            float length = Physics.Raycast(from, direction, out var hit, range, ~0, QueryTriggerInteraction.Ignore) ? hit.distance : range;
+            line.gameObject.SetActive(true);
+            Tint(line.GetComponent<Renderer>(), locked ? new Color(1f, 0.1f, 0.1f) : new Color(0.8f, 0.3f, 0.3f));
+            PlaceLine(line, from, direction, length, locked ? 0.06f : 0.025f);
+        }
+
+        public void HideAimLine(FieldEnemy enemy)
+        {
+            if (enemyAimLines.TryGetValue(enemy, out var line) && line != null) line.gameObject.SetActive(false);
+        }
+
+        public void EnemyShoot(FieldEnemy enemy, Vector3 from, Vector3 direction, float range, float damage)
+        {
+            float length = range;
+            if (Physics.Raycast(from, direction, out var hit, range, ~0, QueryTriggerInteraction.Ignore))
+            {
+                length = hit.distance;
+                if (hit.collider == controller) DamageAvatar(damage, $"Seferde {enemy.Label} tarafından vuruldu.");
+            }
+            ShowTracer(from, direction, length, new Color(1f, 0.5f, 0.3f));
+            MakeNoise(enemy.Position, 10f);
+        }
+
+        public void OnEnemyKilled(FieldEnemy enemy)
+        {
+            var at = enemy.Position + Vector3.up * enemy.LabelHeight;
+            Float($"{enemy.Label} düştü", at, new Color(1f, 0.85f, 0.3f));
+
+            if (enemy.Kind == FieldEnemyKind.Gunner && Workbench.Instance != null)
+            {
+                Workbench.Instance.AddAmmo(3);
+                Float("+3 mermi", at + Vector3.up * 0.5f, new Color(1f, 0.9f, 0.5f));
+            }
+            else if (enemy.Kind != FieldEnemyKind.Dog && Random.value < 0.35f)
+            {
+                AddLoot(new ResourceAmount(ResourceType.Supplies, 1));
+                Float("+1 Yaşam Kiti", at + Vector3.up * 0.5f, ResourceType.Supplies.ToColor());
+            }
         }
 
         // ---------------------------------------------------------------- Etkileşim
@@ -544,7 +915,7 @@ namespace AftershockIsle.Expedition
             var toSpot = searchTarget.Position - avatar.position;
             toSpot.y = 0f;
             if (toSpot.sqrMagnitude > 0.01f)
-                avatar.rotation = Quaternion.RotateTowards(avatar.rotation, Quaternion.LookRotation(toSpot), TurnSpeed * dt);
+                avatarRoot.rotation = Quaternion.RotateTowards(avatarRoot.rotation, Quaternion.LookRotation(toSpot), TurnSpeed * dt);
 
             float speed = explorer.Condition.SpeedMultiplier * (explorer.Branch == SkillBranch.Exploration ? 1.4f : 1f);
             searchProgress += dt * speed;
@@ -690,7 +1061,7 @@ namespace AftershockIsle.Expedition
 
         void OnGUI()
         {
-            if (!IsActive || !SideViewCamera.ViewingField || cam == null) return;
+            if (!IsActive || !SideViewCamera.ViewingField || ModalMenu.IsOpen || cam == null) return;
 
             centered ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 12, fontStyle = FontStyle.Bold };
             small ??= new GUIStyle(GUI.skin.label) { fontSize = 12, wordWrap = true };
@@ -705,6 +1076,15 @@ namespace AftershockIsle.Expedition
         void DrawWorldLabels()
         {
             DrawLabel(exitPoint + Vector3.up * 2.9f, "ÇIKIŞ", new Color(0.5f, 1f, 0.6f));
+
+            foreach (var enemy in enemies)
+            {
+                if (enemy.IsDead) continue;
+                string icon = enemy.IsAlerted ? "! " : enemy.IsInvestigating ? "? " : "";
+                var top = enemy.Position + Vector3.up * enemy.LabelHeight;
+                DrawLabel(top + Vector3.up * 0.25f, icon + enemy.Label, enemy.IsAlerted ? new Color(1f, 0.5f, 0.4f) : new Color(0.9f, 0.85f, 0.75f));
+                DrawBar(top, enemy.Health01, Color.red, 44);
+            }
 
             foreach (var spot in spots)
             {
@@ -727,7 +1107,7 @@ namespace AftershockIsle.Expedition
         {
             if (searchTarget != null) return;
 
-            string key = GameInput.Prompt(FieldPrompt.Interact);
+            string key = GameInput.Prompt(InputPrompt.Interact);
             string text;
             Vector3 anchor = avatar.position;
 
@@ -781,15 +1161,19 @@ namespace AftershockIsle.Expedition
         void DrawPanel()
         {
             const float width = 440f;
-            var rect = new Rect((Screen.width - width) * 0.5f, 10, width, 92);
+            var rect = new Rect((Screen.width - width) * 0.5f, 10, width, 112);
             GUI.Box(rect, GUIContent.none);
             GUILayout.BeginArea(new Rect(rect.x + 8, rect.y + 6, rect.width - 16, rect.height - 12));
 
-            GUILayout.Label($"SAHA: {site.name} — {explorer.DisplayName}   Kalan: {Mathf.CeilToInt(Remaining)} sn", centered);
+            string place = InsideBuilding ? "   [BİNA İÇİ]" : "";
+            GUILayout.Label($"SAHA: {site.name} — {explorer.DisplayName}   Kalan: {Mathf.CeilToInt(Remaining)} sn{place}", centered);
             float health = explorer.Health / explorer.MaxHealth;
             DrawBarRect(GUILayoutUtility.GetRect(width - 16f, 10f), health, Color.Lerp(Color.red, Color.green, health));
             GUILayout.Label($"Can {explorer.Health:0}/{explorer.MaxHealth:0}   Çanta {usedSlots}/{bagSlots}: {BagText()}" +
                             (RescueSecured ? "   [Kazazede kurtarıldı]" : ""), small);
+            var info = CurrentWeapon;
+            string ammo = info.UsesAmmo ? $"   Mermi: {(Workbench.Instance != null ? Workbench.Instance.Ammo : 0)}" : "   (sessiz, sınırsız)";
+            GUILayout.Label($"Silah: {info.Name}{ammo}", small);
             if (messageTimer > 0f && message != null) GUILayout.Label(message, small);
 
             GUILayout.EndArea();
@@ -800,9 +1184,11 @@ namespace AftershockIsle.Expedition
             var storage = ResourceStorage.Instance;
             int kits = storage != null ? storage.Get(ResourceType.Supplies) : 0;
             string text =
-                $"{GameInput.Prompt(FieldPrompt.Move)}: yürü    {GameInput.Prompt(FieldPrompt.Dodge)}: kaçış    " +
-                $"{GameInput.Prompt(FieldPrompt.Interact)}: etkileşim    {GameInput.Prompt(FieldPrompt.Heal)}: ilk yardım ({kits} kit)    " +
-                $"{GameInput.Prompt(FieldPrompt.ViewSwitch)}: sığınağa bak";
+                $"{GameInput.Prompt(InputPrompt.Move)}: yürü    {GameInput.Prompt(InputPrompt.Aim)}: nişan    " +
+                $"{GameInput.Prompt(InputPrompt.Fire)}: ateş    {GameInput.Prompt(InputPrompt.SwitchWeapon)}: silah    " +
+                $"{GameInput.Prompt(InputPrompt.Dodge)}: kaçış    " +
+                $"{GameInput.Prompt(InputPrompt.Interact)}: etkileşim    {GameInput.Prompt(InputPrompt.Heal)}: ilk yardım ({kits} kit)    " +
+                $"{GameInput.Prompt(InputPrompt.SwitchCharacter)}: sığınağa dön";
             GUI.Label(new Rect(0, Screen.height - 30, Screen.width, 24), text, centered);
         }
 

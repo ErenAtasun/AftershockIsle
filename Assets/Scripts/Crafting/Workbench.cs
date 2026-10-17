@@ -33,6 +33,10 @@ namespace AftershockIsle.Crafting
 
         public int Tier { get; private set; } = 1;
         public int SteelBeams { get; private set; }
+        /// <summary>Dış sefer tabanca mermisi (Mermi Paketi ile üretilir).</summary>
+        public int Ammo { get; private set; }
+
+        public const int AmmoPerPack = 8;
         public RecipeInfo? PendingOrder => pending;
 
         public static bool Has(RecipeId id) => Instance != null && Instance.crafted.Contains(id);
@@ -43,6 +47,7 @@ namespace AftershockIsle.Crafting
         public override bool RequiresEmptyHands => true;
         public override string StatusText =>
             $"Kademe {Tier}" + (SteelBeams > 0 ? $"   Stokta çelik kiriş: {SteelBeams}" : "") +
+            (Ammo > 0 ? $"   Mermi: {Ammo}" : "") +
             (pending.HasValue ? $"\nSipariş: {pending.Value.Name}" : "");
 
         protected override void Awake()
@@ -107,11 +112,22 @@ namespace AftershockIsle.Crafting
                 case RecipeId.UpgradeTier2: Tier = Mathf.Max(Tier, 2); break;
                 case RecipeId.UpgradeTier3: Tier = Mathf.Max(Tier, 3); break;
                 case RecipeId.SteelBeam: SteelBeams++; break;
+                case RecipeId.AmmoPack: Ammo += AmmoPerPack; break;
             }
 
             crafted.Add(recipe.Id);
             EventBus.Publish(new RecipeCrafted(recipe.Id));
         }
+
+        public bool TryUseAmmo()
+        {
+            if (Ammo <= 0) return false;
+            Ammo--;
+            return true;
+        }
+
+        /// <summary>Sahada düşmandan toplanan mermi.</summary>
+        public void AddAmmo(int amount) => Ammo += Mathf.Max(0, amount);
 
         public bool TryUseSteelBeam()
         {

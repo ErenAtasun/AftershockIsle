@@ -5,7 +5,7 @@ using UnityEngine.SceneManagement;
 namespace AftershockIsle.UI
 {
     /// <summary>
-    /// Esc ile açılan duraklatma menüsü: devam, yeniden başla, ana menü, çıkış.
+    /// Esc / Start ile açılan duraklatma menüsü: devam, yeniden başla, ana menü, çıkış. Gamepad ile gezilir.
     /// Açıkken oyun donar ve klavye kısayolları (Space/1/2) çalışmaz; oyun bitmişse zamana dokunmaz.
     /// </summary>
     public class PauseMenu : MonoBehaviour
@@ -19,6 +19,7 @@ namespace AftershockIsle.UI
         TimeSpeed resumeSpeed;
         GUIStyle titleStyle;
         GUIStyle buttonStyle;
+        readonly MenuNav nav = new MenuNav();
 
         void Awake()
         {
@@ -29,6 +30,10 @@ namespace AftershockIsle.UI
         void Update()
         {
             if (GameInput.EscapePressed) SetOpen(!open);
+            if (!open) return;
+
+            nav.Tick();
+            if (GameInput.MenuBackPressed && session.Outcome == GameOutcome.None) SetOpen(false);
         }
 
         void OnDisable()
@@ -40,6 +45,7 @@ namespace AftershockIsle.UI
         {
             if (open == value) return;
             open = value;
+            if (open) nav.Reset();
 
             if (session.Outcome != GameOutcome.None) return;
 
@@ -83,18 +89,19 @@ namespace AftershockIsle.UI
             GUI.Label(new Rect(x, y, width, 50), "DURAKLATILDI", titleStyle);
             y += 70f;
 
+            nav.BeginDraw();
             bool ended = session.Outcome != GameOutcome.None;
-            if (!ended && Button(ref y, x, width, "Devam Et")) SetOpen(false);
-            if (Button(ref y, x, width, "Yeniden Başla")) SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
-            if (Button(ref y, x, width, "Ana Menü")) SceneManager.LoadScene(MainMenuScene);
-            if (Button(ref y, x, width, "Çık")) QuitGame();
+            if (!ended) Button(ref y, x, width, "Devam Et", () => SetOpen(false));
+            Button(ref y, x, width, "Yeniden Başla", () => SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex));
+            Button(ref y, x, width, "Ana Menü", () => SceneManager.LoadScene(MainMenuScene));
+            Button(ref y, x, width, "Çık", QuitGame);
+            nav.EndDraw();
         }
 
-        bool Button(ref float y, float x, float width, string text)
+        void Button(ref float y, float x, float width, string text, System.Action onActivate)
         {
-            bool clicked = GUI.Button(new Rect(x, y, width, 46), text, buttonStyle) && Event.current.button == 0;
+            nav.Button(new Rect(x, y, width, 46), new GUIContent(text), onActivate, true, buttonStyle);
             y += 56f;
-            return clicked;
         }
 
         public static void QuitGame()

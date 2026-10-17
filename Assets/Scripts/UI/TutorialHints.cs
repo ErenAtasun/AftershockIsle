@@ -35,11 +35,17 @@ namespace AftershockIsle.UI
         float currentUntil;
         bool tutorialEnabled = true;
         bool helpOpen;
-        Rect helpRect = new Rect(0, 0, 520, 420);
+        Rect helpRect = new Rect(0, 0, 620, 520);
         GUIStyle wrapStyle;
         GUIStyle titleStyle;
         float startDelay = 1.5f;
         bool welcomed;
+
+        // Hoş geldin ipucu ilk sırada olsun: oyun başında otomatik seçim de bir ipucu tetikler.
+        void Awake() =>
+            Show("welcome", "Aftershock: Isle",
+                    "Binayı ayakta tut, kazazedeleri hayatta tut, çatıdan helikopterle tahliye ol. Tab / LB-RB ile karakter seç, WASD / sol çubukla yürüt, " +
+                    "F / A ile yanındaki işi yaptır (moloz kaz, kolon destekle). Space / Y zamanı durdurur. H / D-pad sol: kontrol rehberi. Fare de çalışır.");
 
         void OnEnable()
         {
@@ -81,13 +87,13 @@ namespace AftershockIsle.UI
         {
             if (evt.Survivor == null) return;
             Show("select", "Çatlak kolonlar",
-                "Turuncu (çatlak) kolonlar sarsıntıda kırılır. Kolona sağ tıkla: 2 Kalas ile ahşap destek dikilir. " +
+                "Turuncu (çatlak) kolonlar sarsıntıda kırılır. Kolonla etkileş (F / A ya da sağ tık): 2 Kalas ile ahşap destek dikilir. " +
                 "Kalası molozlardan kazarak bulursun; karakter malzemeyi kendisi sandığa taşır.");
         }
 
         void OnRubbleCleared(RubbleCleared evt) => Show("rubble", "Depo",
             "Taşınan malzeme Ortak Sandık'a bırakılınca üst taraftaki sayaca eklenir. Tezgah, tamir ve kolonlar buradan harcar. " +
-            "Shift + sağ tık ile birden fazla işi sıraya ekleyebilirsin.");
+            "Farede Shift + sağ tık ile birden fazla işi sıraya ekleyebilirsin.");
 
         void OnColumnChanged(ColumnStateChanged evt)
         {
@@ -108,15 +114,15 @@ namespace AftershockIsle.UI
         }
 
         void OnQuakeWarning(AftershockWarning evt) => Show("quake", "Artçı sarsıntı!",
-            "Space ile zamanı durdur ve karakterleri yeşil parlayan Yaşam Üçgeni alanlarına gönder (sağlam kolon dibi, mobilya önü). " +
+            "Zamanı durdur (Space / Y) ve karakterleri yeşil parlayan Yaşam Üçgeni alanlarına gönder (sağlam kolon dibi, mobilya önü). " +
             "Açıkta kalan hasar alır ve enkaz altında kalır. Mobilyayı parçalarsan sığınak kaybolur.");
 
         void OnPipeBurst(PipeBurst evt) => Show("pipe", "Su baskını",
-            "Doğru sıra: 1) Giriş katından şalteri indir (su elektriklenmesin), 2) Bodrumda tulumbayı pompala (Q/E'ye dönüşümlü bas), " +
+            "Doğru sıra: 1) Giriş katından şalteri indir (su elektriklenmesin), 2) Bodrumda tulumbayı pompala (Q/E ya da LT/RT'ye dönüşümlü bas), " +
             "3) Boruyu kaynakla, 4) Şalteri kaldır. Su %100'de 45 sn kalırsa bina yıkılır.");
 
         void OnFireStarted(FireStarted evt) => Show("fire", "Yangın!",
-            "Yangına sağ tıkla: karakter kova doldurup atar (bodrum suyu ya da Su Bidonu). Duman %50'yi geçince kata girilemez; " +
+            "Yangınla etkileş: karakter kova doldurup atar (bodrum suyu ya da Su Bidonu). Duman %50'yi geçince kata girilemez; " +
             "arka duvardaki pencereyi kır. Yangın 60 sn tam güçte kalırsa tavan çöker.");
 
         void OnUpkeep(UpkeepResolved evt)
@@ -158,6 +164,7 @@ namespace AftershockIsle.UI
         void Update()
         {
             if (GameInput.HelpTogglePressed) helpOpen = !helpOpen;
+            if (hasCurrent && GameInput.DismissHintPressed) hasCurrent = false;
 
             if (!welcomed)
             {
@@ -165,9 +172,6 @@ namespace AftershockIsle.UI
                 if (startDelay > 0f) return;
 
                 welcomed = true;
-                Show("welcome", "Aftershock: Isle",
-                    "Binayı ayakta tut, kazazedeleri hayatta tut, çatıdan helikopterle tahliye ol. Önce bir karakteri sol tıkla seç, sonra sağ tıkla: " +
-                    "boşluğa yürür, nesneye (moloz, kolon) iş verir. Space zamanı durdurur. H: kontrol rehberi.");
             }
 
             if (!hasCurrent && queue.Count > 0)
@@ -202,7 +206,7 @@ namespace AftershockIsle.UI
             GUILayout.Label(current.Text, wrapStyle);
             GUILayout.FlexibleSpace();
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Tamam", GUILayout.Width(90)) && Event.current.button == 0) hasCurrent = false;
+            if (GUILayout.Button(GameInput.UsingGamepad ? "Tamam (D-pad ↓)" : "Tamam", GUILayout.Width(120)) && Event.current.button == 0) hasCurrent = false;
             if (GUILayout.Button("İpuçlarını kapat", GUILayout.Width(130)) && Event.current.button == 0)
             {
                 tutorialEnabled = false;
@@ -218,24 +222,32 @@ namespace AftershockIsle.UI
             helpRect.x = (Screen.width - helpRect.width) * 0.5f;
             helpRect.y = (Screen.height - helpRect.height) * 0.5f;
             UIBlocker.Add(helpRect);
-            GUI.Window(HelpWindowId, helpRect, DrawHelpContents, "Kontrol Rehberi   (H: kapat)");
+            GUI.Window(HelpWindowId, helpRect, DrawHelpContents, $"Kontrol Rehberi   ({GameInput.Prompt(InputPrompt.Help)}: kapat)");
         }
 
         void DrawHelpContents(int id)
         {
             string[] lines =
             {
-                "FARE",
-                "  Sol tık: karakter seç (boşa tıklamak seçimi kaldırır)",
-                "  Sağ tık: boşluğa yürü / nesneye iş ver    Shift + sağ tık: işi sıraya ekle",
-                "ZAMAN",
-                "  Space: duraklat (duraklatmada da emir verilir)    1: normal hız    2: hızlı",
-                "KAMERA",
-                "  WASD / oklar: kaydır    F: seçili karaktere odaklan    Tekerlek: yakınlaş",
-                "PENCERELER",
-                "  K: yetenek ağacı    H: bu rehber    Tezgaha sağ tık: üretim menüsü",
-                "MİNİ OYUN",
-                "  Tulumbada çalışırken Q ve E'ye dönüşümlü bas: daha hızlı pompalar",
+                "SIĞINAK                    klavye                       gamepad",
+                "  Karakter yürüt           WASD / oklar                 sol çubuk",
+                "  Merdiven çık / in        W / S (en yakın merdiven)    çubuk yukarı / aşağı",
+                "  En yakın işi yap         F                            A",
+                "  İşi bırak, dur           X                            B",
+                "  Karakter değiştir        Tab / Shift+Tab              RB / LB",
+                "  Duraklat / hız           Space, 1 / 2                 Y, X",
+                "  Kamera kaydır / yakınlaş  (seçim yokken WASD), tekerlek  sağ çubuk",
+                "  Yetenekler / rehber      K / H                        D-pad sağ / sol",
+                "  Tulumba ritmi            Q / E                        LT / RT",
+                "  Fare: sol tık seç, sağ tık iş ver ya da yürü, Shift + sağ tık sıraya ekle.",
+                "DIŞ SAHA",
+                "  Yürü / nişan / ateş      WASD / fare / sol tık        sol çubuk / sağ çubuk / RT",
+                "  Silah değiştir           Q                            X",
+                "  Kaçış / ara / ilk yardım  Space / F / R                B / A / Y",
+                "  Düşmanlar görünce (!) kovalar, sesi duyunca (?) bakmaya gelir. Tabanca gürültülü, sapan sessiz.",
+                "  Sığınağa dön             Tab                          RB / LB ya da Select",
+                "MENÜLER",
+                "  Gez / seç / kapat        oklar / Enter / Backspace    D-pad / A / B     Duraklatma menüsü: Esc / Start",
                 "HEDEF",
                 "  Tezgahı Kademe 3'e çıkar, telsizi tamir et, çatı molozunu temizle, çatı kolonlarını çelikle güçlendir,",
                 "  şalteri açık tut ve telsiz başında kesintisiz 60 sn sinyal gönder. Bütünlük %0 olursa ya da herkes ölürse kaybedersin.",

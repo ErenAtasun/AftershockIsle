@@ -7,6 +7,9 @@ namespace AftershockIsle.Interaction
     /// <summary>Katın dış penceresi. Çekiçle kırılınca o kattaki duman hızla tahliye olur.</summary>
     public class SmokeWindow : Interactable
     {
+        // Arka duvara gömülü; serbest yürüyüşte engel değil.
+        public override bool BlocksMovement => false;
+
         [SerializeField] GameObject glass;
 
         static readonly List<SmokeWindow> all = new List<SmokeWindow>();

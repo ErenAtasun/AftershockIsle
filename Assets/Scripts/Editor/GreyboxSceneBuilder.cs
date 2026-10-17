@@ -38,7 +38,8 @@ namespace AftershockIsle.EditorTools
         const float LadderOpening = 1.4f;
         const float ParapetHeight = 1f;
         const float DoorHeight = 2.4f;
-        const float LadderZ = 0.45f;
+        // Merdiven boşluğunun derinliği: döşeme sadece merdivenin çevresinde açıktır.
+        const float LadderHoleDepth = 1.8f;
 
         [MenuItem("Aftershock/Greybox Sahnesini Oluştur")]
         public static void Build()
@@ -227,6 +228,18 @@ namespace AftershockIsle.EditorTools
                     }
                     start = x + LadderOpening * 0.5f;
                 }
+
+                // Boşluğun önü ve arkası kapalı: derin odada döşeme boydan boya yarılmasın.
+                float holeMin = layout.LadderZOffset - LadderHoleDepth * 0.5f;
+                float holeMax = layout.LadderZOffset + LadderHoleDepth * 0.5f;
+                foreach (float x in openings)
+                {
+                    float y = floor * h - SlabThickness * 0.5f;
+                    Box($"Slab_{floor}_HoleFront_{x:0}", geo, new Vector3(x, y, (-d * 0.5f + holeMin) * 0.5f),
+                        new Vector3(LadderOpening, SlabThickness, holeMin + d * 0.5f), p.Concrete);
+                    Box($"Slab_{floor}_HoleBack_{x:0}", geo, new Vector3(x, y, (holeMax + d * 0.5f) * 0.5f),
+                        new Vector3(LadderOpening, SlabThickness, d * 0.5f - holeMax), p.Concrete);
+                }
             }
 
             // Arka duvarlar: katları ayırt etmek için dönüşümlü ton. Çatının arka duvarı yok.
@@ -271,7 +284,7 @@ namespace AftershockIsle.EditorTools
             foreach (var ladder in layout.Ladders)
             {
                 Box($"Ladder_{ladder.lowerFloor}_{ladder.lowerFloor + 1}", geo,
-                    new Vector3(ladder.x, ladder.lowerFloor * h + h * 0.5f, LadderZ),
+                    new Vector3(ladder.x, ladder.lowerFloor * h + h * 0.5f, layout.LadderZOffset),
                     new Vector3(0.8f, h, 0.08f), p.Ladder);
             }
 

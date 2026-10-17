@@ -4,6 +4,8 @@ using UnityEngine.Playables;
 
 namespace AftershockIsle.Characters
 {
+    public enum ToolModelKind { None, Hammer, Shovel }
+
     /// <summary>
     /// Greybox kapsülün yerine geçen iskeletli karakter modeli ve elindeki 3B silah görünümü.
     /// Oyun mantığı kapsülde (collider, hareket) kalır; model onun altına konur, boyu istenen değere göre ölçeklenir.
@@ -52,6 +54,10 @@ namespace AftershockIsle.Characters
         float currentGunLength = 0.5f;
         bool gunVisible = true;
         float fireKickTimer;
+
+        Transform toolHolder;
+        ToolModelKind currentToolKind = ToolModelKind.None;
+        float workSwingTimer;
 
         MaterialPropertyBlock block;
         Color tint = Color.white;
@@ -412,7 +418,7 @@ namespace AftershockIsle.Characters
             smoothedLocalVel = Vector3.Lerp(smoothedLocalVel, localVel, blend);
         }
 
-        // Kök hareketli klip yerinde oynasın ve silah ellerin konumuna hizalansın.
+        // Kök hareketli klip yerinde oynasın ve silah/alet ellerin konumuna hizalansın.
         void LateUpdate()
         {
             if (hips != null && graph.IsValid())
@@ -422,6 +428,92 @@ namespace AftershockIsle.Characters
             }
 
             UpdateGunPose();
+            UpdateToolPose();
+        }
+
+        // ---------------------------------------------------------------- 3B Aletler (Çekiç, Kürek)
+
+        public void TickWorkSwing(float dt) => workSwingTimer += dt;
+
+        /// <summary>Karakterin eline tamir (çekiç) veya kazma (kürek) aleti verir. Alet varken silah gizlenir.</summary>
+        public void SetTool(ToolModelKind kind)
+        {
+            if (currentToolKind == kind && (kind == ToolModelKind.None || toolHolder != null)) return;
+            currentToolKind = kind;
+
+            if (toolHolder != null)
+            {
+                Destroy(toolHolder.gameObject);
+                toolHolder = null;
+            }
+
+            if (kind == ToolModelKind.None)
+            {
+                if (gunHolder != null && gunVisible) gunHolder.gameObject.SetActive(true);
+                return;
+            }
+
+            if (gunHolder != null) gunHolder.gameObject.SetActive(false);
+
+            toolHolder = new GameObject($"Alet_{kind}").transform;
+            toolHolder.SetParent(transform, false);
+
+            var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+
+            if (kind == ToolModelKind.Hammer)
+            {
+                var handle = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                Destroy(handle.GetComponent<Collider>());
+                handle.transform.SetParent(toolHolder, false);
+                handle.transform.localScale = new Vector3(0.024f, 0.16f, 0.024f);
+                handle.transform.localPosition = new Vector3(0f, 0.08f, 0f);
+                var handleMat = new Material(shader) { color = new Color(0.42f, 0.28f, 0.16f) };
+                handle.GetComponent<Renderer>().sharedMaterial = handleMat;
+
+                var head = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                Destroy(head.GetComponent<Collider>());
+                head.transform.SetParent(toolHolder, false);
+                head.transform.localScale = new Vector3(0.06f, 0.07f, 0.14f);
+                head.transform.localPosition = new Vector3(0f, 0.22f, 0.01f);
+                var headMat = new Material(shader) { color = new Color(0.24f, 0.26f, 0.30f) };
+                head.GetComponent<Renderer>().sharedMaterial = headMat;
+            }
+            else if (kind == ToolModelKind.Shovel)
+            {
+                var handle = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                Destroy(handle.GetComponent<Collider>());
+                handle.transform.SetParent(toolHolder, false);
+                handle.transform.localScale = new Vector3(0.022f, 0.30f, 0.022f);
+                handle.transform.localPosition = new Vector3(0f, 0.15f, 0f);
+                var handleMat = new Material(shader) { color = new Color(0.48f, 0.34f, 0.20f) };
+                handle.GetComponent<Renderer>().sharedMaterial = handleMat;
+
+                var blade = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                Destroy(blade.GetComponent<Collider>());
+                blade.transform.SetParent(toolHolder, false);
+                blade.transform.localScale = new Vector3(0.14f, 0.18f, 0.024f);
+                blade.transform.localPosition = new Vector3(0f, 0.44f, 0f);
+                var bladeMat = new Material(shader) { color = new Color(0.34f, 0.37f, 0.42f) };
+                blade.GetComponent<Renderer>().sharedMaterial = bladeMat;
+            }
+
+            UpdateToolPose();
+        }
+
+        void UpdateToolPose()
+        {
+            if (toolHolder == null) return;
+            Transform basis = speedSource != null ? speedSource : transform;
+            if (rightHand == null)
+            {
+                toolHolder.position = basis.position + basis.up * 1f + basis.forward * 0.3f;
+                toolHolder.rotation = basis.rotation;
+                return;
+            }
+
+            float swing = Mathf.Sin(workSwingTimer * 14f) * 24f;
+            toolHolder.position = rightHand.position + basis.forward * 0.04f + basis.up * 0.02f;
+            toolHolder.rotation = rightHand.rotation * Quaternion.Euler(70f + swing, 0f, -25f);
         }
 
         // ---------------------------------------------------------------- 3B Silah (Low Poly Guns Pack)
@@ -484,16 +576,17 @@ namespace AftershockIsle.Characters
             var scaledBounds = WorldBounds(gunRenderers);
             gunModel.transform.position += gunHolder.position - scaledBounds.center;
 
-            gunHolder.gameObject.SetActive(gunVisible);
+            gunHolder.gameObject.SetActive(gunVisible && currentToolKind == ToolModelKind.None);
             UpdateGunPose();
         }
 
-        /// <summary>Karakter kutu/malzeme taşırken elindeki silahı geçici olarak gizler.</summary>
+        /// <summary>Karakter kutu/malzeme taşırken veya alet kullanırken elindeki silahı geçici olarak gizler.</summary>
         public void SetGunVisible(bool visible)
         {
             gunVisible = visible;
-            if (gunHolder != null && gunHolder.gameObject.activeSelf != visible)
-                gunHolder.gameObject.SetActive(visible);
+            bool shouldShow = visible && currentToolKind == ToolModelKind.None;
+            if (gunHolder != null && gunHolder.gameObject.activeSelf != shouldShow)
+                gunHolder.gameObject.SetActive(shouldShow);
         }
 
         void UpdateGunPose()

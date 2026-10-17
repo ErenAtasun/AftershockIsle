@@ -25,7 +25,8 @@ namespace AftershockIsle.Crafting
         BackupGenerator = 18,
         Smg = 19,
         AssaultRifle = 20,
-        SniperRifle = 21
+        SniperRifle = 21,
+        ReinforcedDoor = 22
     }
 
     public readonly struct RecipeInfo
@@ -184,6 +185,10 @@ namespace AftershockIsle.Crafting
             // 21: SniperRifle (Ekipman / Silah)
             new RecipeInfo(RecipeId.SniperRifle, 3, "Keskin Nişancı Tüfeği", "Dış seferde çok uzun menzil, nokta atışı isabet ve yıkıcı tek atış hasarı sağlar.",
                 new[] { R(ResourceType.Metal, 3), R(ResourceType.Electronics, 2) }, 14f),
+
+            // 22: ReinforcedDoor (Bina güçlendirmesi)
+            new RecipeInfo(RecipeId.ReinforcedDoor, 2, "Çelik Kapı Barikatı", "Giriş kapısını çelik levhalarla güçlendirir: gece yağmacı baskınlarında savunmaya +40 ekler; nöbetçi olmasa bile kapı çoğu zorlamaya dayanır.",
+                new[] { R(ResourceType.Metal, 3), R(ResourceType.Scrap, 2) }, 10f),
         };
 
         public static RecipeInfo Get(RecipeId id) => All[(int)id];

@@ -35,6 +35,7 @@ namespace AftershockIsle.Save
         public int currentWeather;
         public List<int> triggeredNarrativeDays = new List<int>();
         public int motherGiftDueDay = -1;
+        public int raiderAttention;
     }
 
     [Serializable]

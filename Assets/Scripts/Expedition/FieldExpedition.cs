@@ -346,6 +346,7 @@ namespace AftershockIsle.Expedition
             CancelSearch(false);
             Tint(avatarRenderer, new Color(0.75f, 0.9f, 1f));
             ViewFor(avatarRenderer)?.PlayJump();
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.Dodge, 0.75f);
         }
     }
 }

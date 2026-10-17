@@ -189,6 +189,7 @@ namespace AftershockIsle.Crisis
             var storage = ResourceStorage.Instance;
             if (storage == null) return;
 
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.DoorKnock, 0.9f);
             var encounter = new ActiveEncounter();
 
             switch (encounterIndex)
@@ -362,7 +363,8 @@ namespace AftershockIsle.Crisis
                         Enabled = true,
                         OnSelect = () =>
                         {
-                            PublishNotice("Yabancı tehditler savurarak kapıdan uzaklaştı, sığınak güvende kaldı.");
+                            NightDefenseSystem.RaiseAttention(25);
+                            PublishNotice("Yabancı tehditler savurarak kapıdan uzaklaştı. Sığınağın yerini artık yağmacılar biliyor olabilir...");
                             CloseModal();
                         }
                     });
@@ -414,9 +416,62 @@ namespace AftershockIsle.Crisis
 
         void PublishNotice(string msg) => EventBus.Publish(new NarrativeNotice(msg));
 
+        /// <summary>Başka sistemlerin (ör. gece savunması) aynı seçim penceresini kullanması için seçenek.</summary>
+        public struct ExternalChoice
+        {
+            public string Label;
+            public bool Enabled;
+            public System.Action OnSelect;
+
+            public ExternalChoice(string label, System.Action onSelect, bool enabled = true)
+            {
+                Label = label;
+                OnSelect = onSelect;
+                Enabled = enabled;
+            }
+        }
+
+        /// <summary>Seçim penceresi açar; başka bir olay açıksa sıraya alınır. Seçim yapılınca pencere kendiliğinden kapanır.</summary>
+        public void ShowExternal(string title, string body, IList<ExternalChoice> choices)
+        {
+            var encounter = new ActiveEncounter { Title = title, Body = body };
+            foreach (var choice in choices)
+            {
+                var callback = choice.OnSelect;
+                encounter.Choices.Add(new ChoiceOption
+                {
+                    Label = choice.Label,
+                    Enabled = choice.Enabled,
+                    OnSelect = () =>
+                    {
+                        callback?.Invoke();
+                        CloseModal();
+                    }
+                });
+            }
+
+            if (activeEvent != null)
+            {
+                pendingEvents.Enqueue(encounter);
+                return;
+            }
+
+            activeEvent = encounter;
+            nav.Reset();
+            HoldTime();
+        }
+
+        readonly Queue<ActiveEncounter> pendingEvents = new Queue<ActiveEncounter>();
+
         void CloseModal()
         {
             activeEvent = null;
+            if (pendingEvents.Count > 0)
+            {
+                activeEvent = pendingEvents.Dequeue();
+                nav.Reset();
+                return;
+            }
             ReleaseTime();
         }
 
@@ -451,6 +506,7 @@ namespace AftershockIsle.Crisis
             titleStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 16, fontStyle = FontStyle.Bold };
             bodyStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 14, wordWrap = true };
 
+            windowRect.height = Mathf.Max(310f, 190f + activeEvent.Choices.Count * 40f);
             windowRect.x = (UiTheme.Width - windowRect.width) * 0.5f;
             windowRect.y = (UiTheme.Height - windowRect.height) * 0.5f;
             UIBlocker.Add(windowRect);

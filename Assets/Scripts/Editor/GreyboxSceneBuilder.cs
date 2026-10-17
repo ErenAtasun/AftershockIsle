@@ -282,10 +282,10 @@ namespace AftershockIsle.EditorTools
             // Zemin: bodrum yer altında, giriş katı sokak seviyesinde.
             float groundY = 1 * h;
             const float earthDepthBelow = 3f;
-            const float earthBack = 24f;
+            float earthBack = d + 2f * t;
             float earthHeight = groundY + earthDepthBelow;
             float earthCenterY = groundY - earthHeight * 0.5f;
-            float earthCenterZ = -d * 0.5f + earthBack * 0.5f;
+            const float earthCenterZ = 0f;
             const float sideEarthWidth = 40f;
 
             Box("Earth_L", geo, new Vector3(-outerWidth * 0.5f - sideEarthWidth * 0.5f, earthCenterY, earthCenterZ),

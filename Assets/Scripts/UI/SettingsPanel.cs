@@ -194,7 +194,7 @@ namespace AftershockIsle.UI
 
         void RefreshLabels()
         {
-            volumeLabel.text = $"Ses: %{Mathf.RoundToInt(GameSettings.Volume * 100f)}  <size=18>(ses efektleri yakında)</size>";
+            volumeLabel.text = $"Ses: %{Mathf.RoundToInt(GameSettings.Volume * 100f)}";
             pitchValue.text = $"{GameSettings.CameraPitch:0}°";
             uiScaleValue.text = $"%{Mathf.RoundToInt(GameSettings.UiScale * 100f)}";
             fullscreenValue.text = GameSettings.Fullscreen ? "Açık" : "Kapalı";

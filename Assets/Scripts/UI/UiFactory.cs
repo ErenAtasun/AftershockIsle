@@ -274,11 +274,26 @@ namespace AftershockIsle.UI
 
         void Awake() => selectable = GetComponent<Selectable>();
 
-        public void OnPointerEnter(PointerEventData eventData) => hovered = true;
+        public void OnPointerEnter(PointerEventData eventData)
+        {
+            hovered = true;
+            if (selectable == null || selectable.IsInteractable())
+                AftershockIsle.Effects.SoundManager.PlayUiHover();
+        }
         public void OnPointerExit(PointerEventData eventData) => hovered = false;
-        public void OnPointerDown(PointerEventData eventData) => pressed = true;
+        public void OnPointerDown(PointerEventData eventData)
+        {
+            pressed = true;
+            if (selectable == null || selectable.IsInteractable())
+                AftershockIsle.Effects.SoundManager.PlayUiClick();
+        }
         public void OnPointerUp(PointerEventData eventData) => pressed = false;
-        public void OnSelect(BaseEventData eventData) => selected = true;
+        public void OnSelect(BaseEventData eventData)
+        {
+            selected = true;
+            if (selectable == null || selectable.IsInteractable())
+                AftershockIsle.Effects.SoundManager.PlayUiHover();
+        }
         public void OnDeselect(BaseEventData eventData) => selected = false;
 
         void OnDisable()

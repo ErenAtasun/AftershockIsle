@@ -420,6 +420,7 @@ namespace AftershockIsle.Expedition
                 return;
             }
 
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.MeleeSwing, 0.75f);
             float distance = Flat(field.AvatarFeet - root.position).magnitude;
             if (field.CompanionCloserThanAvatar(root.position, reach + 0.3f))
                 field.DamageCompanion(damage, $"Seferde {Label} tarafından öldürüldü.");

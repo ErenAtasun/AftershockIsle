@@ -330,20 +330,23 @@ namespace AftershockIsle.EditorTools
             float h = layout.FloorHeight;
             float backZ = layout.Depth * 0.5f;
 
-            // Taşıyıcı kolonlar: bodrum, giriş ve yaşam katlarında ikişer. Yaşam katındakiler çatıyı taşır.
-            // Oyun kötü durumda başlar: bu kolonlar Lv1 Kırık, kalanlar Lv2 Çatlak.
-            var broken = new[] { (1, -3f), (2, 3f) };
-            for (int floor = 0; floor < layout.FloorCount - 1; floor++)
+            // Taşıyıcı kolonlar Blender binasında konduğu yerlerde ve seviyede durur (Building.fbx'teki "_Kolon_" objeleri).
+            // Props altında değil: ModelManager eski greybox eşyalarını gizlerken kolon modellerini gizlemesin.
+            var columns = new GameObject("Columns").transform;
+            columns.SetParent(root, false);
+            if (!CreateColumnsFromBuildingModel(columns, layout, p))
             {
-                foreach (float x in new[] { -3f, 3f })
+                // Bina modeli yoksa eski düzen: her katta ikişer kolon, ikisi kırık başlar.
+                var broken = new[] { (1, -3f), (2, 3f) };
+                for (int floor = 0; floor < layout.FloorCount - 1; floor++)
                 {
-                    float height = h - SlabThickness;
-                    var column = Box($"Kolon_{floor}_{(x < 0 ? "Sol" : "Sağ")}", props,
-                        new Vector3(x, floor * h + height * 0.5f, backZ - 0.45f), new Vector3(0.5f, height, 0.5f), p.Column);
-                    var component = column.AddComponent<SupportColumn>();
-                    Configure(component, ("displayName", "Taşıyıcı Kolon"), ("workDuration", 4f));
-                    Configure(component, ("state", (int)(System.Array.IndexOf(broken, (floor, x)) >= 0
-                        ? ColumnState.Broken : ColumnState.Cracked)));
+                    foreach (float x in new[] { -3f, 3f })
+                    {
+                        float height = h - SlabThickness;
+                        var column = Box($"Kolon_{floor}_{(x < 0 ? "Sol" : "Sağ")}", columns,
+                            new Vector3(x, floor * h + height * 0.5f, backZ - 0.45f), new Vector3(0.5f, height, 0.5f), p.Column);
+                        AddSupportColumn(column, System.Array.IndexOf(broken, (floor, x)) >= 0 ? ColumnState.Broken : ColumnState.Cracked);
+                    }
                 }
             }
 
@@ -454,6 +457,57 @@ namespace AftershockIsle.EditorTools
             Configure(rod.AddComponent<InstallableVisual>(), ("recipe", (int)RecipeId.LightningRod));
             Rubble("Çatı Yıkıntısı", props, new Vector3(1.2f, roof * h, 0f), new Vector3(1.4f, 1f, 1.8f), p.Rubble, 4, true);
             Rubble("Moloz", props, new Vector3(5f, roof * h, 0.6f), new Vector3(1.2f, 0.6f, 1.2f), p.Rubble, 3, false);
+        }
+
+        const string BuildingModelPath = "Assets/Models/Buildings/Building.fbx";
+        // ModelManager binayı Y ekseninde bu kadar döndürüp yerleştirir (ön kesit kameraya baksın diye).
+        const float BuildingModelYaw = 180f;
+        // Blender'daki kolon ölçüleri (m): genişlik, yükseklik (kat - döşeme), derinlik.
+        static readonly Vector3 ColumnSize = new Vector3(0.35f, 3.2f, 0.4f);
+
+        /// <summary>
+        /// Building.fbx'teki "F1_Kolon_X+2_00_Lv1" gibi objelerin yerine, aynı konum, yön ve seviyede SupportColumn kurar.
+        /// İsimdeki _Lv1/_Lv2/_Lv3 başlangıç seviyesidir. Model yoksa ya da içinde kolon yoksa false.
+        /// </summary>
+        static bool CreateColumnsFromBuildingModel(Transform parent, BuildingLayout layout, Palette p)
+        {
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>(BuildingModelPath);
+            if (model == null) return false;
+
+            var placement = Quaternion.Euler(0f, BuildingModelYaw, 0f);
+            int count = 0;
+            foreach (var t in model.GetComponentsInChildren<Transform>(true))
+            {
+                if (!t.name.Contains("_Kolon_")) continue;
+
+                // Kolonun pivotu Blender'da taban ortasında.
+                var bottom = placement * model.transform.InverseTransformPoint(t.position);
+                // Blender'ın X ekseni FBX'te objenin -X'ine düşer; yerleşimden sonraki yönü kolonun dönüşünü verir.
+                var right = placement * (model.transform.InverseTransformDirection(t.rotation * Vector3.left));
+                float yaw = Mathf.Atan2(-right.z, right.x) * Mathf.Rad2Deg;
+
+                string name = System.Text.RegularExpressions.Regex.Replace(t.name, @"_Lv\d+$", "");
+                var column = Box(name, parent, bottom + Vector3.up * (ColumnSize.y * 0.5f), ColumnSize, p.Column);
+                column.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+                AddSupportColumn(column, LevelFromName(t.name));
+                count++;
+            }
+
+            if (count > 0) Debug.Log($"{count} kolon Blender konumlarına kuruldu ({BuildingModelPath}).");
+            return count > 0;
+        }
+
+        static ColumnState LevelFromName(string name)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(name, @"_Lv(\d+)$");
+            int level = match.Success ? int.Parse(match.Groups[1].Value) : 2;
+            return level >= 3 ? ColumnState.Reinforced : level == 2 ? ColumnState.Cracked : ColumnState.Broken;
+        }
+
+        static void AddSupportColumn(GameObject column, ColumnState state)
+        {
+            var component = column.AddComponent<SupportColumn>();
+            Configure(component, ("displayName", "Taşıyıcı Kolon"), ("workDuration", 4f), ("state", (int)state));
         }
 
         static void CreateFireSpot(Transform parent, BuildingLayout layout, int floor, float x, RubblePile collapseRubble, Palette p)

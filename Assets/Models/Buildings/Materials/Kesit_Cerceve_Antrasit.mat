@@ -91,7 +91,7 @@ Material:
     - _BumpScale: 1
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
-    - _CornerAO: 0.32
+    - _CornerAO: 0.12
     - _Cull: 2
     - _Cutoff: 0.5
     - _DampHeight: 1.15
@@ -109,9 +109,9 @@ Material:
     - _Metallic: 0
     - _MidTone: 0.74
     - _Mode: 0
-    - _NoiseScale: 1.6
-    - _NoiseStrength: 1
-    - _NoiseThreshold: 0.58
+    - _NoiseScale: 1.75
+    - _NoiseStrength: 0
+    - _NoiseThreshold: 0.74
     - _OcclusionStrength: 1
     - _Parallax: 0.02
     - _QueueOffset: 0
@@ -131,12 +131,12 @@ Material:
     - _XRMotionVectorsPass: 1
     - _ZWrite: 1
     m_Colors:
-    - _BaseColor: {r: 0.11, g: 0.11, b: 0.12, a: 1}
+    - _BaseColor: {r: 0.25, g: 0.26, b: 0.28, a: 1}
     - _Color: {r: 0.34918997, g: 0.34918997, b: 0.36556497, a: 1}
     - _DampBorderColor: {r: 0.52, g: 0.54999995, b: 0.53, a: 1}
     - _DampColor: {r: 0.42999998, g: 0.5, b: 0.32999998, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _PatchColor: {r: 0.08, g: 0.08, b: 0.09, a: 1}
+    - _PatchColor: {r: 0.25, g: 0.26, b: 0.28, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
     - _ToonLightDir: {r: -0.3, g: 0.5, b: -0.8, a: 0}
   m_BuildTextureStacks: []

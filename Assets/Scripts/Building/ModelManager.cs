@@ -162,7 +162,9 @@ namespace AftershockIsle.Building
                 if (child == null || child == instance.transform) continue;
                 string n = child.name;
 
-                if (n.StartsWith("Bakir_Mavi") || n.StartsWith("Kivilcim") || n == "Camera" || n == "Light")
+                // Blender'daki "_Kolon_" objeleri sahnedeki SupportColumn'larla aynı yerde durur; görüntüyü onların
+                // seviye modeli verir, binadaki sabit kopya gizlenir.
+                if (n.StartsWith("Bakir_Mavi") || n.StartsWith("Kivilcim") || n == "Camera" || n == "Light" || n.Contains("_Kolon_"))
                 {
                     child.gameObject.SetActive(false);
                     continue;
@@ -184,24 +186,14 @@ namespace AftershockIsle.Building
                     var p = child.localPosition;
                     child.localPosition = new Vector3(p.x, p.y, 0.025f);
                 }
-
-                // Blender'da kapi_acik_aci ile açılmış yeşil paslı kapıları 2. resimdeki açılarına döndür
-                if (n.StartsWith("F1_Door_X-4_5") || n.StartsWith("F3_Door_X-3_0") || n.StartsWith("F1_Ext_Door"))
-                {
-                    child.localRotation = Quaternion.Euler(0f, 82f, 0f) * Quaternion.Euler(-90f, 0f, 0f);
-                }
-                else if (n.StartsWith("F1_Door_X+4_0") || n.StartsWith("F2_Door_X+4_5") ||
-                         n.StartsWith("F2_Door_X-1_0") || n.StartsWith("F3_Door_X+3_0"))
-                {
-                    child.localRotation = Quaternion.Euler(0f, -82f, 0f) * Quaternion.Euler(-90f, 0f, 0f);
-                }
             }
 
             if (createWindowBacking)
                 CreateWarmWindowBackings(instance.transform);
 
+            // Bina mesh'leri tıklamaları engellemesin; yalnızca kapıların (F ile açılır) tıklama alanı açık kalır.
             foreach (var col in instance.GetComponentsInChildren<Collider>(true))
-                col.enabled = false;
+                col.enabled = col.GetComponent<BuildingDoor>() != null;
         }
 
         static void CreateWarmWindowBackings(Transform buildingRoot)

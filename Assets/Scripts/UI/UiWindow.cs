@@ -28,8 +28,11 @@ namespace AftershockIsle.UI
 
         public bool IsOpen => Root.activeSelf;
 
-        /// <summary>scrolling false ise içerik kaydırma alanına değil doğrudan panele konur (sabit yerleşimli pencereler).</summary>
-        public UiWindow(string name, Vector2 size, Action onClose, bool scrolling = true)
+        /// <summary>
+        /// scrolling false ise içerik kaydırma alanına değil doğrudan panele konur (sabit yerleşimli pencereler).
+        /// closable false ise kapat X'i yoktur (seçim yapılmadan kapanmayan olay pencereleri).
+        /// </summary>
+        public UiWindow(string name, Vector2 size, Action onClose, bool scrolling = true, bool closable = true)
         {
             if (shared == null)
             {
@@ -48,9 +51,12 @@ namespace AftershockIsle.UI
             Title = UiFactory.Label(Panel, "", 24, UiFactory.Accent, TextAnchor.MiddleLeft);
             UiFactory.Place(Title.rectTransform, new Vector2(0f, 1f), new Vector2(22f, -10f), new Vector2(size.x - 110f, 40f));
 
-            var skin = GameAssets.Ui;
-            var close = UiFactory.SpriteButton(Panel, "Kapat", skin != null ? skin.closeButton : null, new Vector2(54f, 54f), () => onClose?.Invoke(), "X");
-            UiFactory.Place((RectTransform)close.transform, new Vector2(1f, 1f), new Vector2(-10f, -6f), new Vector2(54f, 54f));
+            if (closable)
+            {
+                var skin = GameAssets.Ui;
+                var close = UiFactory.SpriteButton(Panel, "Kapat", skin != null ? skin.closeButton : null, new Vector2(54f, 54f), () => onClose?.Invoke(), "X");
+                UiFactory.Place((RectTransform)close.transform, new Vector2(1f, 1f), new Vector2(-10f, -6f), new Vector2(54f, 54f));
+            }
 
             var footer = UiFactory.Rect("Alt Satır", Panel);
             footer.anchorMin = new Vector2(0f, 0f);

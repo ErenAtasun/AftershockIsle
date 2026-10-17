@@ -73,7 +73,8 @@ namespace AftershockIsle.Player
             if (Selected != null && (Selected.IsDead || !Selected.isActiveAndEnabled)) Select(null);
 
             bool menuOpen = ModalMenu.IsOpen;
-            if (!menuOpen) HandleCharacterSwitch();
+            // Yerleşim modunda LB/RB (ve Tab) kat / yapı seçer; karakter değiştirmez.
+            if (!menuOpen && !PlacementController.IsPlacementActive) HandleCharacterSwitch();
 
             // Dış sahadayken ya da Grid Yerleştirme modundayken sığınaktaki seçim/emir askıda kalır.
             if (SideViewCamera.ViewingField || menuOpen || PlacementController.IsPlacementActive)

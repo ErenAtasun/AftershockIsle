@@ -70,7 +70,7 @@ namespace AftershockIsle.Characters
             { TraitId.Carpenter, new TraitInfo(TraitId.Carpenter, "Marangoz", "Tamir, tezgahta üretim ve kolon güçlendirme hızı +%35.", true) },
             { TraitId.Miner, new TraitInfo(TraitId.Miner, "Enkazcı", "Moloz kazma hızı +%35, düşen enkazda sıkışma süresi -%50.", true) },
             { TraitId.Firefighter, new TraitInfo(TraitId.Firefighter, "İtfaiyeci", "Yangın söndürme hızı +%40, duman hasar ve stresinden %50 az etkilenir.", true) },
-            { TraitId.Sprinter, new TraitInfo(TraitId.Sprinter, "Atlet", "Yürüme hızı +%20, ağır yük taşıma yavaşlaması yarıya iner.", true) },
+            { TraitId.Sprinter, new TraitInfo(TraitId.Sprinter, "Atlet", "Yürüme hızı +%20; kova taşırken yavaşlama yarıya iner.", true) },
             { TraitId.Chef, new TraitInfo(TraitId.Chef, "İdareli Aşçı", "Gece bakımında %35 ihtimalle Yaşam Kiti harcamaz ve takıma -5 stres verir.", true) },
             { TraitId.Sharpshooter, new TraitInfo(TraitId.Sharpshooter, "Keskin Nişancı", "Dış seferde ateşli silah hasarı +%25 ve %25 ihtimalle mermi harcamaz.", true) },
             { TraitId.Optimist, new TraitInfo(TraitId.Optimist, "İyimser", "Stres kazanımı -%25, dinlenirken stres atma hızı +%35.", true) },

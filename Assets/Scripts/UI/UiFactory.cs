@@ -70,6 +70,22 @@ namespace AftershockIsle.UI
             module.AssignDefaultActions();
         }
 
+        /// <summary>
+        /// Yerleşik yazı tipinde olmayan emoji ve simgeleri (kutu olarak görünürler) çıkarır; metin çevrimi yalnızca görüntü içindir.
+        /// </summary>
+        public static string StripSymbols(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+
+            var result = new System.Text.StringBuilder(text.Length);
+            foreach (char c in text)
+            {
+                bool symbol = char.IsSurrogate(c) || (c >= '\u2600' && c <= '\u27BF') || c == '\uFE0F';
+                if (!symbol) result.Append(c);
+            }
+            return result.ToString().Trim();
+        }
+
         public static RectTransform Rect(string name, Transform parent)
         {
             var go = new GameObject(name, typeof(RectTransform));

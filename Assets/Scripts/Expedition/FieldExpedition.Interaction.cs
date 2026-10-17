@@ -78,8 +78,19 @@ namespace AftershockIsle.Expedition
 
             float speed = explorer.Condition.SpeedMultiplier * (explorer.Branch == SkillBranch.Exploration ? 1.4f : 1f);
             searchProgress += dt * speed;
+
+            // Aranırken karıştırma sesi, yaklaşık yarım saniyede bir.
+            searchSoundTimer -= dt;
+            if (searchSoundTimer <= 0f)
+            {
+                searchSoundTimer = 0.8f;
+                AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.Search, 0.6f);
+            }
+
             if (searchProgress >= searchTarget.Duration) FinishSearch(searchTarget);
         }
+
+        float searchSoundTimer;
 
         void CancelSearch(bool announce)
         {
@@ -106,6 +117,7 @@ namespace AftershockIsle.Expedition
             usedSlots++;
             var found = RollLoot();
             AddLoot(found);
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.Pickup, 0.8f);
             Float($"+{found.amount} {found.type.ToDisplayName()}", spot.Position + Vector3.up * 1.4f, found.type.ToColor());
             if (usedSlots >= bagSlots) Say("Çanta doldu. Soldaki yeşil çıkışa dön.");
 

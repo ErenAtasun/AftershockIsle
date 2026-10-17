@@ -179,6 +179,8 @@ namespace AftershockIsle.Characters
         {
             if (IsDead) return;
 
+            DepositLeftovers();
+
             // Hız çarpanları: yük × tükenmişlik × yetenek × özellikler.
             bool sprinter = HasTrait(TraitId.Sprinter);
             float heavyFactor = sprinter ? Mathf.Max(heavyCarrySpeed, 0.88f) : heavyCarrySpeed;
@@ -303,6 +305,21 @@ namespace AftershockIsle.Characters
             if (selected && chatter != null) chatter.OnSelected();
         }
 
+        /// <summary>
+        /// Bulunan malzemeyi alır. Depolanabilir olanlar (kalas, metal, elektronik...) doğrudan depoya girer: sandığa
+        /// taşımak gerekmez, böylece sarsıntı ya da enkaz yolu kapatsa da el dolu kalıp iş kilitlenmez.
+        /// Su gibi depolanamayanlar eldeki tek slotta taşınır (kova → yangın, tulumba).
+        /// </summary>
+        public bool Collect(ResourceAmount item)
+        {
+            if (item.type.IsStorable() && ResourceStorage.Instance != null)
+            {
+                ResourceStorage.Instance.Add(item);
+                return true;
+            }
+            return TryPickUp(item);
+        }
+
         public bool TryPickUp(ResourceAmount item)
         {
             if (IsCarrying) return false;
@@ -338,6 +355,13 @@ namespace AftershockIsle.Characters
             IsCarrying = false;
             RefreshCarry();
             return true;
+        }
+
+        // Eski kayıttan ya da başka bir yoldan elde kalmış depolanabilir yük varsa kendiliğinden depoya geçer.
+        void DepositLeftovers()
+        {
+            if (!IsCarrying || !carried.type.IsStorable() || ResourceStorage.Instance == null) return;
+            if (TryTakeCarried(out var item)) ResourceStorage.Instance.Add(item);
         }
 
         void RefreshCarry()

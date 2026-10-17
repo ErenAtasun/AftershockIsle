@@ -8,6 +8,7 @@ using AftershockIsle.Endgame;
 using AftershockIsle.Interaction;
 using AftershockIsle.Skills;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace AftershockIsle.UI
 {
@@ -17,7 +18,6 @@ namespace AftershockIsle.UI
     /// </summary>
     public class TutorialHints : MonoBehaviour
     {
-        const int HelpWindowId = 4501;
         const float HintSeconds = 14f;
 
         struct Hint
@@ -34,16 +34,21 @@ namespace AftershockIsle.UI
         float currentUntil;
         bool tutorialEnabled = true;
         bool helpOpen;
-        Rect helpRect = new Rect(0, 0, 700, 560);
-        GUIStyle wrapStyle;
-        GUIStyle titleStyle;
         float startDelay = 1.5f;
+
+        // uGUI: alt ortada ipucu kartı, kontrol rehberi pencere olarak.
+        GameObject hintCard;
+        Text hintTitle;
+        Text hintBody;
+        UiWindow helpWindow;
         bool welcomed;
 
         // Hoş geldin ipucu ilk sırada olsun: oyun başında otomatik seçim de bir ipucu tetikler.
         void Awake()
         {
             if (GetComponent<FirstDayGuide>() == null) gameObject.AddComponent<FirstDayGuide>();
+            UiFactory.EnsureEventSystem();
+            BuildHintCard();
             Show("welcome", "Aftershock: Isle",
                     "Binayı ayakta tut, kazazedeleri hayatta tut, çatıdan helikopterle tahliye ol. Tab / LB-RB ile karakter seç, WASD / sol çubukla yürüt, " +
                     "F / A ile yanındaki işi yaptır (moloz kaz, kolon destekle). Space / Y zamanı durdurur. H / D-pad sol: kontrol rehberi. Fare de çalışır.");
@@ -66,6 +71,7 @@ namespace AftershockIsle.UI
             EventBus.Subscribe<RecipeCrafted>(OnRecipeCrafted);
             EventBus.Subscribe<SurvivorJoined>(OnJoined);
             EventBus.Subscribe<RadioRepaired>(OnRadioRepaired);
+            EventBus.Subscribe<PlaceableItemReady>(OnPlaceableReady);
         }
 
         void OnDisable()
@@ -85,6 +91,7 @@ namespace AftershockIsle.UI
             EventBus.Unsubscribe<RecipeCrafted>(OnRecipeCrafted);
             EventBus.Unsubscribe<SurvivorJoined>(OnJoined);
             EventBus.Unsubscribe<RadioRepaired>(OnRadioRepaired);
+            EventBus.Unsubscribe<PlaceableItemReady>(OnPlaceableReady);
         }
 
         // ---------------------------------------------------------------- İpucu tetikleyicileri
@@ -95,11 +102,11 @@ namespace AftershockIsle.UI
             Show("select", "Kolon seviyeleri",
                 "Kolonların 3 seviyesi var: Lv1 Kırık, Lv2 Çatlak, Lv3 Çelik. Çatlak kolon sarsıntıda kırılır. Kırık kolonla etkileş " +
                 "(F / A ya da sağ tık): 4 Kalas & Hurda ile yeniden dikilir. " +
-                "Kalası molozlardan kazarak bulursun; karakter malzemeyi kendisi sandığa taşır.");
+                "Kalası molozlardan kazarak bulursun; bulunan malzeme doğrudan depoya eklenir.");
         }
 
         void OnRubbleCleared(RubbleCleared evt) => Show("rubble", "Depo",
-            "Taşınan malzeme Ortak Sandık'a bırakılınca üst taraftaki sayaca eklenir. Tezgah, tamir ve kolonlar buradan harcar. " +
+            "Kazılan malzeme doğrudan depoya girer ve üst taraftaki sayaca eklenir. Tezgah, tamir ve kolonlar buradan harcar. " +
             "Farede Shift + sağ tık ile birden fazla işi sıraya ekleyebilirsin.");
 
         void OnColumnChanged(ColumnStateChanged evt)
@@ -167,6 +174,11 @@ namespace AftershockIsle.UI
             "Her kazazede farklı bir yetenek dalının uzmanı (gövde rengi: turuncu İnşaat, yeşil Keşif, mavi Mühendislik). " +
             "Bir kişi daha, gece bir Yaşam Kiti daha harcar.");
 
+        void OnPlaceableReady(PlaceableItemReady evt) => Show("build", "Eşya kuruluma hazır",
+            "Üretilen eşya tezgahtan çıkmaz, önce eve kurulur. Yerleşim modu açıldı ve zaman durdu: fareyle bir hücre seç (yeşil = kurulabilir, kırmızı = olmaz), " +
+            "sol tık / Enter (gamepad: A) ile kur. R / Y: döndür, ok tuşları / sol çubuk: hücre, Q-E / LB-RB: kat, Tab / LT-RT: yapı seç, X: depoya kaldır, B / sağ tık: kapat. " +
+            "Daha sonra B (gamepad: D-pad ↑) ile yeniden açabilirsin.");
+
         void OnRadioRepaired(RadioRepaired evt) => Show("radio", "Sinyal",
             "Telsize 'Sinyal Gönder' de. Başında kesintisiz 60 sn kalınmalı. Elektrik kesilirse, deprem olursa ya da operatör ayrılırsa sinyal sıfırlanır; " +
             "sarsıntı gelmeden önce sinyali başlatma.");
@@ -181,8 +193,11 @@ namespace AftershockIsle.UI
 
         void Update()
         {
-            if (GameInput.HelpTogglePressed) helpOpen = !helpOpen;
-            if (hasCurrent && GameInput.DismissHintPressed) hasCurrent = false;
+            // D-pad sol başka pencerelerde menü gezinmesidir; rehber yalnızca başka pencere açık değilken (ya da kendisi açıkken) değişir.
+            if (GameInput.HelpTogglePressed && (helpOpen || !ModalMenu.IsOpen)) helpOpen = !helpOpen;
+            else if (helpOpen && GameInput.MenuBackPressed) helpOpen = false;
+            if (hasCurrent && GameInput.DismissHintPressed && !ModalMenu.IsOpen) hasCurrent = false;
+            RefreshHelp();
 
             if (!welcomed)
             {
@@ -191,6 +206,8 @@ namespace AftershockIsle.UI
 
                 welcomed = true;
             }
+
+            RefreshHint();
 
             if (!hasCurrent && queue.Count > 0)
             {
@@ -202,80 +219,170 @@ namespace AftershockIsle.UI
             {
                 hasCurrent = false;
             }
+
+            RefreshHint();
         }
 
-        void OnGUI()
+        // ---------------------------------------------------------------- uGUI
+
+        void BuildHintCard()
         {
-            UiTheme.Apply();
-            wrapStyle ??= new GUIStyle(GUI.skin.label) { wordWrap = true, fontSize = 14 };
-            titleStyle ??= new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, fontSize = 14 };
+            var canvas = UiFactory.Canvas("İpucu", 12, transform);
+            var card = UiFactory.Panel(canvas.transform, "İpucu Kartı", UiFactory.Slate);
+            hintCard = card.gameObject;
+            UiFactory.Place(card.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 120f), new Vector2(860f, 0f));
 
-            if (hasCurrent && tutorialEnabled) DrawHint();
-            if (helpOpen) DrawHelp();
-        }
+            var layout = hintCard.AddComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(24, 24, 16, 16);
+            layout.spacing = 8f;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+            hintCard.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-        void DrawHint()
-        {
-            const float width = 520f;
-            var rect = new Rect((UiTheme.Width - width) * 0.5f, UiTheme.Height - 190f, width, 112f);
-            UIBlocker.Add(rect);
+            hintTitle = UiFactory.Label(hintCard.transform, "", 24, UiFactory.Accent, TextAnchor.MiddleLeft);
+            hintTitle.gameObject.AddComponent<LayoutElement>().preferredHeight = 34f;
 
-            GUILayout.BeginArea(rect, GUI.skin.box);
-            GUILayout.Label($"İPUCU: {current.Title}", titleStyle);
-            GUILayout.Label(current.Text, wrapStyle);
-            GUILayout.FlexibleSpace();
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button(GameInput.UsingGamepad ? "Tamam (D-pad ↓)" : "Tamam", GUILayout.Width(120)) && Event.current.button == 0) hasCurrent = false;
-            if (GUILayout.Button("İpuçlarını kapat", GUILayout.Width(130)) && Event.current.button == 0)
+            hintBody = UiFactory.Label(hintCard.transform, "", 21, UiFactory.Text, TextAnchor.UpperLeft, FontStyle.Normal, false);
+            hintBody.lineSpacing = 1.1f;
+
+            var buttons = UiFactory.Rect("Düğmeler", hintCard.transform);
+            buttons.gameObject.AddComponent<LayoutElement>().preferredHeight = 50f;
+            var row = buttons.gameObject.AddComponent<HorizontalLayoutGroup>();
+            row.spacing = 12f;
+            row.childAlignment = TextAnchor.MiddleLeft;
+            row.childControlWidth = false;
+            row.childControlHeight = false;
+
+            UiFactory.TextButton(buttons, "Tamam", new Vector2(180f, 46f), () => hasCurrent = false, UiFactory.Good, 20);
+            UiFactory.TextButton(buttons, "İpuçlarını kapat", new Vector2(250f, 46f), () =>
             {
                 tutorialEnabled = false;
                 hasCurrent = false;
                 queue.Clear();
-            }
-            GUILayout.EndHorizontal();
-            GUILayout.EndArea();
+            }, null, 20);
+
+            hintCard.SetActive(false);
         }
 
-        void DrawHelp()
+        void RefreshHint()
         {
-            helpRect.x = (UiTheme.Width - helpRect.width) * 0.5f;
-            helpRect.y = (UiTheme.Height - helpRect.height) * 0.5f;
-            UIBlocker.Add(helpRect);
-            GUI.Window(HelpWindowId, helpRect, DrawHelpContents, $"Kontrol Rehberi   ({GameInput.Prompt(InputPrompt.Help)}: kapat)");
+            bool show = hasCurrent && tutorialEnabled && !PauseMenu.IsOpen;
+            if (show == hintCard.activeSelf) { if (show) FillHint(); return; }
+
+            hintCard.SetActive(show);
+            if (show) FillHint();
         }
 
-        void DrawHelpContents(int id)
+        void FillHint()
         {
-            string[] lines =
+            hintTitle.text = $"İPUCU: {current.Title}";
+            hintBody.text = current.Text;
+        }
+
+        void RefreshHelp()
+        {
+            if (helpWindow == null)
             {
-                "SIĞINAK                    klavye                       gamepad",
-                "  Karakter yürüt           WASD / oklar                 sol çubuk",
-                "  Merdiven çık / in        W / S (en yakın merdiven)    çubuk yukarı / aşağı",
-                "  En yakın işi yap         F                            A",
-                "  İşi bırak, dur           X                            B",
-                "  Karakter değiştir        Tab / Shift+Tab              RB / LB",
-                "  Duraklat / hız           Space, 1 / 2                 Y, X",
-                "  Kamera kaydır / yakınlaş  (seçim yokken WASD), tekerlek  sağ çubuk",
-                "  Yetenekler / rehber      K / H                        D-pad sağ / sol",
-                "  Tulumba ritmi            Q / E                        LT / RT",
-                "  Fare: sol tık seç, sağ tık iş ver ya da yürü, Shift + sağ tık sıraya ekle.",
-                "DIŞ SAHA",
-                "  Yürü / nişan / ateş      WASD / fare / sol tık        sol çubuk / sağ çubuk / RT",
-                "  Silah değiştir           Q                            X",
-                "  Çömel (siper)            Shift / C (basılı)           LT (basılı)",
-                "  Alçak siperin arkasında çömelen görünmez; ateş edince bir an doğrulur. Duvar/araba kenarında nişanı kenarın ötesine çevir: köşeden eğilirsin.",
-                "  Kaçış / ara / ilk yardım  Space / F / R                B / A / Y",
-                "  Düşmanlar görünce (!) kovalar, sesi duyunca (?) bakmaya gelir. Tabanca gürültülü, sapan sessiz.",
-                "  Sığınağa dön             Tab                          RB / LB ya da Select",
-                "MENÜLER",
-                "  Gez / seç / kapat        oklar / Enter / Backspace    D-pad / A / B     Duraklatma menüsü: Esc / Start",
-                "HEDEF",
-                "  Tezgahı Kademe 3'e çıkar, telsizi tamir et, çatı molozunu temizle, çatı kolonlarını çelikle güçlendir,",
-                "  şalteri açık tut ve telsiz başında kesintisiz 60 sn sinyal gönder. Bütünlük %0 olursa ya da herkes ölürse kaybedersin.",
-            };
+                if (!helpOpen) return;
+                BuildHelp();
+            }
 
-            foreach (string line in lines)
-                GUILayout.Label(line, line.StartsWith(" ") ? wrapStyle : titleStyle);
+            helpWindow.Show(helpOpen);
+            if (helpOpen)
+            {
+                helpWindow.Title.text = $"Kontrol Rehberi   ({GameInput.Prompt(InputPrompt.Help)}: kapat)";
+                helpWindow.Tick(null);
+            }
+        }
+
+        void BuildHelp()
+        {
+            helpWindow = new UiWindow("Kontrol Rehberi", new Vector2(1240f, 880f), () => helpOpen = false);
+            helpWindow.Footer.gameObject.SetActive(false);
+
+            Section("SIĞINAK", "klavye", "gamepad");
+            Row("Karakter yürüt", "WASD / oklar", "sol çubuk");
+            Row("Merdiven çık / in", "W / S (en yakın merdiven)", "çubuk yukarı / aşağı");
+            Row("En yakın işi yap", "F", "A");
+            Row("İşi bırak, dur", "X", "B");
+            Row("Karakter değiştir", "Tab / Shift+Tab", "RB / LB");
+            Row("Duraklat / hız", "Space, 1 / 2", "Y, X");
+            Row("Kamera kaydır / yakınlaş", "seçim yokken WASD, tekerlek", "sağ çubuk");
+            Row("Yetenekler / rehber", "K / H", "D-pad sağ / sol");
+            Row("Tulumba ritmi", "Q / E", "LT / RT");
+            Row("Yerleşim modu aç / kapat", "B", "D-pad ↑");
+            Row("Kamera yakınlaş / uzaklaş", "fare tekerleği", "R3 / L3");
+            Note("Fare: sol tık seç, sağ tık iş ver ya da yürü, Shift + sağ tık sıraya ekle.");
+
+            Section("YERLEŞİM (sığınağa eşya kurma, zaman durur)", "klavye / fare", "gamepad");
+            Row("Hücre seç", "fare / ok tuşları", "sol çubuk / D-pad");
+            Row("Kat değiştir", "Q / E", "LB / RB");
+            Row("Yapı seç", "Tab / Shift+Tab", "LT / RT");
+            Row("Kur / taşı", "sol tık / Enter", "A");
+            Row("Döndür", "R", "Y");
+            Row("Depoya kaldır", "X", "X");
+            Row("Kapat", "B / sağ tık / Esc", "B / Start");
+
+            Section("DIŞ SAHA", "klavye", "gamepad");
+            Row("Yürü / nişan / ateş", "WASD / fare / sol tık", "sol çubuk / sağ çubuk / RT");
+            Row("Silah değiştir", "Q", "X");
+            Row("Çömel (siper)", "Shift / C (basılı)", "LT (basılı)");
+            Row("Kaçış / ara / ilk yardım", "Space / F / R", "B / A / Y");
+            Row("Sığınağa dön", "Tab", "RB / LB ya da Select");
+            Note("Alçak siperin arkasında çömelen görünmez; ateş edince bir an doğrulur. Duvar ya da araba kenarında nişanı kenarın ötesine çevir: köşeden eğilirsin.");
+            Note("Düşmanlar görünce (!) kovalar, sesi duyunca (?) bakmaya gelir. Tabanca gürültülü, sapan sessiz.");
+
+            Section("MENÜLER", "klavye", "gamepad");
+            Row("Gez / seç / kapat", "oklar / Enter / Backspace", "D-pad / A / B");
+            Row("Duraklatma menüsü", "Esc", "Start");
+
+            Section("HEDEF", "", "");
+            Note("Tezgahı Kademe 3'e çıkar, telsizi tamir et, çatı molozunu temizle, çatı kolonlarını çelikle güçlendir, " +
+                 "şalteri açık tut ve telsiz başında kesintisiz 60 sn sinyal gönder. Bütünlük %0 olursa ya da herkes ölürse kaybedersin.");
+        }
+
+        void Section(string title, string second, string third)
+        {
+            var row = TableRow(34f);
+            AddCell(row, title, UiFactory.Accent, 1.3f, FontStyle.Bold);
+            AddCell(row, second, UiFactory.Accent, 1.25f, FontStyle.Bold);
+            AddCell(row, third, UiFactory.Accent, 1f, FontStyle.Bold);
+        }
+
+        void Row(string action, string keyboard, string gamepad)
+        {
+            var row = TableRow(32f);
+            AddCell(row, action, UiFactory.Text, 1.3f, FontStyle.Normal);
+            AddCell(row, keyboard, new Color(0.95f, 0.88f, 0.6f), 1.25f, FontStyle.Normal);
+            AddCell(row, gamepad, new Color(0.7f, 0.85f, 0.95f), 1f, FontStyle.Normal);
+        }
+
+        void Note(string text)
+        {
+            var label = UiFactory.Label(helpWindow.Content, text, 19, new Color(0.84f, 0.84f, 0.8f, 1f), TextAnchor.UpperLeft, FontStyle.Italic, false);
+            label.gameObject.AddComponent<LayoutElement>().minHeight = 30f;
+        }
+
+        RectTransform TableRow(float height)
+        {
+            var row = UiFactory.Rect("Satır", helpWindow.Content);
+            var layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = 12f;
+            layout.padding = new RectOffset(6, 6, 0, 0);
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = true;
+            row.gameObject.AddComponent<LayoutElement>().preferredHeight = height;
+            return row;
+        }
+
+        static void AddCell(RectTransform row, string text, Color color, float weight, FontStyle style)
+        {
+            var label = UiFactory.Label(row, text, 20, color, TextAnchor.MiddleLeft, style, false);
+            label.gameObject.AddComponent<LayoutElement>().flexibleWidth = weight;
         }
     }
 }

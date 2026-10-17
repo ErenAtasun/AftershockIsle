@@ -71,14 +71,13 @@ namespace AftershockIsle.EditorTools
             var cam = CreateCamera(building);
 
             var systems = new GameObject("[Systems]");
-            var timeManager = systems.AddComponent<TimeManager>();
+            systems.AddComponent<TimeManager>();
             var dayCycle = systems.AddComponent<DayCycle>();
             SetRef(dayCycle, "config", LoadOrCreateAsset<DayCycleConfig>($"{DataFolder}/DayCycleConfig.asset"));
 
             systems.AddComponent<StructuralIntegrity>();
             systems.AddComponent<ResourceStorage>();
             var session = systems.AddComponent<GameSession>();
-            SetRef(session, "timeManager", timeManager);
 
             var commands = systems.AddComponent<CommandController>();
             SetRef(commands, "cam", cam);
@@ -113,7 +112,6 @@ namespace AftershockIsle.EditorTools
             systems.AddComponent<SkillTreeWindow>();
 
             var expeditions = systems.AddComponent<ExpeditionSystem>();
-            SetRef(expeditions, "timeManager", timeManager);
             SetRef(expeditions, "dayCycle", dayCycle);
             var gameAssets = GameAssetsSync.Sync();
             SetRef(expeditions, "fieldArt", gameAssets.fieldArt);
@@ -123,7 +121,6 @@ namespace AftershockIsle.EditorTools
             systems.AddComponent<TutorialHints>();
 
             var pauseMenu = systems.AddComponent<PauseMenu>();
-            SetRef(pauseMenu, "timeManager", timeManager);
             SetRef(pauseMenu, "session", session);
 
             SetRef(systems.AddComponent<EffectsPlayer>(), "particleMaterial", palette.Particle);

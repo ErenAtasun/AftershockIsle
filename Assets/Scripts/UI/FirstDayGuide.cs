@@ -9,6 +9,7 @@ using AftershockIsle.Expedition;
 using AftershockIsle.Player;
 using AftershockIsle.Save;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace AftershockIsle.UI
 {
@@ -36,18 +37,55 @@ namespace AftershockIsle.UI
         Vector3 startPosition;
         Survivor trackedSurvivor;
         bool hidden;
-        GUIStyle titleStyle;
-        GUIStyle detailStyle;
+
+        // uGUI paneli: sağ üstte, kaynak rozetlerinin altında.
+        GameObject panel;
+        Text[] stepLabels;
+        Text detailLabel;
+        bool lastShown;
 
         void Awake()
         {
             steps.Add(new Step { Title = "Karakteri yürüt", Detail = () => $"{GameInput.Prompt(InputPrompt.Move)} ile karakteri gez. Seçili karakter yoksa {GameInput.Prompt(InputPrompt.SwitchCharacter)} ile seç." });
-            steps.Add(new Step { Title = "Malzeme topla", Detail = () => $"Molozun yanında {GameInput.Prompt(InputPrompt.Interact)}: kaz. Karakter bulduğunu Ortak Sandık'a götürür." });
+            steps.Add(new Step { Title = "Malzeme topla", Detail = () => $"Molozun yanında {GameInput.Prompt(InputPrompt.Interact)}: kaz. Bulunan malzeme doğrudan depoya eklenir." });
             steps.Add(new Step { Title = "Kırık kolonu yeniden dik", Detail = () => $"Kırık (Lv1) kolonun dibinde {GameInput.Prompt(InputPrompt.Interact)}: 4 Kalas & Hurda ile Lv2'ye çıkar." });
             steps.Add(new Step { Title = "Zamanı durdur", Detail = () => $"{GameInput.Prompt(InputPrompt.Pause)}: durdur, tekrar basınca devam. Planı durdurulmuş zamanda yap." });
             steps.Add(new Step { Title = "Tezgahta üret", Detail = () => $"Çalışma Tezgahı'nda {GameInput.Prompt(InputPrompt.Interact)}: bir tarif seç (ör. Mermi Paketi)." });
             steps.Add(new Step { Title = "Öğlen sefere çık", Detail = () => "Öğle vakti giriş katındaki dış kapıya git, haritadan lokasyon seç. İstersen yoldaş al." });
             steps.Add(new Step { Title = "İlk geceyi atlat", Detail = () => "Gece her kazazede 1 Yaşam Kiti yer. Depoda kit olsun." });
+            BuildPanel();
+        }
+
+        void BuildPanel()
+        {
+            var canvas = UiFactory.Canvas("İlk Gün Rehberi", 11, transform);
+            var rect = UiFactory.Panel(canvas.transform, "Rehber", UiFactory.Slate);
+            rect.raycastTarget = false;
+            panel = rect.gameObject;
+            UiFactory.Place(rect.rectTransform, new Vector2(1f, 1f), new Vector2(-18f, -190f), new Vector2(440f, 0f));
+
+            var layout = panel.AddComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(18, 18, 14, 16);
+            layout.spacing = 4f;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+            panel.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            var title = UiFactory.Label(panel.transform, "İLK GÜN REHBERİ", 22, UiFactory.Accent, TextAnchor.MiddleLeft);
+            title.gameObject.AddComponent<LayoutElement>().preferredHeight = 32f;
+
+            stepLabels = new Text[steps.Count];
+            for (int i = 0; i < steps.Count; i++)
+            {
+                var label = UiFactory.Label(panel.transform, "", 19, UiFactory.Text, TextAnchor.MiddleLeft, FontStyle.Normal, false);
+                label.gameObject.AddComponent<LayoutElement>().preferredHeight = 27f;
+                stepLabels[i] = label;
+            }
+
+            detailLabel = UiFactory.Label(panel.transform, "", 18, new Color(0.84f, 0.84f, 0.8f, 1f), TextAnchor.UpperLeft, FontStyle.Italic, false);
+            panel.SetActive(false);
         }
 
         void OnEnable()
@@ -90,11 +128,14 @@ namespace AftershockIsle.UI
 
         void Update()
         {
-            if (hidden) return;
+            if (!hidden)
+            {
+                if (dayCycle != null && dayCycle.Day >= HideAfterDay) hidden = true;
+                if (steps.TrueForAll(step => step.Done)) hidden = true;
+            }
 
-            if (dayCycle != null && dayCycle.Day >= HideAfterDay) hidden = true;
-            if (steps.TrueForAll(step => step.Done)) hidden = true;
-            if (steps[0].Done || commands == null) return;
+            RefreshPanel();
+            if (hidden || steps[0].Done || commands == null) return;
 
             // Seçili karakter yeterince yürüdüyse ilk adım biter.
             var selected = commands.Selected;
@@ -128,32 +169,26 @@ namespace AftershockIsle.UI
         void OnExpedition(ExpeditionStarted evt) => steps[5].Done = true;
         void OnUpkeep(UpkeepResolved evt) => steps[6].Done = true;
 
-        void OnGUI()
+        void RefreshPanel()
         {
-            UiTheme.Apply();
-            if (hidden || ModalMenu.IsOpen || SideViewCamera.ViewingField) return;
-
-            titleStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 14, fontStyle = FontStyle.Bold };
-            detailStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 13, wordWrap = true };
+            bool show = !hidden && !ModalMenu.IsOpen && !PauseMenu.IsOpen && !SideViewCamera.ViewingField;
+            if (show != lastShown)
+            {
+                lastShown = show;
+                panel.SetActive(show);
+            }
+            if (!show) return;
 
             // İlk yapılmayan adım ayrıntısıyla gösterilir, gerisi tek satır.
             Step next = steps.Find(step => !step.Done);
-            float height = 30f + steps.Count * 20f + 52f;
-            // Kaynak rozetleri ve sefer etiketinin (GameHud) altında.
-            var rect = new Rect(UiTheme.Width - 312, 150f, 300, height);
-            UIBlocker.Add(rect);
-            GUI.Box(rect, GUIContent.none);
-            GUILayout.BeginArea(new Rect(rect.x + 8, rect.y + 6, rect.width - 16, rect.height - 12));
-            GUILayout.Label("İLK GÜN REHBERİ", titleStyle);
-            foreach (var step in steps)
+            for (int i = 0; i < steps.Count; i++)
             {
-                var previous = GUI.color;
-                GUI.color = step.Done ? new Color(0.5f, 0.9f, 0.5f) : step == next ? Color.white : new Color(1f, 1f, 1f, 0.6f);
-                GUILayout.Label($"{(step.Done ? "[x]" : "[ ]")} {step.Title}", detailStyle);
-                GUI.color = previous;
+                var step = steps[i];
+                var label = stepLabels[i];
+                label.text = $"{(step.Done ? "[x]" : "[  ]")} {step.Title}";
+                label.color = step.Done ? new Color(0.55f, 0.9f, 0.5f) : step == next ? UiFactory.Text : new Color(1f, 1f, 1f, 0.6f);
             }
-            if (next != null) GUILayout.Label(next.Detail(), detailStyle);
-            GUILayout.EndArea();
+            detailLabel.text = next != null ? next.Detail() : "";
         }
     }
 }

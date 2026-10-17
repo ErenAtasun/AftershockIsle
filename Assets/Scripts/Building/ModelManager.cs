@@ -297,17 +297,21 @@ namespace AftershockIsle.Building
                 r.receiveShadows = false;
             }
 
-            CreateHaze(root, panelWidth * 3f, worldHeight, groundY, backZ - 1f);
+            var haze = CreateHaze(root, panelWidth * 3f, worldHeight, groundY, backZ - 1f);
+            if (Application.isPlaying)
+                root.gameObject.AddComponent<BackdropAtmosphere>().Init(haze, root.GetComponentsInChildren<SpriteRenderer>(),
+                    hazeColor, hazeDensity, backdropTint);
 
             if (Camera.main != null)
                 Camera.main.backgroundColor = Color.Lerp(new Color(0.553f, 0.620f, 0.667f, 1f), hazeColor, 0.5f);
         }
 
-        /// <summary>Arka planın önünde, ufka doğru (alta) yoğunlaşan yarı saydam sis perdesi.</summary>
-        void CreateHaze(Transform root, float width, float height, float groundY, float z)
+        /// <summary>
+        /// Arka planın önünde, ufka doğru (alta) yoğunlaşan yarı saydam sis perdesi. Doku beyazdır; rengi ve yoğunluğu
+        /// SpriteRenderer.color ile verilir (havaya göre BackdropAtmosphere değiştirir).
+        /// </summary>
+        SpriteRenderer CreateHaze(Transform root, float width, float height, float groundY, float z)
         {
-            if (hazeDensity <= 0.001f) return;
-
             const int steps = 64;
             var tex = new Texture2D(1, steps, TextureFormat.RGBA32, false)
             {
@@ -318,8 +322,8 @@ namespace AftershockIsle.Building
             for (int y = 0; y < steps; y++)
             {
                 float t = y / (steps - 1f); // 0 = zemin, 1 = tepe
-                float alpha = Mathf.Pow(1f - Mathf.Clamp01(t / 0.4f), 1.6f) * hazeDensity;
-                tex.SetPixel(0, y, new Color(hazeColor.r, hazeColor.g, hazeColor.b, alpha));
+                float alpha = Mathf.Pow(1f - Mathf.Clamp01(t / 0.4f), 1.6f);
+                tex.SetPixel(0, y, new Color(1f, 1f, 1f, alpha));
             }
             tex.Apply(false, true);
 
@@ -330,9 +334,11 @@ namespace AftershockIsle.Building
             haze.transform.localPosition = new Vector3(0f, groundY - 0.1f, z);
             haze.transform.localScale = new Vector3(width, height / steps, 1f);
             haze.sprite = sprite;
+            haze.color = new Color(hazeColor.r, hazeColor.g, hazeColor.b, hazeDensity);
             haze.sortingOrder = -29990;
             haze.shadowCastingMode = ShadowCastingMode.Off;
             haze.receiveShadows = false;
+            return haze;
         }
 
         /// <summary>

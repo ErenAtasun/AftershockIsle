@@ -36,6 +36,13 @@ namespace AftershockIsle.Save
         public List<int> triggeredNarrativeDays = new List<int>();
         public int motherGiftDueDay = -1;
         public int raiderAttention;
+
+        // Kapı karşılaşması destesi (aynı olay hepsi görülmeden tekrar etmez) ve gece baskını durumu.
+        public List<int> encounterDeck = new List<int>();
+        public int lastEncounter = -1;
+        public bool nightRaidPending;
+        public float nightRaidAt;
+        public string nightGuard;
     }
 
     [Serializable]

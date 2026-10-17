@@ -13,8 +13,7 @@ namespace AftershockIsle.Interaction
     }
 
     /// <summary>
-    /// Kazıldıkça Kalas/Hurda veren moloz yığını. Her kazı tek taşımalık malzeme verir;
-    /// karakter sandığa taşıyıp geri gelir. blocksPath açıksa temizlenene kadar kat çizgisini kapatır.
+    /// Kazıldıkça Kalas/Hurda veren moloz yığını. Her kazının malzemesi doğrudan depoya girer. blocksPath açıksa temizlenene kadar kat çizgisini kapatır.
     /// </summary>
     public class RubblePile : Interactable
     {
@@ -91,7 +90,7 @@ namespace AftershockIsle.Interaction
 
         public override void Complete(Survivor worker)
         {
-            worker.TryPickUp(yieldPerDig);
+            worker.Collect(yieldPerDig);
             remaining--;
 
             if (remaining <= 0)

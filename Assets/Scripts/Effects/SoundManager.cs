@@ -50,6 +50,15 @@ namespace AftershockIsle.Effects
         RadioSignal,
         HelicopterInbound,
         DayPhaseChange,
+        Dig,
+        Hammer,
+        Search,
+        CraftTap,
+        PumpStroke,
+        WaterFill,
+        Footstep,
+        Ladder,
+        Pickup,
     }
 
     /// <summary>
@@ -104,6 +113,7 @@ namespace AftershockIsle.Effects
             radioLoopSource = CreateSource("Radio", false, 0.35f);
 
             BuildClipLibrary();
+            gameObject.AddComponent<WorkSounds>();
 
             var ambientClip = Resources.Load<AudioClip>("Audio/AmbientLoop") ?? SynthesizeAmbientWind(6.0f);
             ambientSource.clip = ambientClip;
@@ -461,6 +471,86 @@ namespace AftershockIsle.Effects
                         float body = Sin(t, 58f) * 0.45f + Noise(t * 1.6f) * 0.45f;
                         return Mathf.Sin(u * Mathf.PI) * chop * body * 0.85f;
                     });
+
+                case SoundId.Dig:
+                    // Kürek toprağa girer (hışırtı) ve moloz düşer (alçak tok vuruş).
+                    return MakeClip("Dig", 0.38f, (t, u) =>
+                    {
+                        float scrape = Env(u, 0.03f, 6f) * Noise(t * 3.1f) * (0.55f + 0.45f * Sin(t, 38f)) * 0.42f;
+                        float thud = Pulse(t, 0.17f, 0.17f) * (Sin(t, Mathf.Lerp(130f, 58f, Mathf.Clamp01((t - 0.17f) / 0.17f))) * 0.65f + Noise(t * 1.7f) * 0.3f);
+                        float grit = Pulse(t, 0.24f, 0.1f) * Noise(t * 6.5f) * 0.28f;
+                        return scrape + thud + grit;
+                    });
+
+                case SoundId.Hammer:
+                    // Metal üstüne metal: keskin vuruş ve kısa çınlama.
+                    return MakeClip("Hammer", 0.26f, (t, u) =>
+                    {
+                        float strike = Pulse(t, 0.004f, 0.05f) * (Sin(t, 1450f) * 0.3f + Sin(t, 2350f) * 0.2f + Noise(t * 7f) * 0.35f);
+                        float ring = Env(u, 0f, 11f) * (Sin(t, 880f) * 0.22f + Sin(t, 1320f) * 0.12f);
+                        float body = Pulse(t, 0f, 0.07f) * Sin(t, 190f) * 0.45f;
+                        return strike + ring + body;
+                    });
+
+                case SoundId.Search:
+                    // Eşya karıştırma: kısa hışırtı darbeleri ve kumaş sürtmesi.
+                    return MakeClip("Search", 0.52f, (t, u) =>
+                    {
+                        float rustle = (Pulse(t, 0.02f, 0.09f) + Pulse(t, 0.15f, 0.08f) * 0.8f + Pulse(t, 0.27f, 0.1f) + Pulse(t, 0.41f, 0.07f) * 0.7f)
+                                       * Noise(t * 6.2f) * 0.42f;
+                        float cloth = Mathf.Sin(u * Mathf.PI) * Noise(t * 2.4f) * 0.12f;
+                        float clink = Pulse(t, 0.33f, 0.05f) * Sin(t, 1650f) * 0.12f;
+                        return rustle + cloth + clink;
+                    });
+
+                case SoundId.CraftTap:
+                    // Tezgahta ahşap vuruşu ve ince metal tıkırtısı.
+                    return MakeClip("CraftTap", 0.2f, (t, u) =>
+                    {
+                        float tap = Pulse(t, 0f, 0.05f) * (Sin(t, 520f) * 0.4f + Noise(t * 3f) * 0.22f);
+                        float tick = Pulse(t, 0.09f, 0.06f) * (Sin(t, 780f) * 0.26f + Sin(t, 1560f) * 0.1f);
+                        return tap + tick;
+                    });
+
+                case SoundId.PumpStroke:
+                    // Pompa kolu: hava üflemesi, ardından su yutma sesi.
+                    return MakeClip("PumpStroke", 0.46f, (t, u) =>
+                    {
+                        float whoosh = Mathf.Sin(u * Mathf.PI) * Noise(t * 2.6f) * 0.22f;
+                        float glug = Pulse(t, 0.24f, 0.14f) * Sin(t, Mathf.Lerp(190f, 120f, Mathf.Clamp01((t - 0.24f) / 0.14f))) * 0.5f;
+                        float drip = Pulse(t, 0.36f, 0.07f) * Sin(t, 760f) * 0.15f;
+                        return whoosh + glug + drip;
+                    });
+
+                case SoundId.WaterFill:
+                    // Kovaya akan su: art arda küçük kabarcıklar.
+                    return MakeClip("WaterFill", 0.55f, (t, u) =>
+                    {
+                        float flow = Mathf.Sin(u * Mathf.PI) * Noise(t * 4.2f) * 0.18f;
+                        float b1 = Pulse(t, 0.05f, 0.07f) * Sin(t, Mathf.Lerp(420f, 700f, u)) * 0.28f;
+                        float b2 = Pulse(t, 0.18f, 0.06f) * Sin(t, Mathf.Lerp(520f, 820f, u)) * 0.25f;
+                        float b3 = Pulse(t, 0.3f, 0.07f) * Sin(t, Mathf.Lerp(480f, 900f, u)) * 0.28f;
+                        float b4 = Pulse(t, 0.42f, 0.06f) * Sin(t, Mathf.Lerp(600f, 980f, u)) * 0.24f;
+                        return flow + b1 + b2 + b3 + b4;
+                    });
+
+                case SoundId.Footstep:
+                    return MakeClip("Footstep", 0.13f, (t, u) =>
+                        Env(u, 0.02f, 13f) * (Sin(t, 92f) * 0.42f + Noise(t * 3.3f) * 0.2f));
+
+                case SoundId.Ladder:
+                    // Boş metal basamak: tok ve tınlayan vuruş.
+                    return MakeClip("Ladder", 0.22f, (t, u) =>
+                    {
+                        float step = Pulse(t, 0f, 0.07f) * (Sin(t, 310f) * 0.34f + Sin(t, 625f) * 0.24f + Noise(t * 4f) * 0.18f);
+                        float ring = Env(u, 0.02f, 9f) * Sin(t, 940f) * 0.1f;
+                        return step + ring;
+                    });
+
+                case SoundId.Pickup:
+                    // Küçük iki notalı onay: malzeme depoya girdi.
+                    return MakeClip("Pickup", 0.24f, (t, u) =>
+                        Pulse(t, 0f, 0.11f) * Sin(t, 880f) * 0.26f + Pulse(t, 0.08f, 0.15f) * Sin(t, 1318.5f) * 0.24f);
 
                 case SoundId.DayPhaseChange:
                 default:

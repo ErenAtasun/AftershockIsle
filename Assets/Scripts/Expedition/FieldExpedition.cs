@@ -150,7 +150,6 @@ namespace AftershockIsle.Expedition
         float messageTimer;
 
         GUIStyle centered;
-        GUIStyle small;
         GUIStyle prompt;
         Camera cam;
 
@@ -255,6 +254,7 @@ namespace AftershockIsle.Expedition
 
         void Update()
         {
+            RefreshHud();
             if (!IsActive) return;
 
             float dt = Time.deltaTime;

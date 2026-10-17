@@ -49,7 +49,6 @@ namespace AftershockIsle.Expedition
     /// </summary>
     public class ExpeditionSystem : MonoBehaviour
     {
-        [SerializeField] TimeManager timeManager;
         [SerializeField] DayCycle dayCycle;
         [SerializeField] int baseBagSlots = 3;
         [SerializeField] float rescueExtraction = 8f;
@@ -121,7 +120,6 @@ namespace AftershockIsle.Expedition
         {
             Instance = this;
             building = FindFirstObjectByType<BuildingLayout>();
-            if (timeManager == null) timeManager = FindFirstObjectByType<TimeManager>();
             if (dayCycle == null) dayCycle = FindFirstObjectByType<DayCycle>();
 
             // Eski sahnelerde serileştirilmiş saha verisi olmayabilir.
@@ -155,7 +153,7 @@ namespace AftershockIsle.Expedition
             Stage = ExpeditionStage.ChoosingSite;
             Explorer = explorer;
             Companion = null;
-            timeManager.SetSpeed(TimeSpeed.Paused);
+            TimeManager.Hold(this);
             Debug.Log($"[Sefer] Harita açıldı: {explorer.DisplayName}");
         }
 
@@ -165,6 +163,7 @@ namespace AftershockIsle.Expedition
             Stage = ExpeditionStage.None;
             Explorer = null;
             Companion = null;
+            TimeManager.Release(this);
         }
 
         /// <summary>Yoldaş adaylarını sırayla döner: yok → birinci → ikinci → ... → yok.</summary>
@@ -201,7 +200,7 @@ namespace AftershockIsle.Expedition
                 StartCoroutine(WalkThroughDoor(Companion, building.MaxX, OutsideX));
             }
             Stage = ExpeditionStage.Departing;
-            timeManager.SetSpeed(TimeSpeed.Normal);
+            TimeManager.Release(this);
             EventBus.Publish(new ExpeditionStarted(Explorer, site));
             Debug.Log($"[Sefer] {Explorer.DisplayName} → {site.name} (saha süresi {site.duration:0} sn" +
                       (Companion != null ? $", yoldaş {Companion.DisplayName}" : "") + ")");
@@ -237,8 +236,9 @@ namespace AftershockIsle.Expedition
             Stage = ExpeditionStage.None;
             TransitSurvivor = null;
 
-            // Çantayı sandığa götürmesi otomatik; oyuncu isterse başka emir verebilir.
-            if (!explorer.IsDead && StorageChest.Main != null) explorer.Tasks.Assign(StorageChest.Main, false);
+            // Çanta kapıdan girince doğrudan depoya geçer; sandığa taşımak gerekmez.
+            if (ResourceStorage.Instance != null)
+                foreach (var item in explorer.EmptyBag()) ResourceStorage.Instance.Add(item);
 
             EventBus.Publish(new ExpeditionReturned(explorer, new List<ResourceAmount>(loot), hazardReport, rescued));
         }

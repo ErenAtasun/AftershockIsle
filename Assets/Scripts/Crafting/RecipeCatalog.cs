@@ -31,11 +31,13 @@ namespace AftershockIsle.Crafting
 
     public readonly struct RecipeInfo
     {
+        // Bit = kat numarası (BuildingLayout): 0 Bodrum, 1 Giriş, 2 Yaşam / Tezgah, 3 Üçüncü kat, 4 Çatı.
         public const int FloorBasement = 1 << 0;
         public const int FloorGround = 1 << 1;
         public const int FloorLiving = 1 << 2;
-        public const int FloorRoof = 1 << 3;
-        public const int FloorIndoors = FloorBasement | FloorGround | FloorLiving;
+        public const int FloorUpper = 1 << 3;
+        public const int FloorRoof = 1 << 4;
+        public const int FloorIndoors = FloorBasement | FloorGround | FloorLiving | FloorUpper;
         public const int FloorAll = FloorIndoors | FloorRoof;
 
         public readonly RecipeId Id;
@@ -75,7 +77,7 @@ namespace AftershockIsle.Crafting
         public string AllowedFloorsText()
         {
             if (AllowedFloorMask == FloorAll) return "Tüm Katlar";
-            if (AllowedFloorMask == FloorIndoors) return "İç Mekan (Kat 0-2)";
+            if (AllowedFloorMask == FloorIndoors) return "İç Mekan (Bodrum – 3. Kat)";
             if (AllowedFloorMask == FloorBasement) return "Sadece Bodrum";
             if (AllowedFloorMask == FloorRoof) return "Sadece Çatı";
             return "Belirli Katlar";
@@ -142,7 +144,7 @@ namespace AftershockIsle.Crafting
                 repeatable: true, isPlaceable: true, gridWidth: 1, gridDepth: 1, allowedFloorMask: RecipeInfo.FloorIndoors),
 
             // 12: StorageRack (Grid Placeable 2x1 - Tüm Katlar)
-            new RecipeInfo(RecipeId.StorageRack, 1, "Ek Depo Rafı", "Eve yerleştirilir (2x1). Bulunduğu katta ortak sandık görevi görür; kazazedeler malzemeyi üst kata taşımaz.",
+            new RecipeInfo(RecipeId.StorageRack, 1, "Ek Depo Rafı", "Eve yerleştirilir (2x1). Depoyu düzenler ve kilitler: gece yağmacı baskınında çalınan malzeme miktarı raf başına 1 azalır.",
                 new[] { R(ResourceType.Scrap, 3) }, 5f,
                 repeatable: true, isPlaceable: true, gridWidth: 2, gridDepth: 1, allowedFloorMask: RecipeInfo.FloorAll),
 

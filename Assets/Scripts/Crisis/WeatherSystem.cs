@@ -1,7 +1,9 @@
+using AftershockIsle.CameraControl;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
 using AftershockIsle.Crafting;
 using AftershockIsle.Interaction;
+using AftershockIsle.UI;
 using UnityEngine;
 
 namespace AftershockIsle.Crisis
@@ -61,7 +63,8 @@ namespace AftershockIsle.Crisis
                 return;
             }
             Instance = this;
-            ApplyAtmosphereImmediate();
+            RenderSettings.fog = false;
+            if (WeatherOverlay.Enabled) WeatherOverlay.Create(transform);
         }
 
         void OnDestroy()
@@ -127,7 +130,6 @@ namespace AftershockIsle.Crisis
         public void SetWeather(WeatherType weather)
         {
             CurrentWeather = weather;
-            ApplyAtmosphereImmediate();
             EventBus.Publish(new WeatherChanged(weather));
         }
 
@@ -151,43 +153,29 @@ namespace AftershockIsle.Crisis
             }
         }
 
-        void ApplyAtmosphereImmediate()
+        // Gerçek sis (RenderSettings.fog) kullanılmaz: karanlık sahnede her malzemeyi sis rengine boyayıp renkleri siliyordu.
+        // Hava, WeatherOverlay (ekran perdesi) ve BackdropAtmosphere (arka plan sisi) ile gösterilir.
+        static Color FogColorFor(WeatherType weather) => weather switch
         {
-            switch (CurrentWeather)
-            {
-                case WeatherType.Clear:
-                    RenderSettings.fog = false;
-                    break;
+            WeatherType.DenseFog => new Color(0.58f, 0.65f, 0.72f),
+            WeatherType.AcidRain => new Color(0.55f, 0.58f, 0.36f),
+            WeatherType.Storm => new Color(0.32f, 0.36f, 0.44f),
+            WeatherType.ColdWave => new Color(0.62f, 0.75f, 0.88f),
+            _ => new Color(0.62f, 0.68f, 0.72f),
+        };
 
-                case WeatherType.DenseFog:
-                    RenderSettings.fog = true;
-                    RenderSettings.fogMode = FogMode.ExponentialSquared;
-                    RenderSettings.fogColor = new Color(0.58f, 0.65f, 0.72f);
-                    RenderSettings.fogDensity = 0.022f;
-                    break;
+        /// <summary>Şu anki havanın sis rengi (sığınak arka planındaki sis perdesi de bunu kullanır).</summary>
+        public static Color FogColor => FogColorFor(Current);
 
-                case WeatherType.AcidRain:
-                    RenderSettings.fog = true;
-                    RenderSettings.fogMode = FogMode.ExponentialSquared;
-                    RenderSettings.fogColor = new Color(0.55f, 0.58f, 0.36f);
-                    RenderSettings.fogDensity = 0.014f;
-                    break;
-
-                case WeatherType.Storm:
-                    RenderSettings.fog = true;
-                    RenderSettings.fogMode = FogMode.ExponentialSquared;
-                    RenderSettings.fogColor = new Color(0.32f, 0.36f, 0.44f);
-                    RenderSettings.fogDensity = 0.015f;
-                    break;
-
-                case WeatherType.ColdWave:
-                    RenderSettings.fog = true;
-                    RenderSettings.fogMode = FogMode.ExponentialSquared;
-                    RenderSettings.fogColor = new Color(0.62f, 0.75f, 0.88f);
-                    RenderSettings.fogDensity = 0.012f;
-                    break;
-            }
-        }
+        /// <summary>Arka plandaki sis perdesinin ek yoğunluğu (0 = açık hava, 1 = en yoğun).</summary>
+        public static float BackdropFogAmount => Current switch
+        {
+            WeatherType.DenseFog => 0.85f,
+            WeatherType.Storm => 0.55f,
+            WeatherType.AcidRain => 0.5f,
+            WeatherType.ColdWave => 0.35f,
+            _ => 0f,
+        };
 
         public static float SmokeVentMultiplier => Current == WeatherType.Storm ? 2.0f : 1.0f;
         public static float EnemyVisionMultiplier => Current == WeatherType.DenseFog ? 0.65f : 1.0f;

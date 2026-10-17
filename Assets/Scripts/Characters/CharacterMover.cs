@@ -17,6 +17,9 @@ namespace AftershockIsle.Characters
         // Derinlikte hareket perspektif yüzünden ekranda hızlı görünür; biraz yavaşlatılır.
         const float DepthSpeedFactor = 0.85f;
         const float BodyRadius = 0.3f;
+        // Aynı kattaki iki kazazede birbirinin içinden geçmesin: bu mesafenin altına girince yumuşakça ayrılırlar.
+        const float MinSeparation = 0.62f;
+        const float SeparationSpeed = 6f;
 
         [SerializeField] BuildingLayout building;
         [SerializeField] float walkSpeed = 3f;
@@ -188,6 +191,7 @@ namespace AftershockIsle.Characters
             if (!IsMoving)
             {
                 UpdateSteering(dt);
+                Separate(dt);
                 return;
             }
 
@@ -204,6 +208,9 @@ namespace AftershockIsle.Characters
             Face(facing, dt);
 
             transform.position = Vector3.MoveTowards(transform.position, waypoint.Position, speed * dt);
+            // Yolun sonuna (hedefe) yaklaşırken ayrılma kapalı: aynı noktaya giden iki kişi birbirini itip varışı sonsuza dek engellemesin.
+            if (!waypoint.IsClimb && pathIndex < path.Count - 1 &&
+                (transform.position - waypoint.Position).sqrMagnitude > 0.5f) Separate(dt);
 
             if ((transform.position - waypoint.Position).sqrMagnitude > 0.0001f) return;
 
@@ -237,6 +244,39 @@ namespace AftershockIsle.Characters
 
             transform.position = next;
             Face(steerVelocity, dt);
+        }
+
+        // Aynı kattaki canlı kazazedelerden uzaklaştırır; merdivende, enkaz altında ve farklı katlarda işlemez.
+        void Separate(float dt)
+        {
+            if (building == null || IsClimbing) return;
+
+            var position = transform.position;
+            var push = Vector3.zero;
+            foreach (var other in Survivor.All)
+            {
+                if (other == null || other.IsDead || other.Mover == this || other.Mover == null) continue;
+                var otherMover = other.Mover;
+                if (otherMover.CurrentFloor != CurrentFloor || otherMover.IsClimbing || !other.isActiveAndEnabled) continue;
+
+                var away = position - other.transform.position;
+                away.y = 0f;
+                float distance = away.magnitude;
+                if (distance >= MinSeparation) continue;
+
+                // Tam üst üsteyseler yön tutarlı olsun diye kimliğe göre bir yana kayarlar.
+                away = distance > 0.001f ? away / distance : (GetInstanceID() > other.GetInstanceID() ? Vector3.forward : Vector3.back);
+                push += away * (MinSeparation - distance);
+            }
+
+            if (push.sqrMagnitude < 0.00001f) return;
+
+            var next = position + Vector3.ClampMagnitude(push * SeparationSpeed * dt, 0.08f);
+            next.x = building.LimitWalk(CurrentFloor, position.x, next.x);
+            next.z = building.ClampZ(next.z);
+            next = FloorObstacles.PushOut(building, CurrentFloor, next, BodyRadius);
+            next.y = position.y;
+            transform.position = next;
         }
 
         void Face(Vector3 direction, float dt)

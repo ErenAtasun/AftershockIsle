@@ -58,6 +58,14 @@ namespace AftershockIsle.Crafting
             return false;
         }
 
+        public static int CountOf(RecipeId id)
+        {
+            int count = 0;
+            foreach (var s in all)
+                if (s != null && s.isActiveAndEnabled && s.Recipe == id) count++;
+            return count;
+        }
+
         public static bool HasOnFloor(RecipeId id, int floor)
         {
             foreach (var s in all)
@@ -142,11 +150,7 @@ namespace AftershockIsle.Crafting
                     pump.ConfigureRuntime("Elektrikli Pompa", 5f);
                     break;
 
-                case RecipeId.StorageRack:
-                    var chest = gameObject.AddComponent<StorageChest>();
-                    chest.ConfigureRuntime("Ek Depo Rafı", 0.5f);
-                    break;
-
+                // Ek Depo Rafı: etkileşimsiz, yalnızca bulunması yeter (gece baskınında çalınan miktarı azaltır).
                 case RecipeId.WaterPurifier:
                     attachedWaterSource = gameObject.AddComponent<WaterSource>();
                     attachedWaterSource.ConfigureRuntime("Su Arıtma İstasyonu", 1.5f);

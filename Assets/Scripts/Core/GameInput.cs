@@ -26,6 +26,11 @@ namespace AftershockIsle.Core
         static float rumbleUntil;
         static bool rumbling;
 
+        static int nudgeFrame = -1;
+        static Vector2Int nudgeValue;
+        static Vector2Int nudgeHeld;
+        static float nudgeRepeatAt;
+
         static int menuFrame = -1;
         static int menuStep;
         static int menuHeldDirection;
@@ -129,8 +134,110 @@ namespace AftershockIsle.Core
 
         public static bool FocusPressed => Keys != null && Keys.fKey.wasPressedThisFrame;
         public static bool RestartPressed => Keys != null && Keys.rKey.wasPressedThisFrame;
-        public static bool BuildModeTogglePressed => !FieldControlsActive && Keys != null && Keys.bKey.wasPressedThisFrame;
-        public static bool RotatePlacementPressed => !FieldControlsActive && Keys != null && Keys.rKey.wasPressedThisFrame;
+        /// <summary>B / D-pad yukarı: yerleşim modunu aç-kapat (sadece sığınakta).</summary>
+        public static bool BuildModeTogglePressed => BuildModeKeyPressed || BuildModePadPressed;
+
+        public static bool BuildModeKeyPressed => !FieldControlsActive && Keys != null && Keys.bKey.wasPressedThisFrame;
+
+        /// <summary>D-pad yukarı aynı zamanda pencerelerde menü gezinmesidir; pencere açıkken yerleşimi açmamalı.</summary>
+        public static bool BuildModePadPressed => !FieldControlsActive && Pad != null && Pad.dpad.up.wasPressedThisFrame;
+
+        /// <summary>Yerleşim modunda R / Y (Üçgen): yapıyı 90° döndür.</summary>
+        public static bool RotatePlacementPressed => !FieldControlsActive &&
+            ((Keys != null && Keys.rKey.wasPressedThisFrame) || (Pad != null && Pad.buttonNorth.wasPressedThisFrame));
+
+        /// <summary>
+        /// Yerleşim modunda ok tuşları / D-pad / sol çubuk: seçili ızgara hücresini bir adım kaydırır
+        /// (x: sağ-sol, y: yukarı = arka şerit, aşağı = ön şerit). Gamepad'de basılı tutunca tekrarlar.
+        /// </summary>
+        public static Vector2Int PlacementNudge
+        {
+            get
+            {
+                if (FieldControlsActive) return Vector2Int.zero;
+                if (nudgeFrame == Time.frameCount) return nudgeValue;
+
+                nudgeFrame = Time.frameCount;
+                nudgeValue = Vector2Int.zero;
+
+                if (Keys != null)
+                {
+                    int x = (Keys.rightArrowKey.wasPressedThisFrame ? 1 : 0) - (Keys.leftArrowKey.wasPressedThisFrame ? 1 : 0);
+                    int z = (Keys.upArrowKey.wasPressedThisFrame ? 1 : 0) - (Keys.downArrowKey.wasPressedThisFrame ? 1 : 0);
+                    nudgeValue = new Vector2Int(x, z);
+                }
+
+                if (nudgeValue == Vector2Int.zero && Pad != null)
+                {
+                    Vector2 v = Pad.dpad.ReadValue();
+                    if (v.sqrMagnitude < 0.25f) v = Pad.leftStick.ReadValue();
+
+                    // Baskın eksen: çapraz basış tek yöne indirgenir.
+                    var direction = Vector2Int.zero;
+                    if (Mathf.Abs(v.x) >= Mathf.Abs(v.y)) direction.x = v.x > 0.6f ? 1 : v.x < -0.6f ? -1 : 0;
+                    else direction.y = v.y > 0.6f ? 1 : v.y < -0.6f ? -1 : 0;
+
+                    float now = Time.unscaledTime;
+                    if (direction == Vector2Int.zero)
+                    {
+                        nudgeHeld = Vector2Int.zero;
+                    }
+                    else if (direction != nudgeHeld)
+                    {
+                        nudgeHeld = direction;
+                        nudgeRepeatAt = now + 0.35f;
+                        nudgeValue = direction;
+                    }
+                    else if (now >= nudgeRepeatAt)
+                    {
+                        nudgeRepeatAt = now + 0.12f;
+                        nudgeValue = direction;
+                    }
+                }
+
+                return nudgeValue;
+            }
+        }
+
+        /// <summary>Yerleşim modunda E / Page Up / RB: bir kat yukarı, Q / Page Down / LB: bir kat aşağı.</summary>
+        public static int PlacementFloorStep
+        {
+            get
+            {
+                if (FieldControlsActive) return 0;
+                int up = (Keys != null && (Keys.eKey.wasPressedThisFrame || Keys.pageUpKey.wasPressedThisFrame)) ||
+                         (Pad != null && Pad.rightShoulder.wasPressedThisFrame) ? 1 : 0;
+                int down = (Keys != null && (Keys.qKey.wasPressedThisFrame || Keys.pageDownKey.wasPressedThisFrame)) ||
+                           (Pad != null && Pad.leftShoulder.wasPressedThisFrame) ? 1 : 0;
+                return up - down;
+            }
+        }
+
+        /// <summary>Yerleşim modunda Tab / RT: sıradaki kuruluma hazır yapı; Shift+Tab / LT: öncekisi.</summary>
+        public static int PlacementRecipeStep
+        {
+            get
+            {
+                if (FieldControlsActive) return 0;
+                bool next = (Keys != null && Keys.tabKey.wasPressedThisFrame && !Keys.shiftKey.isPressed) ||
+                            (Pad != null && Pad.rightTrigger.wasPressedThisFrame);
+                bool previous = (Keys != null && Keys.tabKey.wasPressedThisFrame && Keys.shiftKey.isPressed) ||
+                                (Pad != null && Pad.leftTrigger.wasPressedThisFrame);
+                return (next ? 1 : 0) - (previous ? 1 : 0);
+            }
+        }
+
+        /// <summary>Yerleşim modunda Enter / A: seçili hücreye kur / taşı (fareyle tıklamanın karşılığı).</summary>
+        public static bool PlacementConfirmPressed => !FieldControlsActive &&
+            ((Keys != null && (Keys.enterKey.wasPressedThisFrame || Keys.numpadEnterKey.wasPressedThisFrame)) ||
+             (Pad != null && Pad.buttonSouth.wasPressedThisFrame));
+
+        /// <summary>Yerleşim modunda X / X (Kare): kurulu yapıyı depoya kaldır.</summary>
+        public static bool PlacementStorePressed => !FieldControlsActive &&
+            ((Keys != null && Keys.xKey.wasPressedThisFrame) || (Pad != null && Pad.buttonWest.wasPressedThisFrame));
+
+        /// <summary>Yerleşim modunda gamepad B (Daire): modu kapat (klavyede Esc / sağ tık / B).</summary>
+        public static bool PlacementBackPressed => !FieldControlsActive && Pad != null && Pad.buttonEast.wasPressedThisFrame;
 
         /// <summary>Basılıyken verilen emir mevcut işleri iptal etmez, sıraya eklenir.</summary>
         public static bool QueueModifierHeld => Keys != null && Keys.shiftKey.isPressed;
@@ -210,7 +317,17 @@ namespace AftershockIsle.Core
         public static bool SelectPressed => Pointer != null && Pointer.leftButton.wasPressedThisFrame;
         public static bool CommandPressed => Pointer != null && Pointer.rightButton.wasPressedThisFrame;
         public static Vector2 PointerPosition => Pointer != null ? Pointer.position.ReadValue() : Vector2.zero;
-        public static float ScrollDelta => Pointer != null ? Pointer.scroll.ReadValue().y : 0f;
+        /// <summary>Fare tekerleği; gamepad'de sağ çubuğa basmak (R3) yakınlaştırır, sol çubuğa basmak (L3) uzaklaştırır.</summary>
+        public static float ScrollDelta
+        {
+            get
+            {
+                float scroll = Pointer != null ? Pointer.scroll.ReadValue().y : 0f;
+                if (scroll == 0f && Pad != null)
+                    scroll = (Pad.rightStickButton.wasPressedThisFrame ? 1f : 0f) - (Pad.leftStickButton.wasPressedThisFrame ? 1f : 0f);
+                return scroll;
+            }
+        }
 
         // ---------------------------------------------------------------- Test
 
@@ -276,6 +393,15 @@ namespace AftershockIsle.Core
                 InputPrompt.Fire => pad ? "RT" : "Sol tık",
                 InputPrompt.SwitchWeapon => pad ? "X" : "Q",
                 InputPrompt.Crouch => pad ? "LT" : "Shift",
+                InputPrompt.Build => pad ? "D-pad ↑" : "B",
+                InputPrompt.PlaceCell => pad ? "Sol çubuk / D-pad" : "Fare / ok tuşları",
+                InputPrompt.PlaceFloor => pad ? "LB / RB" : "Q / E",
+                InputPrompt.PlaceRecipe => pad ? "LT / RT" : "Tab",
+                InputPrompt.PlaceConfirm => pad ? "A" : "Sol tık / Enter",
+                InputPrompt.PlaceRotate => pad ? "Y" : "R",
+                InputPrompt.PlaceStore => "X",
+                InputPrompt.PlaceClose => pad ? "B" : "B / Sağ tık",
+                InputPrompt.Zoom => pad ? "L3 / R3" : "Tekerlek",
                 _ => "?",
             };
         }
@@ -387,5 +513,6 @@ namespace AftershockIsle.Core
     {
         Move, Dodge, Interact, Heal, Cancel, Pause, Speed, SwitchCharacter,
         SkillTree, Help, Menu, Confirm, Back, Pump, Aim, Fire, SwitchWeapon, Crouch,
+        Build, PlaceCell, PlaceFloor, PlaceRecipe, PlaceConfirm, PlaceRotate, PlaceStore, PlaceClose, Zoom,
     }
 }

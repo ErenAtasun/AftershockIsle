@@ -77,6 +77,14 @@ namespace AftershockIsle.Crafting
 
         public float Wear => wear;
 
+        /// <summary>Sahnede gerçekten kurulu pompa (gizli yer tutucuyu değil, ızgaraya yerleştirileni verir); yoksa null.</summary>
+        public static ElectricPump FindActive()
+        {
+            foreach (var pump in FindObjectsByType<ElectricPump>(FindObjectsSortMode.None))
+                if (pump.installable == null || pump.installable.IsInstalled) return pump;
+            return null;
+        }
+
         public void RestoreState(bool isBroken, float wearAmount)
         {
             IsBroken = isBroken;

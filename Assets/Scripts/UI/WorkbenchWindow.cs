@@ -62,7 +62,7 @@ namespace AftershockIsle.UI
             }
 
             window.Tick(FirstSelectable());
-            if (GameInput.MenuBackPressed || GameInput.BuildModeTogglePressed)
+            if (GameInput.MenuBackPressed || GameInput.BuildModeKeyPressed)
             {
                 Close();
                 return;
@@ -101,7 +101,7 @@ namespace AftershockIsle.UI
 
             pendingLabel = UiFactory.Label(window.Footer, "", 15, new Color(0.8f, 0.8f, 0.75f), TextAnchor.MiddleLeft, FontStyle.Normal, false);
             pendingLabel.rectTransform.sizeDelta = new Vector2(470f, 46f);
-            window.FooterButton("Yerleşim Modu (B)", () => OpenPlacement(null));
+            window.FooterButton($"Yerleşim Modu ({GameInput.Prompt(InputPrompt.Build)})", () => OpenPlacement(null));
             window.FooterButton($"Kapat ({GameInput.Prompt(InputPrompt.Back)})", Close, null, 180f);
         }
 
@@ -143,7 +143,7 @@ namespace AftershockIsle.UI
 
             int unplaced = bench.TotalUnplacedCount;
             placeAll.gameObject.SetActive(unplaced > 0);
-            placeAllLabel.text = $"Kuruluma hazır {unplaced} yapıyı yerleştir (B)";
+            placeAllLabel.text = $"Kuruluma hazır {unplaced} yapıyı yerleştir ({GameInput.Prompt(InputPrompt.Build)})";
 
             foreach (var row in rows)
             {

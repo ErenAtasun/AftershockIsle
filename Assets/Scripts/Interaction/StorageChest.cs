@@ -4,7 +4,7 @@ using AftershockIsle.Economy;
 namespace AftershockIsle.Interaction
 {
     /// <summary>
-    /// Ortak Sandık: elde taşınan malzeme ve sefer çantası buraya bırakılınca global sayaca eklenir.
+    /// Ortak Sandık: eldeki depolanabilir yük ya da sefer çantası buraya bırakılabilir (isteğe bağlı; malzeme artık kendiliğinden depoya girer).
     /// </summary>
     public class StorageChest : Interactable
     {
@@ -15,7 +15,7 @@ namespace AftershockIsle.Interaction
 
         public override string ActionLabel => "Bırak";
         public override WorkCategory Category => WorkCategory.Haul;
-        public override string StatusText => "Taşınan malzeme ve sefer çantası buraya bırakılınca depoya eklenir.";
+        public override string StatusText => "Malzeme kendiliğinden depoya girer; elde kalmış yük ya da çanta buraya bırakılabilir.";
 
         protected override void Awake()
         {

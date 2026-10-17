@@ -156,6 +156,22 @@ namespace AftershockIsle.Characters
                 });
             }
 
+            // Etkileşimi olmayan ızgara yapıları (ör. Ek Depo Rafı) de yürünmez; etkileşimli olanlar yukarıda sayıldı.
+            foreach (var structure in AftershockIsle.Crafting.PlaceableStructure.All)
+            {
+                if (structure == null || !structure.isActiveAndEnabled || structure.GetComponent<Interactable>() != null) continue;
+                if (!structure.TryGetComponent<BoxCollider>(out var box)) continue;
+
+                var bounds = box.bounds;
+                int floor = building.FloorAtHeight(bounds.min.y + 0.05f);
+                footprints.Add(new Footprint
+                {
+                    Floor = floor,
+                    Center = new Vector2(bounds.center.x, bounds.center.z),
+                    Half = new Vector2(bounds.extents.x, bounds.extents.z),
+                });
+            }
+
             // Bina modelinin duvarları, döşeme delikleri ve kapalı kapılar.
             foreach (var blocker in WalkBlocker.All)
             {

@@ -62,11 +62,11 @@ namespace AftershockIsle.Interaction
             if (WillSearch)
             {
                 searched = true;
-                worker.TryPickUp(searchLoot);
+                worker.Collect(searchLoot);
                 return;
             }
 
-            worker.TryPickUp(SalvageWithSkills());
+            worker.Collect(SalvageWithSkills());
             EventBus.Publish(new FurnitureDismantled(this));
             Destroy(gameObject);
         }

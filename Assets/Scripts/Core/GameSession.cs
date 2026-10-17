@@ -23,15 +23,8 @@ namespace AftershockIsle.Core
     /// <summary>Zafer/yenilgi koşullarını dinler, oyunu dondurur ve R ile yeniden başlatır.</summary>
     public class GameSession : MonoBehaviour
     {
-        [SerializeField] TimeManager timeManager;
-
         public GameOutcome Outcome { get; private set; }
         public string EndReason { get; private set; }
-
-        void Awake()
-        {
-            if (timeManager == null) timeManager = FindFirstObjectByType<TimeManager>();
-        }
 
         void OnEnable()
         {
@@ -72,8 +65,7 @@ namespace AftershockIsle.Core
 
             Outcome = outcome;
             EndReason = reason;
-            timeManager.enabled = false;
-            Time.timeScale = 0f;
+            TimeManager.Hold(this);
             EventBus.Publish(new GameEnded(outcome, reason));
         }
     }

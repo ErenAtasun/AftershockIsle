@@ -5,10 +5,11 @@ using AftershockIsle.Crafting;
 using AftershockIsle.Economy;
 using AftershockIsle.UI;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace AftershockIsle.Expedition
 {
-    /// <summary>Saha arayüzü (geçici IMGUI): panel, dünya etiketleri, etkileşim istemi, kontroller.</summary>
+    /// <summary>Saha arayüzü: üst panel, kontrol satırı ve hasar kızarması uGUI; dünya etiketleri ve etkileşim istemi imleci izlediği için IMGUI.</summary>
     public partial class FieldExpedition
     {
         // ---------------------------------------------------------------- HUD
@@ -40,30 +41,111 @@ namespace AftershockIsle.Expedition
             if (!IsActive || !SideViewCamera.ViewingField || ModalMenu.IsOpen || cam == null) return;
 
             centered ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 14, fontStyle = FontStyle.Bold };
-            small ??= new GUIStyle(GUI.skin.label) { fontSize = 14, wordWrap = true };
             prompt ??= new GUIStyle(GUI.skin.box) { alignment = TextAnchor.MiddleCenter, fontSize = 14, fontStyle = FontStyle.Bold };
 
-            DrawHurtOverlay();
             DrawWorldLabels();
             DrawInteractPrompt();
-            DrawPanel();
-            DrawControls();
         }
 
-        // Hasar alınca ekran kenarları kısa süre kızarır.
-        void DrawHurtOverlay()
+        // ---------------------------------------------------------------- uGUI paneli
+
+        GameObject hudRoot;
+        Text hudTitle;
+        Text hudInfo;
+        Image hudHealth;
+        Text hudControls;
+        Image hurtVeil;
+        bool hudShown;
+
+        void BuildHud()
         {
-            if (hurtFlash <= 0f) return;
-            var previous = GUI.color;
-            GUI.color = new Color(0.8f, 0f, 0f, hurtFlash * 0.6f);
-            const float edge = 60f;
-            float width = UiTheme.Width;
-            float height = UiTheme.Height;
-            GUI.DrawTexture(new Rect(0, 0, width, edge), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(0, height - edge, width, edge), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(0, 0, edge, height), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(width - edge, 0, edge, height), Texture2D.whiteTexture);
-            GUI.color = previous;
+            var canvas = UiFactory.Canvas("Saha Göstergesi", 11, transform).transform;
+            hudRoot = UiFactory.Rect("Saha", canvas).gameObject;
+            UiFactory.Stretch((RectTransform)hudRoot.transform);
+
+            // Hasar alınca ekran kızarır; tıklamaları engellemez.
+            hurtVeil = UiFactory.Image(hudRoot.transform, "Hasar", null, new Color(0.8f, 0f, 0f, 0f));
+            hurtVeil.sprite = null;
+            hurtVeil.type = Image.Type.Simple;
+            UiFactory.Stretch(hurtVeil.rectTransform);
+
+            var panel = UiFactory.Panel(hudRoot.transform, "Panel", UiFactory.Slate);
+            panel.raycastTarget = false;
+            UiFactory.Place(panel.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -16f), new Vector2(900f, 0f));
+            var layout = panel.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(22, 22, 12, 14);
+            layout.spacing = 6f;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+            panel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            hudTitle = UiFactory.Label(panel.transform, "", 23, UiFactory.Accent);
+            hudTitle.gameObject.AddComponent<LayoutElement>().preferredHeight = 34f;
+
+            hudHealth = UiFactory.Bar(panel.transform, "Can", new Vector2(0f, 22f), UiFactory.Good, out _, 16);
+            hudHealth.transform.parent.gameObject.AddComponent<LayoutElement>().preferredHeight = 22f;
+
+            hudInfo = UiFactory.Label(panel.transform, "", 19, UiFactory.Text, TextAnchor.UpperLeft, FontStyle.Normal, false);
+
+            var bar = UiFactory.Panel(hudRoot.transform, "Kontroller", new Color(0.08f, 0.08f, 0.1f, 0.78f));
+            bar.raycastTarget = false;
+            UiFactory.Place(bar.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 10f), new Vector2(1800f, 40f));
+            hudControls = UiFactory.Label(bar.transform, "", 19, new Color(0.9f, 0.9f, 0.85f), TextAnchor.MiddleCenter, FontStyle.Normal, false);
+            UiFactory.Stretch(hudControls.rectTransform, 6f);
+
+            hudRoot.SetActive(false);
+        }
+
+        void RefreshHud()
+        {
+            bool show = IsActive && SideViewCamera.ViewingField && !ModalMenu.IsOpen && !PauseMenu.IsOpen;
+            if (hudRoot == null)
+            {
+                if (!show) return;
+                BuildHud();
+            }
+
+            if (show != hudShown)
+            {
+                hudShown = show;
+                hudRoot.SetActive(show);
+            }
+            if (!show) return;
+
+            var veil = hurtVeil.color;
+            veil.a = Mathf.Clamp01(hurtFlash * 0.35f);
+            hurtVeil.color = veil;
+
+            string place = InsideBuilding ? "   [BİNA İÇİ]" : "";
+            hudTitle.text = $"SAHA: {site.name} — {explorer.DisplayName}   Kalan: {Mathf.CeilToInt(Remaining)} sn{place}";
+
+            float health = explorer.Health / explorer.MaxHealth;
+            hudHealth.fillAmount = Mathf.Clamp01(health);
+            hudHealth.color = Color.Lerp(UiFactory.Danger, UiFactory.Good, health);
+
+            var info = CurrentWeapon;
+            string ammo = info.UsesAmmo ? $"   Mermi: {(Workbench.Instance != null ? Workbench.Instance.Ammo : 0)}" : "   (sessiz, sınırsız)";
+            string stance = leanSide != 0 ? "Köşeden ateş" : CrouchedLow ? "Çömelik" : crouched ? "Doğruldu (açıkta)" : "Ayakta";
+            var text = new StringBuilder();
+            text.Append($"Can {explorer.Health:0}/{explorer.MaxHealth:0}   Çanta {usedSlots}/{bagSlots}: {BagText()}");
+            if (RescueSecured) text.Append("   [Kazazede kurtarıldı]");
+            text.Append($"\nSilah: {info.Name}{ammo}   Duruş: {stance}{(inCover ? "  [SİPERDE]" : "")}");
+            if (companion != null)
+                text.Append(companion.IsDead ? $"\nYoldaş: {companion.Survivor.DisplayName} öldü"
+                    : $"\nYoldaş: {companion.Survivor.DisplayName}   Can {companion.Survivor.Health:0}/{companion.Survivor.MaxHealth:0}");
+            if (messageTimer > 0f && message != null) text.Append($"\n<color=#ffd75a>{message}</color>");
+            hudInfo.text = text.ToString();
+
+            var storage = ResourceStorage.Instance;
+            int kits = storage != null ? storage.Get(ResourceType.Supplies) : 0;
+            hudControls.text =
+                $"{GameInput.Prompt(InputPrompt.Move)}: yürü    {GameInput.Prompt(InputPrompt.Aim)}: nişan    " +
+                $"{GameInput.Prompt(InputPrompt.Fire)}: ateş    {GameInput.Prompt(InputPrompt.SwitchWeapon)}: silah    " +
+                $"{GameInput.Prompt(InputPrompt.Crouch)}: çömel    {GameInput.Prompt(InputPrompt.Dodge)}: kaçış    " +
+                $"{GameInput.Prompt(InputPrompt.Interact)}: etkileşim    {GameInput.Prompt(InputPrompt.Heal)}: ilk yardım ({kits} kit)    " +
+                $"{GameInput.Prompt(InputPrompt.SwitchCharacter)}: sığınağa dön";
         }
 
         void DrawWorldLabels()
@@ -157,44 +239,6 @@ namespace AftershockIsle.Expedition
             GUI.color = color;
             GUI.DrawTexture(new Rect(rect.x + 1, rect.y + 1, (rect.width - 2) * Mathf.Clamp01(fraction), rect.height - 2), Texture2D.whiteTexture);
             GUI.color = previous;
-        }
-
-        void DrawPanel()
-        {
-            const float width = 440f;
-            var rect = new Rect((UiTheme.Width - width) * 0.5f, 10, width, companion != null ? 130 : 112);
-            GUI.Box(rect, GUIContent.none);
-            GUILayout.BeginArea(new Rect(rect.x + 8, rect.y + 6, rect.width - 16, rect.height - 12));
-
-            string place = InsideBuilding ? "   [BİNA İÇİ]" : "";
-            GUILayout.Label($"SAHA: {site.name} — {explorer.DisplayName}   Kalan: {Mathf.CeilToInt(Remaining)} sn{place}", centered);
-            float health = explorer.Health / explorer.MaxHealth;
-            DrawBarRect(GUILayoutUtility.GetRect(width - 16f, 10f), health, Color.Lerp(Color.red, Color.green, health));
-            GUILayout.Label($"Can {explorer.Health:0}/{explorer.MaxHealth:0}   Çanta {usedSlots}/{bagSlots}: {BagText()}" +
-                            (RescueSecured ? "   [Kazazede kurtarıldı]" : ""), small);
-            var info = CurrentWeapon;
-            string ammo = info.UsesAmmo ? $"   Mermi: {(Workbench.Instance != null ? Workbench.Instance.Ammo : 0)}" : "   (sessiz, sınırsız)";
-            string stance = leanSide != 0 ? "Köşeden ateş" : CrouchedLow ? "Çömelik" : crouched ? "Doğruldu (açıkta)" : "Ayakta";
-            GUILayout.Label($"Silah: {info.Name}{ammo}   Duruş: {stance}{(inCover ? "  [SİPERDE]" : "")}", small);
-            if (companion != null)
-                GUILayout.Label(companion.IsDead ? $"Yoldaş: {companion.Survivor.DisplayName} öldü"
-                    : $"Yoldaş: {companion.Survivor.DisplayName}   Can {companion.Survivor.Health:0}/{companion.Survivor.MaxHealth:0}", small);
-            if (messageTimer > 0f && message != null) GUILayout.Label(message, small);
-
-            GUILayout.EndArea();
-        }
-
-        void DrawControls()
-        {
-            var storage = ResourceStorage.Instance;
-            int kits = storage != null ? storage.Get(ResourceType.Supplies) : 0;
-            string text =
-                $"{GameInput.Prompt(InputPrompt.Move)}: yürü    {GameInput.Prompt(InputPrompt.Aim)}: nişan    " +
-                $"{GameInput.Prompt(InputPrompt.Fire)}: ateş    {GameInput.Prompt(InputPrompt.SwitchWeapon)}: silah    " +
-                $"{GameInput.Prompt(InputPrompt.Crouch)}: çömel    {GameInput.Prompt(InputPrompt.Dodge)}: kaçış    " +
-                $"{GameInput.Prompt(InputPrompt.Interact)}: etkileşim    {GameInput.Prompt(InputPrompt.Heal)}: ilk yardım ({kits} kit)    " +
-                $"{GameInput.Prompt(InputPrompt.SwitchCharacter)}: sığınağa dön";
-            GUI.Label(new Rect(0, UiTheme.Height - 30, UiTheme.Width, 24), text, centered);
         }
 
         string BagText()

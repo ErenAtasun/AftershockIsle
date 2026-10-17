@@ -10,18 +10,19 @@ namespace AftershockIsle.Building
 {
     /// <summary>
     /// Sığınak içi 3B yerleştirme ızgarası (Grid Sistemi).
-    /// Her katı 16 X sütunu (1.0m) ve 3 Z derinlik şeridine (Ön, Orta, Arka Duvar) böler.
+    /// Her katı 18 X sütunu (1.0 m, iç genişlik 18 m) ve 3 Z derinlik şeridine (Ön, Orta, Arka Duvar; iç derinlik 4 m) böler.
     /// Çakışma, merdiven ağzı, çıkış kapısı ve kat kurallarını denetler.
     /// </summary>
     public class ShelterGrid : MonoBehaviour
     {
-        public const int Columns = 16;
+        // Bina ölçüleriyle (BuildingLayout: genişlik 18, derinlik 4) eşleşir: şeritler duvarların içinde kalır.
+        public const int Columns = 18;
         public const int Rows = 3;
         public const float CellSizeX = 1.0f;
-        public const float FirstCellX = -7.5f;
+        public const float FirstCellX = -8.5f;
 
-        static readonly float[] RowWorldZ = { -1.55f, 0.15f, 1.95f };
-        public const float CellSizeZ = 1.35f;
+        static readonly float[] RowWorldZ = { -1.3f, 0f, 1.3f };
+        public const float CellSizeZ = 1.3f;
 
         public static ShelterGrid Instance { get; private set; }
 
@@ -61,6 +62,11 @@ namespace AftershockIsle.Building
             Instance = this;
             building = FindFirstObjectByType<BuildingLayout>();
             EnsurePlacedRoot();
+
+            // Izgara bina ölçülerine bağlı: bina değişirse buradaki sabitler de güncellenmeli.
+            if (building != null && (Mathf.Abs(Columns * CellSizeX - building.Width) > 0.6f ||
+                                     Mathf.Abs(Rows * CellSizeZ - building.Depth) > 0.6f))
+                Debug.LogWarning($"[ShelterGrid] Izgara ({Columns * CellSizeX}x{Rows * CellSizeZ} m) bina ölçüleriyle ({building.Width}x{building.Depth} m) uyuşmuyor.");
         }
 
         void OnDestroy()
@@ -151,8 +157,8 @@ namespace AftershockIsle.Building
             float wx = CellToWorldX(cellX);
             var b = Building;
 
-            // 1. Merdiven ağızları
-            if (b != null && cellZ >= 1)
+            // 1. Merdiven ağızları (merdivenler orta şeritte, LadderZ çizgisinde; karakter oradan yaklaşır)
+            if (b != null && cellZ == 1)
             {
                 foreach (var ladder in b.Ladders)
                 {
@@ -169,7 +175,7 @@ namespace AftershockIsle.Building
             }
 
             // 2. Giriş katı dış kapı önü
-            if (floor == 1 && wx > 6.3f)
+            if (floor == 1 && wx > (b != null ? b.MaxX - 1.7f : 6.3f))
             {
                 reason = "Dış çıkış kapısının önü kapatılamaz.";
                 return true;

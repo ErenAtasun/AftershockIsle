@@ -22,6 +22,19 @@ namespace AftershockIsle.Characters
         }
     }
 
+    /// <summary>Bir iş tamamlandı (ses ve geri bildirim sistemleri dinler).</summary>
+    public readonly struct TaskFinished
+    {
+        public readonly Survivor Survivor;
+        public readonly Interactable Target;
+
+        public TaskFinished(Survivor survivor, Interactable target)
+        {
+            Survivor = survivor;
+            Target = target;
+        }
+    }
+
     /// <summary>
     /// Karakterin iş kuyruğu: sıradaki işe yürür, çalışır, tamamlar.
     /// Bir işin ön koşulu varsa (elde yük varken boş el isteyen iş → sandığa taşı,
@@ -77,7 +90,13 @@ namespace AftershockIsle.Characters
 
         void Update()
         {
-            if (Time.deltaTime <= 0f || !survivor.CanAct) return;
+            if (Time.deltaTime <= 0f) return;
+
+            if (!survivor.CanAct)
+            {
+                SuspendWhileDisabled();
+                return;
+            }
 
             // Üzerinde çalışılan nesne yok olmuş olabilir (ör. başka sebeple temizlenen moloz).
             if (State != TaskState.Idle && Current == null) State = TaskState.Idle;
@@ -88,6 +107,19 @@ namespace AftershockIsle.Characters
                 case TaskState.Moving: UpdateMoving(); break;
                 case TaskState.Working: UpdateWorking(); break;
             }
+        }
+
+        // Enkaz altında kalan ya da paniğe kapılan karakter nesneyi tutmaya devam etmesin: iş sıranın başına döner,
+        // başkası o nesneyle çalışabilir; karakter kendine gelince işe yeniden başlar (ilerleme sıfırlanır).
+        void SuspendWhileDisabled()
+        {
+            if (State == TaskState.Idle || Current == null) return;
+
+            var interrupted = Current;
+            ReleaseCurrent();
+            mover.Halt();
+            if (!survivor.IsDead && !queue.Exists(q => q.Target == interrupted))
+                queue.Insert(0, new QueuedTask { Target = interrupted });
         }
 
         void TryStartNext()
@@ -205,6 +237,7 @@ namespace AftershockIsle.Characters
             var done = Current;
             ReleaseCurrent();
             done.Complete(survivor);
+            EventBus.Publish(new TaskFinished(survivor, done));
             survivor.GetComponent<SurvivorChatter>()?.OnTaskCompleted(done.DisplayName);
 
             // Tekrarlı işin ön koşulları (taşıma, kova) sıradaki çözümlemede yeniden araya girer.

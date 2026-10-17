@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using AftershockIsle.Building;
 using AftershockIsle.CameraControl;
@@ -8,6 +9,9 @@ using AftershockIsle.Economy;
 using AftershockIsle.Skills;
 using AftershockIsle.UI;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+using Random = UnityEngine.Random;
 
 namespace AftershockIsle.Crisis
 {
@@ -49,16 +53,12 @@ namespace AftershockIsle.Crisis
         readonly List<int> encounterDeck = new List<int>();
         int lastEncounter = -1;
 
-        Rect windowRect = new Rect(0, 0, 540, 310);
-        GUIStyle titleStyle;
-        GUIStyle bodyStyle;
-        readonly MenuNav nav = new MenuNav();
-
-        // Olay penceresi açıkken zaman TimeManager üzerinden durur; kapanınca önceki hıza döner.
-        TimeManager timeManager;
         DayCycle dayCycle;
-        TimeSpeed resumeSpeed = TimeSpeed.Normal;
-        bool holdingTime;
+
+        // Olay penceresi (uGUI). Açıkken zaman TimeManager.Hold ile durur; seçim yapılmadan kapanmaz.
+        UiWindow window;
+        ActiveEncounter shownEvent;
+        GameObject firstChoice;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void EnsureInstance()
@@ -93,6 +93,7 @@ namespace AftershockIsle.Crisis
         void OnDestroy()
         {
             if (Instance == this) Instance = null;
+            TimeManager.Release(this);
         }
 
         void OnEnable()
@@ -135,15 +136,13 @@ namespace AftershockIsle.Crisis
         {
             if (activeEvent != null)
             {
-                // Duraklatma menüsü açılıp kapandıysa zaman yöneticisini yeniden etkinleştirmiş olabilir; seçim yapılana kadar kilitli kalsın.
-                if (holdingTime && timeManager != null && timeManager.enabled && !PauseMenu.IsOpen)
-                {
-                    timeManager.SetSpeed(TimeSpeed.Paused);
-                    timeManager.enabled = false;
-                }
-                nav.Tick();
+                // Seçim yapılana kadar zaman durur (tutma tekrar edilse de tek sayılır).
+                TimeManager.Hold(this);
+                ShowActiveEvent();
+                window.Tick(firstChoice);
                 return;
             }
+            if (window != null && window.IsOpen) window.Show(false);
 
             if (SideViewCamera.ViewingField || PlacementController.IsPlacementActive) return;
 
@@ -372,9 +371,7 @@ namespace AftershockIsle.Crisis
                 }
             }
 
-            activeEvent = encounter;
-            nav.Reset();
-            HoldTime();
+            Open(encounter);
         }
 
         void ResolveNightShelterTension()
@@ -450,18 +447,22 @@ namespace AftershockIsle.Crisis
                 });
             }
 
+            Open(encounter);
+        }
+
+        readonly Queue<ActiveEncounter> pendingEvents = new Queue<ActiveEncounter>();
+
+        /// <summary>Olayı açar; başka bir olay açıksa sıraya alır.</summary>
+        void Open(ActiveEncounter encounter)
+        {
             if (activeEvent != null)
             {
                 pendingEvents.Enqueue(encounter);
                 return;
             }
-
             activeEvent = encounter;
-            nav.Reset();
-            HoldTime();
+            TimeManager.Hold(this);
         }
-
-        readonly Queue<ActiveEncounter> pendingEvents = new Queue<ActiveEncounter>();
 
         void CloseModal()
         {
@@ -469,70 +470,86 @@ namespace AftershockIsle.Crisis
             if (pendingEvents.Count > 0)
             {
                 activeEvent = pendingEvents.Dequeue();
-                nav.Reset();
                 return;
             }
-            ReleaseTime();
+            TimeManager.Release(this);
+            if (window != null) window.Show(false);
         }
 
-        void HoldTime()
+        // Seçenek hata verse bile pencere kapanır ve zaman bırakılır: oyun bir olayda asla kilitli kalmaz.
+        void Choose(ActiveEncounter encounter, ChoiceOption choice)
         {
-            if (holdingTime) return;
-            if (timeManager == null) timeManager = FindFirstObjectByType<TimeManager>();
-            if (timeManager == null) return;
-
-            resumeSpeed = timeManager.IsPaused ? TimeSpeed.Normal : timeManager.Speed;
-            timeManager.SetSpeed(TimeSpeed.Paused);
-            // Seçim yapılmadan Space ile zaman yeniden başlatılamasın.
-            timeManager.enabled = false;
-            holdingTime = true;
-        }
-
-        void ReleaseTime()
-        {
-            if (!holdingTime) return;
-            holdingTime = false;
-            if (timeManager == null) return;
-
-            timeManager.enabled = true;
-            timeManager.SetSpeed(resumeSpeed);
-        }
-
-        void OnGUI()
-        {
-            UiTheme.Apply();
-            if (activeEvent == null) return;
-
-            titleStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 16, fontStyle = FontStyle.Bold };
-            bodyStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 14, wordWrap = true };
-
-            windowRect.height = Mathf.Max(310f, 190f + activeEvent.Choices.Count * 40f);
-            windowRect.x = (UiTheme.Width - windowRect.width) * 0.5f;
-            windowRect.y = (UiTheme.Height - windowRect.height) * 0.5f;
-            UIBlocker.Add(windowRect);
-
-            GUI.Window(8812, windowRect, DrawModalWindow, activeEvent.Title);
-        }
-
-        void DrawModalWindow(int id)
-        {
-            if (activeEvent == null) return;
-
-            nav.BeginDraw();
-            GUILayout.Space(8);
-            GUILayout.Label(activeEvent.Body, bodyStyle);
-            GUILayout.FlexibleSpace();
-
-            for (int i = 0; i < activeEvent.Choices.Count; i++)
+            if (activeEvent != encounter || !choice.Enabled) return;
+            try
             {
-                var choice = activeEvent.Choices[i];
-                nav.Button(choice.Label, choice.OnSelect, choice.Enabled, null, GUILayout.Height(36));
-                GUILayout.Space(4);
+                choice.OnSelect?.Invoke();
             }
-            nav.EndDraw();
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
+            finally
+            {
+                if (activeEvent == encounter) CloseModal();
+            }
+        }
+
+        // ---------------------------------------------------------------- Pencere
+
+        void ShowActiveEvent()
+        {
+            if (window == null) BuildWindow();
+            if (shownEvent == activeEvent && window.IsOpen) return;
+
+            shownEvent = activeEvent;
+            var encounter = activeEvent;
+            window.Title.text = UiFactory.StripSymbols(encounter.Title);
+            window.ClearContent();
+
+            var body = UiFactory.Label(window.Content, UiFactory.StripSymbols(encounter.Body), 20, UiFactory.Text, TextAnchor.UpperLeft, FontStyle.Normal, false);
+            body.lineSpacing = 1.1f;
+            var gap = UiFactory.Rect("Boşluk", window.Content).gameObject.AddComponent<LayoutElement>();
+            gap.preferredHeight = 10f;
+
+            firstChoice = null;
+            foreach (var choice in encounter.Choices)
+            {
+                var option = choice;
+                var button = UiFactory.TextButton(window.Content, UiFactory.StripSymbols(option.Label), new Vector2(0f, 58f),
+                    () => Choose(encounter, option), option.Enabled ? (Color?)null : new Color(0.25f, 0.25f, 0.27f, 1f), 19);
+                var element = button.gameObject.AddComponent<LayoutElement>();
+                element.preferredHeight = 58f;
+                element.minHeight = 58f;
+                button.interactable = option.Enabled;
+                if (option.Enabled && firstChoice == null) firstChoice = button.gameObject;
+            }
+
+            window.Show(true);
+            if (GameInput.UsingGamepad && EventSystem.current != null && firstChoice != null)
+                EventSystem.current.SetSelectedGameObject(firstChoice);
+        }
+
+        void BuildWindow()
+        {
+            window = new UiWindow("Olay Penceresi", new Vector2(880f, 620f), null, true, false);
+            var hint = UiFactory.Label(window.Footer, "Zaman durdu — devam etmek için bir seçim yapın.", 17,
+                new Color(0.78f, 0.78f, 0.74f, 1f), TextAnchor.MiddleRight, FontStyle.Italic, false);
+            hint.rectTransform.sizeDelta = new Vector2(760f, 40f);
         }
 
         public IEnumerable<int> GetTriggeredDays() => triggeredDays;
+        public IReadOnlyList<int> EncounterDeck => encounterDeck;
+        public int LastEncounter => lastEncounter;
+
+        /// <summary>Kayıttan: kalan karşılaşma destesi ve en son gelen karşılaşma.</summary>
+        public void RestoreDeck(IEnumerable<int> deck, int last)
+        {
+            encounterDeck.Clear();
+            if (deck != null)
+                foreach (int index in deck)
+                    if (index >= 0 && index < EncounterCount && !encounterDeck.Contains(index)) encounterDeck.Add(index);
+            lastEncounter = last >= 0 && last < EncounterCount ? last : -1;
+        }
         public int MotherGiftDueDay => motherGiftDueDay;
 
         public void RestoreState(IEnumerable<int> savedDays, int savedMotherGiftDay)
@@ -542,7 +559,9 @@ namespace AftershockIsle.Crisis
                 foreach (var d in savedDays) triggeredDays.Add(d);
             motherGiftDueDay = savedMotherGiftDay;
             activeEvent = null;
-            ReleaseTime();
+            pendingEvents.Clear();
+            TimeManager.Release(this);
+            if (window != null) window.Show(false);
         }
     }
 }

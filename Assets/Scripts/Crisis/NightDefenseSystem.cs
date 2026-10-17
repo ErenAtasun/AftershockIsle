@@ -44,6 +44,7 @@ namespace AftershockIsle.Crisis
         public int Attention => attention;
 
         Survivor guard;
+        float nextGuardWalkTime;
         int attention;
         bool promptPending;
         bool raidResolved = true;
@@ -131,8 +132,10 @@ namespace AftershockIsle.Crisis
 
                 var post = GetDoorPostPosition();
                 float dist = Vector3.Distance(guard.transform.position, post);
-                if (!guard.Mover.IsMoving && dist > 1.8f)
+                // Kapı önü enkazla kapalıysa nöbetçi en yakın noktaya gider; her karede yeniden yol aramasın.
+                if (!guard.Mover.IsMoving && dist > 1.8f && Time.time >= nextGuardWalkTime)
                 {
+                    nextGuardWalkTime = Time.time + 3f;
                     guard.Mover.WalkTo(post);
                 }
                 else if (dist <= 1.8f && !guard.Mover.IsMoving)
@@ -419,6 +422,10 @@ namespace AftershockIsle.Crisis
         static string Steal(ResourceStorage storage, int units)
         {
             if (storage == null || units <= 0) return "";
+
+            // Her Ek Depo Rafı çalınan miktarı 1 azaltır.
+            units -= AftershockIsle.Crafting.PlaceableStructure.CountOf(AftershockIsle.Crafting.RecipeId.StorageRack);
+            if (units <= 0) return "";
             ResourceType[] priority = { ResourceType.Supplies, ResourceType.Electronics, ResourceType.Metal, ResourceType.Scrap };
             var taken = new Dictionary<ResourceType, int>();
             for (int i = 0; i < units; i++)
@@ -454,6 +461,31 @@ namespace AftershockIsle.Crisis
         public void RestoreState(int savedAttention)
         {
             attention = Mathf.Clamp(savedAttention, 0, 100);
+        }
+
+        /// <summary>Kayıt için: bu gece baskın zarı henüz atılmadı mı, ne zaman atılacak, nöbetçi kim.</summary>
+        public void CaptureNight(out bool raidPending, out float raidAt, out string guardName)
+        {
+            raidPending = !raidResolved;
+            raidAt = raidAtNormalized;
+            guardName = guard != null && !guard.IsDead ? guard.DisplayName : null;
+        }
+
+        /// <summary>Kayıttan: gece ortasında yüklenirse baskın ve nöbetçi kaldığı yerden sürer.</summary>
+        public void RestoreNight(bool raidPending, float raidAt, string guardName)
+        {
+            raidResolved = !raidPending;
+            raidAtNormalized = raidAt > 0f ? raidAt : raidAtNormalized;
+            promptPending = false;
+            guard = null;
+
+            if (string.IsNullOrEmpty(guardName)) return;
+            foreach (var survivor in Survivor.All)
+            {
+                if (survivor == null || survivor.IsDead || survivor.DisplayName != guardName) continue;
+                guard = survivor;
+                break;
+            }
         }
     }
 }

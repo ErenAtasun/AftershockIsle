@@ -366,7 +366,7 @@ namespace AftershockIsle.Save
             }
 
             // 10. ElectricPump
-            var pump = FindFirstObjectByType<ElectricPump>();
+            var pump = ElectricPump.FindActive();
             if (pump != null)
             {
                 data.pump = new ElectricPumpSaveData
@@ -523,8 +523,16 @@ namespace AftershockIsle.Save
                 data.triggeredNarrativeDays = new List<int>(NarrativeEventSystem.Instance.GetTriggeredDays());
                 data.motherGiftDueDay = NarrativeEventSystem.Instance.MotherGiftDueDay;
             }
+            if (NarrativeEventSystem.Instance != null)
+            {
+                data.encounterDeck = new List<int>(NarrativeEventSystem.Instance.EncounterDeck);
+                data.lastEncounter = NarrativeEventSystem.Instance.LastEncounter;
+            }
             if (NightDefenseSystem.Instance != null)
+            {
                 data.raiderAttention = NightDefenseSystem.Instance.Attention;
+                NightDefenseSystem.Instance.CaptureNight(out data.nightRaidPending, out data.nightRaidAt, out data.nightGuard);
+            }
 
             return data;
         }
@@ -625,7 +633,7 @@ namespace AftershockIsle.Save
             }
 
             // 10. ElectricPump
-            var pump = FindFirstObjectByType<ElectricPump>();
+            var pump = ElectricPump.FindActive();
             if (pump != null)
             {
                 pump.RestoreState(data.pump.isBroken, data.pump.wear);
@@ -784,9 +792,13 @@ namespace AftershockIsle.Save
             if (NarrativeEventSystem.Instance != null)
             {
                 NarrativeEventSystem.Instance.RestoreState(data.triggeredNarrativeDays, data.motherGiftDueDay);
+                NarrativeEventSystem.Instance.RestoreDeck(data.encounterDeck, data.lastEncounter);
             }
             if (NightDefenseSystem.Instance != null)
+            {
                 NightDefenseSystem.Instance.RestoreState(data.raiderAttention);
+                NightDefenseSystem.Instance.RestoreNight(data.nightRaidPending, data.nightRaidAt, data.nightGuard);
+            }
         }
     }
 }

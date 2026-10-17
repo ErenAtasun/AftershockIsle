@@ -38,10 +38,11 @@ namespace AftershockIsle.UI
                 return;
             }
 
-            var rect = new Rect(16f, top, 360f, 284f);
+            var rect = new Rect(16f, top, 360f, 312f);
             UIBlocker.Add(rect);
             GUILayout.BeginArea(rect, GUI.skin.box);
             GUILayout.Label("TEST PANELİ (F1)");
+            GUILayout.Label($"Zaman: {Time.timeScale:0.##}x — {Core.TimeManager.Describe()}");
             GUILayout.Label("F3 gaz  F5 kamera  F6 yangın  F7 boru  F8 sarsıntı");
             GUILayout.Label("F9 hasar  F10 kolon  F11 kaynak+puan  F12 kazazede");
 

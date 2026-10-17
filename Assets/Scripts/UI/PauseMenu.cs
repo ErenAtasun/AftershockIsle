@@ -9,18 +9,16 @@ namespace AftershockIsle.UI
 {
     /// <summary>
     /// Esc / Start ile açılan duraklatma menüsü (uGUI, koddan kurulur): devam, ayarlar, ana menü, kaydet, yeniden başla, çıkış.
-    /// Açıkken oyun donar ve klavye kısayolları (Space/1/2) çalışmaz; oyun bitmişse zamana dokunmaz.
+    /// Açıkken oyun donar ve klavye kısayolları (Space/1/2) çalışmaz (TimeManager.Hold).
     /// </summary>
     public class PauseMenu : MonoBehaviour
     {
         public const string MainMenuScene = "MainMenu";
         const float MenuScale = 0.9f;
 
-        [SerializeField] TimeManager timeManager;
         [SerializeField] GameSession session;
 
         bool open;
-        TimeSpeed resumeSpeed;
         float saveFeedbackUntil;
         string saveFeedback;
         bool saveFeedbackOk;
@@ -36,7 +34,6 @@ namespace AftershockIsle.UI
 
         void Awake()
         {
-            if (timeManager == null) timeManager = FindFirstObjectByType<TimeManager>();
             if (session == null) session = FindFirstObjectByType<GameSession>();
         }
 
@@ -84,19 +81,8 @@ namespace AftershockIsle.UI
             if (open) Select(FirstVisible());
             else settings.Close();
 
-            if (session.Outcome != GameOutcome.None) return;
-
-            if (open)
-            {
-                resumeSpeed = timeManager.Speed;
-                timeManager.SetSpeed(TimeSpeed.Paused);
-                timeManager.enabled = false;
-            }
-            else
-            {
-                timeManager.enabled = true;
-                timeManager.SetSpeed(resumeSpeed);
-            }
+            if (open) TimeManager.Hold(this);
+            else TimeManager.Release(this);
         }
 
         GameObject FirstVisible() => resumeButton.activeSelf ? resumeButton : firstButton;

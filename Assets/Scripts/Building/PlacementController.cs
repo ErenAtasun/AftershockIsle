@@ -4,6 +4,7 @@ using AftershockIsle.Core;
 using AftershockIsle.Crafting;
 using AftershockIsle.UI;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace AftershockIsle.Building
 {
@@ -36,9 +37,20 @@ namespace AftershockIsle.Building
         RecipeId? ghostRecipe;
         readonly List<Renderer> ghostRenderers = new List<Renderer>();
 
-        GUIStyle barTitleStyle;
-        GUIStyle barSubStyle;
-        GUIStyle tooltipStyle;
+        // uGUI: alt ortada yerleşim paneli, üstte "kuruluma hazır" uyarısı.
+        GameObject panelRoot;
+        Text panelTitle;
+        Text panelStatus;
+        RectTransform recipeRow;
+        GameObject alertButton;
+        Text alertLabel;
+        string rowSignature;
+
+        // Klavye ile hücre seçimi: ok tuşlarına basılınca fare konumu yok sayılır, fare kımıldayınca fare geri alır.
+        bool keyboardDriven;
+        Vector2 lastPointer;
+        // Modu açan tuş (ör. pencerede A / Enter) aynı karede yerleşimi de onaylamasın.
+        int enteredFrame = -1;
 
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         static readonly int ColorId = Shader.PropertyToID("_Color");
@@ -72,11 +84,13 @@ namespace AftershockIsle.Building
             }
             Instance = this;
             propBlock = new MaterialPropertyBlock();
+            BuildUi();
         }
 
         void OnDestroy()
         {
             if (Instance == this) Instance = null;
+            TimeManager.Release(this);
         }
 
         void OnEnable()
@@ -87,6 +101,7 @@ namespace AftershockIsle.Building
         void OnDisable()
         {
             EventBus.Unsubscribe<PlaceableItemReady>(OnPlaceableItemReady);
+            TimeManager.Release(this);
         }
 
         void OnPlaceableItemReady(PlaceableItemReady evt)
@@ -101,6 +116,7 @@ namespace AftershockIsle.Building
         public void EnterPlacementForRecipe(RecipeId recipe)
         {
             IsActive = true;
+            enteredFrame = Time.frameCount;
             MovingStructure = null;
             SelectedRecipe = recipe;
             rotationSteps = 0;
@@ -108,7 +124,9 @@ namespace AftershockIsle.Building
             var info = RecipeCatalog.Get(recipe);
             if (!info.AllowsFloor(hoverFloor))
             {
-                for (int f = 0; f < 4; f++)
+                var grid = ShelterGrid.Instance;
+                int floorCount = grid != null && grid.Building != null ? grid.Building.FloorCount : 5;
+                for (int f = 0; f < floorCount; f++)
                 {
                     if (info.AllowsFloor(f))
                     {
@@ -127,6 +145,7 @@ namespace AftershockIsle.Building
         {
             if (structure == null) return;
             IsActive = true;
+            enteredFrame = Time.frameCount;
             MovingStructure = structure;
             SelectedRecipe = structure.Recipe;
             hoverFloor = structure.GridFloor;
@@ -148,6 +167,7 @@ namespace AftershockIsle.Building
             else
             {
                 IsActive = true;
+                enteredFrame = Time.frameCount;
                 MovingStructure = null;
                 SelectedRecipe = FirstAvailableUnplacedRecipe();
                 rotationSteps = 0;
@@ -184,15 +204,15 @@ namespace AftershockIsle.Building
                 return;
             }
 
-            if (GameInput.BuildModeTogglePressed)
+            if (GameInput.BuildModeKeyPressed || (GameInput.BuildModePadPressed && !ModalMenu.IsOpen))
             {
                 ToggleBuildMode();
                 return;
             }
 
-            if (!IsActive) return;
+            if (!IsActive || Time.frameCount == enteredFrame) return;
 
-            if (GameInput.EscapePressed || GameInput.CommandPressed)
+            if (GameInput.EscapePressed || GameInput.CommandPressed || GameInput.PlacementBackPressed)
             {
                 if (MovingStructure != null)
                 {
@@ -210,20 +230,77 @@ namespace AftershockIsle.Building
                 rotationSteps = (rotationSteps + 1) % 4;
             }
 
+            int recipeStep = GameInput.PlacementRecipeStep;
+            if (recipeStep != 0) CycleRecipe(recipeStep);
+
+            ReadKeyboardCell();
             UpdateHoveredGridCell();
             UpdateGridAndGhostVisuals();
 
-            if (!UIBlocker.IsPointerOver(GameInput.PointerPosition))
+            if (GameInput.PlacementConfirmPressed)
+            {
+                HandleLeftClick();
+            }
+            else if (!UIBlocker.IsPointerOver(GameInput.PointerPosition))
             {
                 if (GameInput.SelectPressed)
                 {
                     HandleLeftClick();
                 }
-                else if (GameInput.CancelOrderPressed)
-                {
-                    HandleStoreHoveredStructure();
-                }
             }
+
+            if (GameInput.PlacementStorePressed) HandleStoreHoveredStructure();
+        }
+
+        // LT/RT ve Tab: kuruluma hazır yapılar arasında dolaşır.
+        void CycleRecipe(int step)
+        {
+            var bench = Workbench.Instance;
+            if (bench == null || MovingStructure != null) return;
+
+            var ready = new List<RecipeId>();
+            foreach (var recipe in RecipeCatalog.All)
+                if (recipe.IsPlaceable && bench.GetUnplacedCount(recipe.Id) > 0) ready.Add(recipe.Id);
+            if (ready.Count == 0) return;
+
+            int index = SelectedRecipe.HasValue ? ready.IndexOf(SelectedRecipe.Value) : -1;
+            int next = index < 0 ? (step > 0 ? 0 : ready.Count - 1) : ((index + step) % ready.Count + ready.Count) % ready.Count;
+            SelectedRecipe = ready[next];
+            RebuildGhost(SelectedRecipe);
+        }
+
+        // Ok tuşları hücreyi, Q/E katı değiştirir; seçili yapının ayak izi kat sınırlarının dışına taşmaz.
+        void ReadKeyboardCell()
+        {
+            var pointer = GameInput.PointerPosition;
+            if ((pointer - lastPointer).sqrMagnitude > 9f) keyboardDriven = false;
+            lastPointer = pointer;
+
+            var nudge = GameInput.PlacementNudge;
+            int floorStep = GameInput.PlacementFloorStep;
+            if (nudge == Vector2Int.zero && floorStep == 0) return;
+
+            keyboardDriven = true;
+            var grid = ShelterGrid.Instance;
+            int maxFloor = grid != null && grid.Building != null ? grid.Building.FloorCount - 1 : 4;
+            hoverFloor = Mathf.Clamp(hoverFloor + floorStep, 0, maxFloor);
+
+            ClampHoverToFootprint(hoverCellX + nudge.x, hoverCellZ + nudge.y);
+        }
+
+        void ClampHoverToFootprint(int cellX, int cellZ)
+        {
+            int w = 1;
+            int d = 1;
+            if (SelectedRecipe.HasValue)
+            {
+                var info = RecipeCatalog.Get(SelectedRecipe.Value);
+                int rot = ((rotationSteps % 4) + 4) % 4;
+                w = (rot % 2 == 0) ? info.GridWidth : info.GridDepth;
+                d = (rot % 2 == 0) ? info.GridDepth : info.GridWidth;
+            }
+            hoverCellX = Mathf.Clamp(cellX, 0, ShelterGrid.Columns - w);
+            hoverCellZ = Mathf.Clamp(cellZ, 0, ShelterGrid.Rows - d);
         }
 
         void HandleLeftClick()
@@ -308,9 +385,16 @@ namespace AftershockIsle.Building
             var b = grid.Building;
             Ray ray = cam.ScreenPointToRay(GameInput.PointerPosition);
 
-            // Önce farenin hangi katta olduğunu bulalım (Z = 0 düzlemiyle kesişim)
-            var walkPlane = new Plane(Vector3.forward, new Vector3(0f, 0f, b.WalkPlaneZ));
-            if (walkPlane.Raycast(ray, out float distWalk))
+            // 1. Fare doğrudan bir kat zeminini (görünen ızgara karelerini) gösteriyorsa hücre tam o noktadan okunur.
+            // Işının, bina ayak izinin içinde kalan EN YAKIN kat zemini seçilir; böylece ızgara kareleri üstüne gelmek
+            // katı ya da şeridi kaydırmaz (eski yöntem ön şerit karelerini bir alt kat sayıyordu).
+            if (!keyboardDriven && TryPickFloorCell(ray, b, out int pickedFloor, out int pickedX, out int pickedZ))
+            {
+                hoverFloor = pickedFloor;
+                ClampHoverToFootprint(pickedX, pickedZ);
+            }
+            // 2. Fare odanın boşluğunu / duvarı gösteriyorsa: z = 0 düzlemindeki yükseklikten kat, dikey orandan şerit.
+            else if (!keyboardDriven && new Plane(Vector3.forward, new Vector3(0f, 0f, b.WalkPlaneZ)).Raycast(ray, out float distWalk))
             {
                 Vector3 hitWalk = ray.GetPoint(distWalk);
                 int detectedFloor = b.ClampFloor(Mathf.FloorToInt((hitWalk.y - b.transform.position.y) / b.FloorHeight));
@@ -365,6 +449,38 @@ namespace AftershockIsle.Building
                 hoverValid = false;
                 hoverReason = null;
             }
+        }
+
+        /// <summary>Işın, binanın iç ayak izinde bir kat zeminini keserse en yakın olanın katını ve hücresini verir.</summary>
+        bool TryPickFloorCell(Ray ray, BuildingLayout b, out int floor, out int cellX, out int cellZ)
+        {
+            floor = 0;
+            cellX = 0;
+            cellZ = 0;
+            if (ray.direction.y >= -0.0001f) return false;
+
+            float bestDistance = float.MaxValue;
+            Vector3 bestHit = default;
+            for (int f = 0; f < b.FloorCount; f++)
+            {
+                float distance = (b.FloorY(f) - ray.origin.y) / ray.direction.y;
+                if (distance <= 0f || distance >= bestDistance) continue;
+
+                Vector3 hit = ray.GetPoint(distance);
+                float localZ = hit.z - b.transform.position.z;
+                float localX = hit.x - b.transform.position.x;
+                if (Mathf.Abs(localZ) > b.Depth * 0.5f || Mathf.Abs(localX) > b.Width * 0.5f) continue;
+
+                bestDistance = distance;
+                bestHit = hit;
+                floor = f;
+            }
+
+            if (bestDistance == float.MaxValue) return false;
+
+            var grid = ShelterGrid.Instance;
+            grid.WorldToCell(new Vector3(bestHit.x, b.FloorY(floor) + 0.1f, bestHit.z), out _, out cellX, out cellZ);
+            return true;
         }
 
         void EnsureGridVisuals()
@@ -503,98 +619,96 @@ namespace AftershockIsle.Building
             r.SetPropertyBlock(propBlock);
         }
 
-        void OnGUI()
-        {
-            UiTheme.Apply();
-            if (SideViewCamera.ViewingField) return;
+        // ---------------------------------------------------------------- Arayüz (uGUI)
 
-            barTitleStyle ??= new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, fontSize = 14 };
-            barSubStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 13, wordWrap = true };
-            tooltipStyle ??= new GUIStyle(GUI.skin.box) { fontSize = 14, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+        void BuildUi()
+        {
+            UiFactory.EnsureEventSystem();
+            var canvas = UiFactory.Canvas("Yerleşim", 11, transform).transform;
+
+            // Kuruluma hazır yapı varken (mod kapalıyken) üstte uyarı düğmesi.
+            var alert = UiFactory.TextButton(canvas, "", new Vector2(640f, 52f), ToggleBuildMode, new Color(0.62f, 0.5f, 0.12f, 0.97f), 22);
+            alertButton = alert.gameObject;
+            alertLabel = alert.GetComponentInChildren<Text>();
+            UiFactory.Place((RectTransform)alertButton.transform, new Vector2(0.5f, 1f), new Vector2(0f, -76f), new Vector2(640f, 52f));
+            alertButton.SetActive(false);
+
+            var panel = UiFactory.Panel(canvas, "Yerleşim Paneli", UiFactory.Slate);
+            panelRoot = panel.gameObject;
+            UiFactory.Place(panel.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 20f), new Vector2(1240f, 0f));
+            var layout = panelRoot.AddComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(22, 22, 12, 14);
+            layout.spacing = 8f;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+            panelRoot.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            var top = UiFactory.Rect("Üst Satır", panelRoot.transform);
+            top.gameObject.AddComponent<LayoutElement>().preferredHeight = 46f;
+            var topRow = top.gameObject.AddComponent<HorizontalLayoutGroup>();
+            topRow.spacing = 12f;
+            topRow.childControlWidth = false;
+            topRow.childControlHeight = false;
+            topRow.childForceExpandWidth = false;
+            topRow.childAlignment = TextAnchor.MiddleLeft;
+
+            panelTitle = UiFactory.Label(top, "", 21, UiFactory.Accent, TextAnchor.MiddleLeft);
+            panelTitle.rectTransform.sizeDelta = new Vector2(740f, 44f);
+            UiFactory.TextButton(top, "Döndür [R]", new Vector2(190f, 42f), () => rotationSteps = (rotationSteps + 1) % 4, null, 19);
+            UiFactory.TextButton(top, "Kapat [B / Sağ Tık]", new Vector2(250f, 42f), ExitPlacementMode, null, 19);
+
+            recipeRow = UiFactory.Rect("Yapı Satırı", panelRoot.transform);
+            recipeRow.gameObject.AddComponent<LayoutElement>().minHeight = 46f;
+            var rowLayout = recipeRow.gameObject.AddComponent<HorizontalLayoutGroup>();
+            rowLayout.spacing = 10f;
+            rowLayout.childControlWidth = false;
+            rowLayout.childControlHeight = false;
+            rowLayout.childForceExpandWidth = false;
+            rowLayout.childAlignment = TextAnchor.MiddleLeft;
+
+            panelStatus = UiFactory.Label(panelRoot.transform, "", 19, UiFactory.Text, TextAnchor.UpperLeft, FontStyle.Normal, false);
+            panelStatus.gameObject.AddComponent<LayoutElement>().minHeight = 62f;
+
+            panelRoot.SetActive(false);
+        }
+
+        // Her kare: görünürlük, başlık ve durum satırı güncellenir; yapı düğmeleri yalnızca içerik değişince yeniden kurulur.
+        void LateUpdate()
+        {
+            if (panelRoot == null) return;
 
             var bench = Workbench.Instance;
             int unplacedTotal = bench != null ? bench.TotalUnplacedCount : 0;
+            bool field = SideViewCamera.ViewingField;
 
-            // Yerleştirme modu kapalıysa ama kuruluma hazır eşya varsa veya oyuncu düzenlemek isterse üst/alt bildirim butonu
-            if (!IsActive)
-            {
-                if (unplacedTotal > 0)
-                {
-                    var alertRect = new Rect(UiTheme.Width * 0.5f - 190f, 52f, 380f, 34f);
-                    UIBlocker.Add(alertRect);
-                    GUI.color = new Color(0.95f, 0.85f, 0.3f);
-                    if (GUI.Button(alertRect, $"📦 Kuruluma Hazır {unplacedTotal} Yapı Var! — Eve Yerleştir [B]"))
-                    {
-                        ToggleBuildMode();
-                    }
-                    GUI.color = Color.white;
-                }
-                return;
-            }
+            // Yerleşim planlama işidir: mod açıkken zaman durur, kapanınca kaldığı hızdan devam eder.
+            if (IsActive && !field) TimeManager.Hold(this);
+            else TimeManager.Release(this);
 
-            // Yerleştirme Modu Açıkken Alt/Üst Kontrol Paneli
-            float panelW = 720f;
-            float panelH = 122f;
-            var panelRect = new Rect((UiTheme.Width - panelW) * 0.5f, UiTheme.Height - panelH - 14f, panelW, panelH);
-            UIBlocker.Add(panelRect);
-            GUI.Box(panelRect, GUIContent.none);
+            bool showAlert = !field && !IsActive && unplacedTotal > 0 && !ModalMenu.IsOpen;
+            if (alertButton.activeSelf != showAlert) alertButton.SetActive(showAlert);
+            if (showAlert) alertLabel.text = $"Kuruluma Hazır {unplacedTotal} Yapı Var! — Eve Yerleştir [{GameInput.Prompt(InputPrompt.Build)}]";
 
-            GUILayout.BeginArea(new Rect(panelRect.x + 12f, panelRect.y + 8f, panelRect.width - 24f, panelRect.height - 16f));
-            GUILayout.BeginHorizontal();
+            bool showPanel = !field && IsActive;
+            if (panelRoot.activeSelf != showPanel) panelRoot.SetActive(showPanel);
+            if (!showPanel) return;
 
             var grid = ShelterGrid.Instance;
             string floorName = grid != null && grid.Building != null ? grid.Building.GetFloorName(hoverFloor) : $"Kat {hoverFloor}";
             string rowName = ShelterGrid.GetRowName(hoverCellZ);
+            panelTitle.text = $"EV YERLEŞİMİ (zaman durdu) — {floorName} | Hücre ({hoverCellX}, {rowName}) | Yön: {rotationSteps * 90}°";
 
-            GUILayout.Label($"🏗 EV YERLEŞİM & IZGARASI (GRID) — {floorName} | Hücre ({hoverCellX}, {rowName}) | Yön: {rotationSteps * 90}°", barTitleStyle);
-            GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Döndür [R]", GUILayout.Width(95f), GUILayout.Height(24f)))
-                rotationSteps = (rotationSteps + 1) % 4;
-            if (GUILayout.Button("Kapat [B / Sağ Tık]", GUILayout.Width(135f), GUILayout.Height(24f)))
-                ExitPlacementMode();
-            GUILayout.EndHorizontal();
-
-            // Kuruluma hazır envanter butonları
-            GUILayout.Space(4f);
-            GUILayout.BeginHorizontal();
-            if (MovingStructure != null)
-            {
-                GUILayout.Label($"Taşınıyor: {MovingStructure.Info.Name} — Yeni hücreye Sol Tıkla bırak ya da [X] ile depoya kaldır.", barSubStyle);
-                if (GUILayout.Button("Depoya Kaldır [X]", GUILayout.Width(130f), GUILayout.Height(28f)))
-                    HandleStoreHoveredStructure();
-            }
-            else if (bench != null && bench.TotalUnplacedCount > 0)
-            {
-                GUILayout.Label("Kuruluma Hazır:", barTitleStyle, GUILayout.Width(110f));
-                foreach (var recipe in RecipeCatalog.All)
-                {
-                    if (!recipe.IsPlaceable) continue;
-                    int count = bench.GetUnplacedCount(recipe.Id);
-                    if (count <= 0) continue;
-
-                    bool isSelected = SelectedRecipe == recipe.Id;
-                    GUI.color = isSelected ? new Color(0.4f, 1f, 0.55f) : Color.white;
-                    if (GUILayout.Button($"{recipe.Name} (x{count}) [{recipe.GridWidth}x{recipe.GridDepth}]", GUILayout.Height(30f)))
-                    {
-                        SelectedRecipe = recipe.Id;
-                        RebuildGhost(SelectedRecipe);
-                    }
-                    GUI.color = Color.white;
-                }
-            }
-            else
-            {
-                GUILayout.Label("Kuruluma hazır yeni yapı yok (Çalışma Tezgahında üretebilirsin). Kurulu bir yapıya Sol Tıklayarak yerini değiştirebilirsin.", barSubStyle);
-            }
-            GUILayout.EndHorizontal();
+            RefreshRecipeRow(bench);
 
             string statusLine;
             if (SelectedRecipe.HasValue)
             {
                 var info = RecipeCatalog.Get(SelectedRecipe.Value);
                 statusLine = hoverValid
-                    ? $"✓ {info.Name} buraya yerleştirilebilir! (Sol Tık: Kur | [R]: Döndür)"
-                    : $"✗ Yerleştirilemez: {hoverReason}";
+                    ? $"<color=#7bdc6e>{info.Name} buraya yerleştirilebilir!</color> (Sol Tık: Kur | [R]: Döndür)"
+                    : $"<color=#ff8f7a>Yerleştirilemez:</color> {hoverReason}";
             }
             else
             {
@@ -603,9 +717,59 @@ namespace AftershockIsle.Building
                     ? $"Seçili Hücredeki Yapı: {existing.Info.Name} (Sol Tık: Taşı | [X]: Depoya Kaldır)"
                     : "İpucu: Kurulu bir eşyayı taşımak için üzerine tıkla; yeni eşya üretmek için Çalışma Tezgahını kullan.";
             }
+            panelStatus.text = statusLine + "\n<color=#b8b8b0>" +
+                $"{GameInput.Prompt(InputPrompt.PlaceCell)}: hücre   ·   {GameInput.Prompt(InputPrompt.PlaceFloor)}: kat   ·   " +
+                $"{GameInput.Prompt(InputPrompt.PlaceRecipe)}: yapı seç   ·   {GameInput.Prompt(InputPrompt.PlaceConfirm)}: kur   ·   " +
+                $"{GameInput.Prompt(InputPrompt.PlaceRotate)}: döndür   ·   {GameInput.Prompt(InputPrompt.PlaceStore)}: depoya kaldır   ·   " +
+                $"{GameInput.Prompt(InputPrompt.PlaceClose)}: kapat</color>";
+        }
 
-            GUILayout.Label(statusLine, barSubStyle);
-            GUILayout.EndArea();
+        void RefreshRecipeRow(Workbench bench)
+        {
+            var signature = new System.Text.StringBuilder();
+            signature.Append(MovingStructure != null ? "move:" + MovingStructure.Info.Name : "").Append('|').Append(SelectedRecipe.HasValue ? (int)SelectedRecipe.Value : -1);
+            if (bench != null)
+                foreach (var recipe in RecipeCatalog.All)
+                    if (recipe.IsPlaceable) signature.Append('|').Append(bench.GetUnplacedCount(recipe.Id));
+            if (signature.ToString() == rowSignature) return;
+            rowSignature = signature.ToString();
+
+            for (int i = recipeRow.childCount - 1; i >= 0; i--) Destroy(recipeRow.GetChild(i).gameObject);
+
+            if (MovingStructure != null)
+            {
+                RowLabel($"Taşınıyor: {MovingStructure.Info.Name} — Yeni hücreye Sol Tıkla bırak ya da [X] ile depoya kaldır.", 800f);
+                UiFactory.TextButton(recipeRow, "Depoya Kaldır [X]", new Vector2(250f, 42f), HandleStoreHoveredStructure, null, 19);
+            }
+            else if (bench != null && bench.TotalUnplacedCount > 0)
+            {
+                RowLabel("Kuruluma Hazır:", 190f);
+                foreach (var recipe in RecipeCatalog.All)
+                {
+                    if (!recipe.IsPlaceable) continue;
+                    int count = bench.GetUnplacedCount(recipe.Id);
+                    if (count <= 0) continue;
+
+                    var id = recipe.Id;
+                    bool selected = SelectedRecipe == id;
+                    UiFactory.TextButton(recipeRow, $"{recipe.Name} (x{count}) [{recipe.GridWidth}x{recipe.GridDepth}]",
+                        new Vector2(300f, 42f), () =>
+                        {
+                            SelectedRecipe = id;
+                            RebuildGhost(id);
+                        }, selected ? UiFactory.Good : null, 18);
+                }
+            }
+            else
+            {
+                RowLabel("Kuruluma hazır yeni yapı yok (Çalışma Tezgahında üretebilirsin). Kurulu bir yapıya Sol Tıklayarak yerini değiştirebilirsin.", 1180f);
+            }
+        }
+
+        void RowLabel(string text, float width)
+        {
+            var label = UiFactory.Label(recipeRow, text, 19, UiFactory.Text, TextAnchor.MiddleLeft, FontStyle.Normal, false);
+            label.rectTransform.sizeDelta = new Vector2(width, 42f);
         }
     }
 }

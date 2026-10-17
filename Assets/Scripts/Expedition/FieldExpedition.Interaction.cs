@@ -189,6 +189,7 @@ namespace AftershockIsle.Expedition
             hurtFlash = 0.35f;
             Tint(avatarRenderer, Color.white);
             flashAvatar = 0.12f;
+            ViewFor(avatarRenderer)?.PlayHit();
         }
 
         float hurtFlash;

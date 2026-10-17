@@ -137,6 +137,21 @@ namespace AftershockIsle.Characters
             if (body != null) body.enabled = false;
             var visor = transform.Find("Visor");
             if (visor != null && visor.TryGetComponent<Renderer>(out var visorRenderer)) visorRenderer.enabled = false;
+
+            RefreshEquippedGun();
+        }
+
+        void RefreshEquippedGun()
+        {
+            if (view == null) return;
+            var gunKind = branch switch
+            {
+                SkillBranch.Construction => GunModelKind.Shotgun,
+                SkillBranch.Exploration => GunModelKind.AssaultRifle,
+                _ => GunModelKind.Smg,
+            };
+            view.SetGun(gunKind, (int)branch);
+            view.SetGunVisible(!IsCarrying);
         }
 
         void OnEnable() => all.Add(this);
@@ -152,6 +167,7 @@ namespace AftershockIsle.Characters
             maxHealth = HasTrait(TraitId.Frail) ? 85f : 100f;
             Health = maxHealth;
             RefreshBodyColor();
+            RefreshEquippedGun();
         }
 
         void Update()
@@ -189,6 +205,7 @@ namespace AftershockIsle.Characters
 
             Health = Mathf.Max(0f, Health - amount);
             if (Health <= 0f) Die(cause);
+            else view?.PlayHit();
         }
 
         public void Heal(float amount)
@@ -267,6 +284,7 @@ namespace AftershockIsle.Characters
 
         void RefreshCarry()
         {
+            view?.SetGunVisible(!IsCarrying);
             if (carriedVisual == null) return;
             carriedVisual.gameObject.SetActive(IsCarrying);
             if (IsCarrying) SetColor(carriedVisual, carried.type.ToColor());

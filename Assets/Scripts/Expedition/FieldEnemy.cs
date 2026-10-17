@@ -169,6 +169,7 @@ namespace AftershockIsle.Expedition
             }
             stagger = kind == FieldEnemyKind.Brute ? (heavy ? 0.25f : 0f) : heavy ? 0.4f : 0.15f;
             coverTimer = 0f;
+            if (body != null) body.GetComponentInParent<AftershockIsle.Characters.CharacterView>()?.PlayHit();
             Alert(shooterPosition);
         }
 
@@ -410,6 +411,7 @@ namespace AftershockIsle.Expedition
             cooldown = interval;
             state = EnemyState.Recover;
             timer = kind == FieldEnemyKind.Brute ? 0.8f : 0.35f;
+            if (body != null) body.GetComponentInParent<AftershockIsle.Characters.CharacterView>()?.PlayFire();
 
             if (kind == FieldEnemyKind.Gunner)
             {

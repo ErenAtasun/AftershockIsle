@@ -22,7 +22,10 @@ namespace AftershockIsle.Crafting
         MedStation = 15,
         FireSuppressor = 16,
         ArmorVest = 17,
-        BackupGenerator = 18
+        BackupGenerator = 18,
+        Smg = 19,
+        AssaultRifle = 20,
+        SniperRifle = 21
     }
 
     public readonly struct RecipeInfo
@@ -169,6 +172,18 @@ namespace AftershockIsle.Crafting
             new RecipeInfo(RecipeId.BackupGenerator, 3, "Yedek Jeneratör", "Eve yerleştirilir (2x1). Depremde şalterin atma ihtimalini %65 düşürür; sağ tıkla bulunduğu kattan elektriği açar.",
                 new[] { R(ResourceType.Metal, 2), R(ResourceType.Electronics, 2) }, 10f,
                 repeatable: false, isPlaceable: true, gridWidth: 2, gridDepth: 1, allowedFloorMask: RecipeInfo.FloorIndoors),
+
+            // 19: Smg (Ekipman / Silah)
+            new RecipeInfo(RecipeId.Smg, 2, "Hafif Makineli (SMG)", "Dış seferde çok hızlı seri atış sağlar; köpek sürülerine ve yakın çatışmalara karşı etkilidir.",
+                new[] { R(ResourceType.Metal, 2), R(ResourceType.Scrap, 2), R(ResourceType.Electronics, 1) }, 10f),
+
+            // 20: AssaultRifle (Ekipman / Silah)
+            new RecipeInfo(RecipeId.AssaultRifle, 3, "Taarruz Tüfeği", "Dış seferde yüksek hasar, uzun menzil ve dengeli seri atış sağlar.",
+                new[] { R(ResourceType.Metal, 3), R(ResourceType.Scrap, 2), R(ResourceType.Electronics, 1) }, 12f),
+
+            // 21: SniperRifle (Ekipman / Silah)
+            new RecipeInfo(RecipeId.SniperRifle, 3, "Keskin Nişancı Tüfeği", "Dış seferde çok uzun menzil, nokta atışı isabet ve yıkıcı tek atış hasarı sağlar.",
+                new[] { R(ResourceType.Metal, 3), R(ResourceType.Electronics, 2) }, 14f),
         };
 
         public static RecipeInfo Get(RecipeId id) => All[(int)id];

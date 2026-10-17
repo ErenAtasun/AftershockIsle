@@ -12,13 +12,98 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dbb7dae58f2549942a755dfa01b72376, type: 3}
   m_Name: CharacterLibrary
   m_EditorClassIdentifier: Assembly-CSharp::AftershockIsle.Characters.CharacterLibrary
-  prefab: {fileID: 919132149155446097, guid: ace63bc50a4814e4a8facd9e3ad234b3, type: 3}
-  moveClip: {fileID: -4572650651892053679, guid: ace63bc50a4814e4a8facd9e3ad234b3, type: 3}
-  idleClip: {fileID: 0}
+  prefab: {fileID: 919132149155446097, guid: 7baf84a03b3cf6846a559d50e19adaa9, type: 3}
+  moveClip: {fileID: -203655887218126122, guid: f8980b4b68e36834e845e1d682f5a1ba, type: 3}
+  walkClip: {fileID: -203655887218126122, guid: fdbe98b3b0c4fa44597904f558890cb5, type: 3}
+  idleClip: {fileID: -203655887218126122, guid: 36a901adf18ed4b49b019ce58466bb55, type: 3}
   idlePoseTime: 0.41
   moveSpeedReference: 4.1
+  walkSpeedReference: 1.7
+  walkBackClip: {fileID: -203655887218126122, guid: d150b074d865d644c8990c67c322890f, type: 3}
+  runBackClip: {fileID: -203655887218126122, guid: 7081e7377a020d34fb07a61ce0e223d3, type: 3}
+  strafeLeftClip: {fileID: -203655887218126122, guid: add73167717eb5b4db5d58d6babbfba9, type: 3}
+  strafeRightClip: {fileID: -203655887218126122, guid: c416fd5236152ef40b6366780127914d, type: 3}
+  fireClip: {fileID: -203655887218126122, guid: 3a28e03a0aa7bae4fbf55a17d86e63dd, type: 3}
+  reloadClip: {fileID: -203655887218126122, guid: 8c68cc59e675b644d8bde12c0b44191a, type: 3}
+  hitClip: {fileID: -203655887218126122, guid: 8d64d9393e5e5ba4bb16526d38896630, type: 3}
+  jumpClip: {fileID: -203655887218126122, guid: 35dead1b434a2f2449be351fb91a708c, type: 3}
+  tossClip: {fileID: -203655887218126122, guid: d716c205e4ee3ef4fa1ddfce970b4422, type: 3}
+  turnLeftClip: {fileID: -203655887218126122, guid: d28de30c6e3899147a139f6d9568e49d, type: 3}
+  turnRightClip: {fileID: -203655887218126122, guid: 5f65ae91b25bc06499e5408113d4d727, type: 3}
   bodyMaterial: {fileID: 2100000, guid: 832a823a72abe824fbeda26ad8d36855, type: 2}
   hairMaterial: {fileID: 2100000, guid: a770ac757c278ee41b783defad4d63c4, type: 2}
   hasTextures: 1
+  hasSecondaryTexture: 1
   hairColor: {r: 0.16, g: 0.11, b: 0.08, a: 1}
   yawOffset: 0
+  guns:
+  - id: assault1
+    kind: 4
+    prefab: {fileID: 919132149155446097, guid: 33269b2b610f4c245a712795c1927939, type: 3}
+    material: {fileID: 4497072633849421532, guid: 33269b2b610f4c245a712795c1927939, type: 3}
+    worldLength: 0.78
+  - id: assault2
+    kind: 4
+    prefab: {fileID: 919132149155446097, guid: 6bea03a7115c5d748b18a7573d0d4d2b, type: 3}
+    material: {fileID: 8107645399728396885, guid: 6bea03a7115c5d748b18a7573d0d4d2b, type: 3}
+    worldLength: 0.78
+  - id: assault3
+    kind: 4
+    prefab: {fileID: 919132149155446097, guid: e525d5c90c0df01498dca09570cfb5ec, type: 3}
+    material: {fileID: -7698789111761319718, guid: e525d5c90c0df01498dca09570cfb5ec, type: 3}
+    worldLength: 0.78
+  - id: assault4
+    kind: 4
+    prefab: {fileID: 919132149155446097, guid: ffb3f5f9531da764c906b0baf3285c62, type: 3}
+    material: {fileID: 2934106840908089774, guid: ffb3f5f9531da764c906b0baf3285c62, type: 3}
+    worldLength: 0.78
+  - id: pistol1
+    kind: 1
+    prefab: {fileID: 919132149155446097, guid: 4df3ce82db8e66645afd54ab1d5b0262, type: 3}
+    material: {fileID: 7918359109415511124, guid: 4df3ce82db8e66645afd54ab1d5b0262, type: 3}
+    worldLength: 0.3
+  - id: pistol2
+    kind: 1
+    prefab: {fileID: 919132149155446097, guid: 8f9696fb6017be144a307b6586855ac0, type: 3}
+    material: {fileID: -5950010598196831730, guid: 8f9696fb6017be144a307b6586855ac0, type: 3}
+    worldLength: 0.3
+  - id: pistol3
+    kind: 1
+    prefab: {fileID: 919132149155446097, guid: 726e329e1719c8f42949342e6a5b42e3, type: 3}
+    material: {fileID: -6285862444928584375, guid: 726e329e1719c8f42949342e6a5b42e3, type: 3}
+    worldLength: 0.3
+  - id: pistol4
+    kind: 1
+    prefab: {fileID: 919132149155446097, guid: ca1c64f7c147fb0479f9ef03e264a372, type: 3}
+    material: {fileID: -5490129926907466369, guid: ca1c64f7c147fb0479f9ef03e264a372, type: 3}
+    worldLength: 0.3
+  - id: shotgun1
+    kind: 3
+    prefab: {fileID: 919132149155446097, guid: f62f7dc06bd890d4aab43b8fd635fe02, type: 3}
+    material: {fileID: -5099707255797951096, guid: f62f7dc06bd890d4aab43b8fd635fe02, type: 3}
+    worldLength: 0.84
+  - id: shotgun2
+    kind: 3
+    prefab: {fileID: 919132149155446097, guid: 8b36fb41929fc22429f0083d817b8040, type: 3}
+    material: {fileID: -8298168397308547021, guid: 8b36fb41929fc22429f0083d817b8040, type: 3}
+    worldLength: 0.84
+  - id: smg1
+    kind: 2
+    prefab: {fileID: 919132149155446097, guid: 2cf10fa706c7a4d42b5927d8e730f4e2, type: 3}
+    material: {fileID: 3012130909742182029, guid: 2cf10fa706c7a4d42b5927d8e730f4e2, type: 3}
+    worldLength: 0.52
+  - id: smg2
+    kind: 2
+    prefab: {fileID: 919132149155446097, guid: a957639d15248134a9be03d5ae4fed7f, type: 3}
+    material: {fileID: 5797147171063386257, guid: a957639d15248134a9be03d5ae4fed7f, type: 3}
+    worldLength: 0.52
+  - id: sniper1
+    kind: 5
+    prefab: {fileID: 919132149155446097, guid: 60d91f925d8c1e442bb6596dfb94ffff, type: 3}
+    material: {fileID: 2047303359757655213, guid: 60d91f925d8c1e442bb6596dfb94ffff, type: 3}
+    worldLength: 0.96
+  - id: sniper2
+    kind: 5
+    prefab: {fileID: 919132149155446097, guid: c8573db8e30e916479a705831bd5040c, type: 3}
+    material: {fileID: 8435880323186433047, guid: c8573db8e30e916479a705831bd5040c, type: 3}
+    worldLength: 0.96

@@ -2,7 +2,7 @@ using AftershockIsle.Crafting;
 
 namespace AftershockIsle.Expedition
 {
-    public enum WeaponKind { Slingshot, Pistol, Shotgun }
+    public enum WeaponKind { Slingshot, Pistol, Smg, Shotgun, AssaultRifle, SniperRifle }
 
     /// <summary>Dış saha silahı. Atış anlıktır (ışın); duvar, araba ve kasa yığını atışı keser.</summary>
     public readonly struct WeaponInfo
@@ -51,23 +51,49 @@ namespace AftershockIsle.Expedition
         public static readonly WeaponInfo Pistol =
             new WeaponInfo(WeaponKind.Pistol, "El Yapımı Tabanca", 26f, 18f, 0.35f, 16f, true, 1.5f, 1, 0.3f, 0.3f);
 
+        /// <summary>Tezgahta üretilir (Kademe 2). Çok hızlı seri atış, yakın-orta menzil.</summary>
+        public static readonly WeaponInfo Smg =
+            new WeaponInfo(WeaponKind.Smg, "Hafif Makineli (SMG)", 16f, 15f, 0.16f, 18f, true, 4.5f, 1, 0.2f, 0.22f);
+
         /// <summary>Tezgahta üretilir (Kademe 2). Yakında yıkıcı, geri iter; yavaş, çok gürültülü, atış başına 1 mermi.</summary>
         public static readonly WeaponInfo Shotgun =
             new WeaponInfo(WeaponKind.Shotgun, "Hurda Pompalı", 10f, 8f, 0.95f, 22f, true, 14f, 6, 1.4f, 0.8f);
 
-        static readonly WeaponKind[] order = { WeaponKind.Slingshot, WeaponKind.Pistol, WeaponKind.Shotgun };
+        /// <summary>Tezgahta üretilir (Kademe 3). Yüksek hasar, uzun menzil, seri atış.</summary>
+        public static readonly WeaponInfo AssaultRifle =
+            new WeaponInfo(WeaponKind.AssaultRifle, "Taarruz Tüfeği", 30f, 22f, 0.24f, 20f, true, 2.0f, 1, 0.45f, 0.38f);
+
+        /// <summary>Tezgahta üretilir (Kademe 3). Nokta atışı yüksek tekli hasar ve geri savurma.</summary>
+        public static readonly WeaponInfo SniperRifle =
+            new WeaponInfo(WeaponKind.SniperRifle, "Keskin Nişancı Tüfeği", 68f, 28f, 1.15f, 25f, true, 0.35f, 1, 1.6f, 0.9f);
+
+        static readonly WeaponKind[] order =
+        {
+            WeaponKind.Slingshot,
+            WeaponKind.Pistol,
+            WeaponKind.Smg,
+            WeaponKind.Shotgun,
+            WeaponKind.AssaultRifle,
+            WeaponKind.SniperRifle
+        };
 
         public static WeaponInfo Get(WeaponKind kind) => kind switch
         {
             WeaponKind.Pistol => Pistol,
+            WeaponKind.Smg => Smg,
             WeaponKind.Shotgun => Shotgun,
+            WeaponKind.AssaultRifle => AssaultRifle,
+            WeaponKind.SniperRifle => SniperRifle,
             _ => Slingshot,
         };
 
         public static bool IsAvailable(WeaponKind kind) => kind switch
         {
             WeaponKind.Pistol => Workbench.Has(RecipeId.Pistol),
+            WeaponKind.Smg => Workbench.Has(RecipeId.Smg),
             WeaponKind.Shotgun => Workbench.Has(RecipeId.Shotgun),
+            WeaponKind.AssaultRifle => Workbench.Has(RecipeId.AssaultRifle),
+            WeaponKind.SniperRifle => Workbench.Has(RecipeId.SniperRifle),
             _ => true,
         };
 

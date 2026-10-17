@@ -146,10 +146,12 @@ namespace AftershockIsle.Expedition
             var next = FieldWeapons.Next(weapon);
             if (next == weapon)
             {
-                Say("Başka silah yok: tezgahta (Kademe 2) tabanca ya da pompalı üret.");
+                Say("Başka silah yok: tezgahta tabanca, pompalı veya tüfek üret.");
                 return;
             }
             weapon = next;
+            RefreshAvatarWeapon();
+            ViewFor(avatarRenderer)?.PlayReload();
             Say($"Silah: {CurrentWeapon.Name}");
         }
 
@@ -175,6 +177,7 @@ namespace AftershockIsle.Expedition
             }
 
             fireCooldown = info.Interval;
+            ViewFor(avatarRenderer)?.PlayFire();
             var from = Muzzle;
             float dmgMultiplier = sharpshooter ? 1.25f : 1f;
 

@@ -94,6 +94,13 @@ namespace AftershockIsle.Characters
             return reachable;
         }
 
+        /// <summary>Dünya koordinatındaki bir noktaya (katı otomatik tespit ederek) yol bulur.</summary>
+        public bool WalkTo(Vector3 worldPos)
+        {
+            int floor = building != null ? building.FloorAtHeight(worldPos.y + 0.1f) : 0;
+            return MoveTo(floor, worldPos.x, worldPos.z);
+        }
+
         // Yol bulma X-Y'dedir; Z burada atanır: merdiven öncesi ve tırmanış LadderZ, son nokta hedef derinlik.
         void ApplyDepth(float? targetZ, int targetFloor)
         {

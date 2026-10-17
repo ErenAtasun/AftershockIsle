@@ -43,14 +43,15 @@ namespace AftershockIsle.EditorTools
         {
             EditorApplication.delayCall += () =>
             {
-                var assets = AssetDatabase.LoadAssetAtPath<GameAssets>(GameAssetsPath);
-                if (assets == null || assets.characters == null || assets.characters.prefab == null ||
-                    assets.characters.guns == null || assets.characters.guns.Length == 0 ||
-                    !AssetDatabase.GetAssetPath(assets.characters.prefab).Replace('\\', '/').Contains("Basic Shooter Pack") ||
-                    assets.ui == null || assets.ui.mainMenuBackground == null || assets.ui.worldBackground == null)
-                {
-                    Schedule();
-                }
+                    var assets = AssetDatabase.LoadAssetAtPath<GameAssets>(GameAssetsPath);
+                    if (assets == null || assets.characters == null || assets.characters.prefab == null ||
+                        assets.characters.guns == null || assets.characters.guns.Length == 0 ||
+                        !AssetDatabase.GetAssetPath(assets.characters.prefab).Replace('\\', '/').Contains("Basic Shooter Pack") ||
+                        assets.ui == null || assets.ui.mainMenuBackground == null || assets.ui.worldBackground == null ||
+                        assets.ui.skillTreeBackground == null)
+                    {
+                        Schedule();
+                    }
             };
         }
 
@@ -132,14 +133,18 @@ namespace AftershockIsle.EditorTools
                 string lowerFile = file.ToLowerInvariant();
 
                 if (path.Contains("/UI/") || lowerFile.Contains("anabanner") || lowerFile.Contains("anasayfa") ||
-                    lowerFile.Contains("mainmenu") || lowerFile.Contains("arkaplan") || lowerFile.Contains("background"))
+                    lowerFile.Contains("mainmenu") || lowerFile.Contains("arkaplan") || lowerFile.Contains("background") ||
+                    lowerFile.Contains("skill") || lowerFile.Contains("yetenek"))
                 {
-                    EnsureSpriteImport(path);
+                    bool readable = lowerFile.Contains("skill") || lowerFile.Contains("yetenek");
+                    EnsureSpriteImport(path, readable);
                     var bannerSprite = AssetDatabase.LoadAssetAtPath<Sprite>(path)
                                        ?? AssetDatabase.LoadAllAssetsAtPath(path).OfType<Sprite>().FirstOrDefault();
                     if (bannerSprite != null)
                     {
-                        if (lowerFile.Contains("arkaplan") || lowerFile.Contains("background") || lowerFile.Contains("backdrop"))
+                        if (readable)
+                            skin.skillTreeBackground = bannerSprite;
+                        else if (lowerFile.Contains("arkaplan") || lowerFile.Contains("background") || lowerFile.Contains("backdrop"))
                             skin.worldBackground = bannerSprite;
                         else
                             skin.mainMenuBackground = bannerSprite;
@@ -174,16 +179,18 @@ namespace AftershockIsle.EditorTools
         }
 
         // Arayüz görselleri sprite olmalı ve mipmap'siz olmalı (bulanıklaşmasın). Dilimlenmiş (çoklu) sprite'lara dokunulmaz.
-        static void EnsureSpriteImport(string path)
+        static void EnsureSpriteImport(string path, bool requireReadable = false)
         {
             if (!(AssetImporter.GetAtPath(path) is TextureImporter importer)) return;
-            if (importer.textureType == TextureImporterType.Sprite && !importer.mipmapEnabled) return;
+            if (importer.textureType == TextureImporterType.Sprite && !importer.mipmapEnabled &&
+                (!requireReadable || importer.isReadable)) return;
 
             if (importer.textureType != TextureImporterType.Sprite)
             {
                 importer.textureType = TextureImporterType.Sprite;
                 importer.spriteImportMode = SpriteImportMode.Single;
             }
+            if (requireReadable) importer.isReadable = true;
             importer.mipmapEnabled = false;
             importer.alphaIsTransparency = true;
             importer.SaveAndReimport();

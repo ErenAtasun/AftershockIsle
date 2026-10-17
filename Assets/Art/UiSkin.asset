@@ -14,6 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AftershockIsle.UI.UiSkin
   mainMenuBackground: {fileID: 21300000, guid: eb62f7fe2212bcf4394681c145ee58c2, type: 3}
   worldBackground: {fileID: 21300000, guid: c491a7fe2212bcf4394681c145ee99d1, type: 3}
+  skillTreeBackground: {fileID: 21300000, guid: 2775ca1883129f142a17a82cdef6c708, type: 3}
   settingsPanel: {fileID: 21300000, guid: a94339a4cfd383e46a224d5a4c7a3855, type: 3}
   pausedTitle: {fileID: 21300000, guid: ac90be6241114d94ea9a4d58724747b0, type: 3}
   startButton: {fileID: 21300000, guid: f3214602b092eba46a469f2d0a800fcf, type: 3}

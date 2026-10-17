@@ -205,6 +205,7 @@ namespace AftershockIsle.Characters
             var done = Current;
             ReleaseCurrent();
             done.Complete(survivor);
+            survivor.GetComponent<SurvivorChatter>()?.OnTaskCompleted(done.DisplayName);
 
             // Tekrarlı işin ön koşulları (taşıma, kova) sıradaki çözümlemede yeniden araya girer.
             var chest = StorageChest.FindNearest(survivor);

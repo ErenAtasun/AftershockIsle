@@ -51,7 +51,10 @@ namespace AftershockIsle.Characters
         readonly List<TraitId> traits = new List<TraitId>();
         MaterialPropertyBlock block;
         CharacterView view;
+        SurvivorChatter chatter;
         float trappedRemaining;
+
+        public CharacterView View => view;
 
         const float ModelHeight = 1.75f;
 
@@ -111,6 +114,8 @@ namespace AftershockIsle.Characters
             Mover = GetComponent<CharacterMover>();
             Tasks = GetComponent<TaskRunner>();
             Condition = GetComponent<SurvivorCondition>();
+            chatter = GetComponent<SurvivorChatter>();
+            if (chatter == null) chatter = gameObject.AddComponent<SurvivorChatter>();
             if (traits.Count == 0)
             {
                 int seed = (displayName != null ? displayName.GetHashCode() : 0) ^ (int)branch * 397;
@@ -189,9 +194,61 @@ namespace AftershockIsle.Characters
             }
             Tasks.WorkSpeedMultiplier = Condition.SpeedMultiplier * pyrophobicFactor;
 
+            UpdateEquippedVisuals();
+
             if (!IsTrapped) return;
             trappedRemaining = Mathf.Max(0f, trappedRemaining - Time.deltaTime);
             if (!IsTrapped) Mover.Frozen = false;
+        }
+
+        void UpdateEquippedVisuals()
+        {
+            if (view == null) return;
+
+            bool isGuard = AftershockIsle.Crisis.NightDefenseSystem.Guard == this && !IsDead;
+            if (isGuard)
+            {
+                view.SetTool(ToolModelKind.None);
+                var best = AftershockIsle.Expedition.FieldWeapons.Best();
+                var gunKind = best switch
+                {
+                    AftershockIsle.Expedition.WeaponKind.Shotgun => GunModelKind.Shotgun,
+                    AftershockIsle.Expedition.WeaponKind.AssaultRifle => GunModelKind.AssaultRifle,
+                    AftershockIsle.Expedition.WeaponKind.SniperRifle => GunModelKind.SniperRifle,
+                    AftershockIsle.Expedition.WeaponKind.Pistol => GunModelKind.Pistol,
+                    AftershockIsle.Expedition.WeaponKind.Smg => GunModelKind.Smg,
+                    _ => GunModelKind.Shotgun
+                };
+                view.SetGun(gunKind, (int)branch);
+                view.SetGunVisible(true);
+                return;
+            }
+
+            if (IsCarrying)
+            {
+                view.SetTool(ToolModelKind.None);
+                view.SetGunVisible(false);
+                return;
+            }
+
+            if (Tasks != null && Tasks.State == TaskState.Working && Tasks.Current != null)
+            {
+                view.TickWorkSwing(Time.deltaTime);
+                var cat = Tasks.Current.Category;
+                if (cat == AftershockIsle.Interaction.WorkCategory.Repair || cat == AftershockIsle.Interaction.WorkCategory.Dismantle)
+                {
+                    view.SetTool(ToolModelKind.Hammer);
+                    return;
+                }
+                if (cat == AftershockIsle.Interaction.WorkCategory.Dig)
+                {
+                    view.SetTool(ToolModelKind.Shovel);
+                    return;
+                }
+            }
+
+            view.SetTool(ToolModelKind.None);
+            RefreshEquippedGun();
         }
 
         public void TakeDamage(float amount, string cause)
@@ -243,6 +300,7 @@ namespace AftershockIsle.Characters
         public void SetSelected(bool selected)
         {
             if (selectionIndicator != null) selectionIndicator.SetActive(selected);
+            if (selected && chatter != null) chatter.OnSelected();
         }
 
         public bool TryPickUp(ResourceAmount item)

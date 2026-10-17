@@ -523,6 +523,8 @@ namespace AftershockIsle.Save
                 data.triggeredNarrativeDays = new List<int>(NarrativeEventSystem.Instance.GetTriggeredDays());
                 data.motherGiftDueDay = NarrativeEventSystem.Instance.MotherGiftDueDay;
             }
+            if (NightDefenseSystem.Instance != null)
+                data.raiderAttention = NightDefenseSystem.Instance.Attention;
 
             return data;
         }
@@ -783,6 +785,8 @@ namespace AftershockIsle.Save
             {
                 NarrativeEventSystem.Instance.RestoreState(data.triggeredNarrativeDays, data.motherGiftDueDay);
             }
+            if (NightDefenseSystem.Instance != null)
+                NightDefenseSystem.Instance.RestoreState(data.raiderAttention);
         }
     }
 }

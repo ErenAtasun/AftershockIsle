@@ -75,7 +75,7 @@ namespace AftershockIsle.UI
         void OnHelicopterInbound(HelicopterInbound evt) => ShowNotice("SİNYAL ULAŞTI! Tahliye helikopteri yolda.", 6f);
 
         void OnExpeditionStarted(ExpeditionStarted evt) =>
-            ShowNotice($"{evt.Explorer.DisplayName} {evt.Site.name} için yola çıktı ({evt.Site.duration:0} sn).");
+            ShowNotice($"{evt.Explorer.DisplayName} {evt.Site.name} için yola çıktı. Tab ile sahaya geç; sağ tık: yürü / saldır / ara.");
 
         void OnExpeditionReturned(ExpeditionReturned evt)
         {
@@ -195,8 +195,8 @@ namespace AftershockIsle.UI
             if (away != null)
             {
                 var expeditions = ExpeditionSystem.Instance;
-                string rescue = expeditions.IsRescuing ? ", kazazede çıkarılıyor" : "";
-                GUILayout.Label($"Seferde: {away.DisplayName} → {expeditions.CurrentSite.name} ({Mathf.CeilToInt(expeditions.Remaining)} sn{rescue})");
+                string rescue = expeditions.IsRescuing ? ", kazazede kurtarıldı" : "";
+                GUILayout.Label($"Seferde: {away.DisplayName} → {expeditions.CurrentSite.name} (kalan {Mathf.CeilToInt(expeditions.Remaining)} sn{rescue}, Can {away.Health:0}) — Tab: saha görünümü");
             }
 
             var selected = commands.Selected;

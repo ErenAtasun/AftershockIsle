@@ -31,6 +31,8 @@ namespace AftershockIsle.Core
         public static bool PumpRightPressed => Keys != null && Keys.eKey.wasPressedThisFrame;
 
         public static bool EscapePressed => Keys != null && Keys.escapeKey.wasPressedThisFrame;
+        /// <summary>Dış sefer sırasında görünümü saha ile sığınak arasında değiştirir.</summary>
+        public static bool ViewSwitchPressed => Keys != null && Keys.tabKey.wasPressedThisFrame;
         public static bool HelpTogglePressed => Keys != null && Keys.hKey.wasPressedThisFrame;
         public static bool SkillTreeTogglePressed => Keys != null && Keys.kKey.wasPressedThisFrame;
 

@@ -25,7 +25,22 @@ namespace AftershockIsle.CameraControl
         [SerializeField] float targetHeightOffset = 1.2f;
         [SerializeField] float shakeAmplitude = 0.35f;
 
+        static Transform fieldFocus;
+        static bool viewField;
+
+        /// <summary>Dış saha görünümü açık mı (sığınağın yerine kâşif izleniyor).</summary>
+        public static bool ViewingField => fieldFocus != null && viewField;
+
+        /// <summary>Dış sefer başlayınca kâşifin avatarı verilir, bitince null. Verilince görünüm sahaya geçer.</summary>
+        public static void SetFieldFocus(Transform target)
+        {
+            fieldFocus = target;
+            viewField = target != null;
+        }
+
         Survivor selected;
+        bool wasViewingField;
+        Vector3 baseFocus;
         float shakeRemaining;
         float shakeDuration = 1f;
         bool following;
@@ -40,6 +55,8 @@ namespace AftershockIsle.CameraControl
             GetComponent<Camera>().fieldOfView = fieldOfView;
             transform.rotation = Quaternion.identity;
 
+            fieldFocus = null;
+            viewField = false;
             focus = new Vector3(transform.position.x, transform.position.y, building.WalkPlaneZ);
             smoothedFocus = focus;
             targetDistance = distance;
@@ -73,6 +90,29 @@ namespace AftershockIsle.CameraControl
         {
             float dt = Time.unscaledDeltaTime;
 
+            if (fieldFocus != null && GameInput.ViewSwitchPressed) viewField = !viewField;
+            bool showField = ViewingField;
+            if (showField != wasViewingField)
+            {
+                wasViewingField = showField;
+                velocity = Vector3.zero;
+                if (showField) baseFocus = focus;
+                else focus = baseFocus;
+                smoothedFocus = showField ? FieldFocusPoint() : focus;
+            }
+
+            if (showField)
+            {
+                float fieldScroll = GameInput.ScrollDelta;
+                if (fieldScroll != 0f)
+                    targetDistance = Mathf.Clamp(targetDistance - Mathf.Sign(fieldScroll) * zoomStep, minDistance, maxDistance);
+
+                smoothedFocus = Vector3.SmoothDamp(smoothedFocus, FieldFocusPoint(), ref velocity, smoothTime, Mathf.Infinity, dt);
+                distance = Mathf.Lerp(distance, targetDistance, 1f - Exp(dt));
+                transform.position = smoothedFocus - Vector3.forward * distance;
+                return;
+            }
+
             Vector2 pan = GameInput.PanAxis;
             if (pan != Vector2.zero)
             {
@@ -97,6 +137,14 @@ namespace AftershockIsle.CameraControl
 
             transform.position = smoothedFocus - Vector3.forward * distance + ShakeOffset();
         }
+
+        Vector3 FieldFocusPoint()
+        {
+            var point = fieldFocus != null ? fieldFocus.position : focus;
+            return new Vector3(point.x, point.y + targetHeightOffset, building.WalkPlaneZ);
+        }
+
+        static float Exp(float dt) => Mathf.Exp(-10f * dt);
 
         // Sarsıntı oyun zamanıyla söner; duraklatınca görüntü sabitlenir.
         Vector3 ShakeOffset()

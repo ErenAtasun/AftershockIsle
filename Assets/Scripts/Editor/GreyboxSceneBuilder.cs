@@ -324,6 +324,7 @@ namespace AftershockIsle.EditorTools
             var pipeComponent = pipe.AddComponent<BurstPipe>();
             Configure(pipeComponent, ("displayName", "Şebeke Borusu"), ("workDuration", 6f));
             SetRef(pipeComponent, "sprayVisual", spray);
+            ModelSkins.Skin(pipe, ModelKey.Pipe, SkinFit.Width, 2.4f, centered: true);
 
             var pump = Box("Su Tulumbası", props, new Vector3(5.5f, 0 * h + 0.6f, backZ - 0.5f), new Vector3(1f, 1.2f, 0.8f), p.Water);
             Configure(pump.AddComponent<ManualPump>(), ("displayName", "Manuel Su Tulumbası"), ("workDuration", 1f));
@@ -334,6 +335,7 @@ namespace AftershockIsle.EditorTools
             Object.DestroyImmediate(water.GetComponent<Collider>());
             var cabinet = FurnitureProp("Dolap", props, new Vector3(1.5f, 0 * h + 0.8f, backZ - 0.45f), new Vector3(1.2f, 1.6f, 0.7f), p.Furniture);
             Configure(cabinet, ("hasSearchLoot", true), ("searchLoot.type", (int)ResourceType.Supplies), ("searchLoot.amount", 2));
+            ModelSkins.Skin(cabinet.gameObject, ModelKey.Dresser, SkinFit.Width, 0.9f, ModelSkins.FrontToCamera);
             Rubble("Moloz", props, new Vector3(-4.5f, 0 * h, backZ - 0.9f), new Vector3(1.1f, 0.6f, 1f), p.Rubble, 3, false);
 
             // Kat 1: Giriş katı. Dış kapının önü yıkıntıyla kapalı.
@@ -349,24 +351,35 @@ namespace AftershockIsle.EditorTools
                 ("providesShelter", false), ("salvage.amount", 1),
                 ("hasSearchLoot", true), ("searchLoot.type", (int)ResourceType.Supplies), ("searchLoot.amount", 1));
 
-            FurnitureProp("Masa", props, new Vector3(0f, 1 * h + 0.4f, backZ - 0.8f), new Vector3(1.6f, 0.8f, 0.9f), p.Furniture);
+            var table = FurnitureProp("Masa", props, new Vector3(0f, 1 * h + 0.4f, backZ - 0.8f), new Vector3(1.6f, 0.8f, 0.9f), p.Furniture);
+            ModelSkins.Skin(table.gameObject, ModelKey.Table, SkinFit.Height, 0.8f);
+
+            // Süs: masanın yanında sandalye ve yangın odağının yanında yangın tüpü (etkileşimsiz).
+            ModelSkins.Decorate(props, "Sandalye", ModelKey.Chair, new Vector3(0.95f, 1 * h, backZ - 0.8f), 0.95f, 90f);
+            ModelSkins.Decorate(props, "Yangın Tüpü", ModelKey.Extinguisher, new Vector3(-3.5f, 1 * h, backZ - 0.5f), 0.7f);
             Rubble("Yıkıntı (Kapı Önü)", props, new Vector3(7.7f, 1 * h, 0f), new Vector3(1.4f, 1.1f, 1.8f), p.Rubble, 5, true);
 
             // Kat 2: Yaşam / Tezgah
             var bench = Box("Çalışma Tezgahı", props, new Vector3(-1f, 2 * h + 0.5f, backZ - 0.6f), new Vector3(2.2f, 1f, 1f), p.Craft);
             Configure(bench.AddComponent<Workbench>(), ("displayName", "Çalışma Tezgahı"), ("workDuration", 5f));
+            ModelSkins.Skin(bench, ModelKey.Table, SkinFit.Height, 0.95f);
             var chest = Box("Ortak Sandık", props, new Vector3(1.4f, 2 * h + 0.4f, backZ - 0.5f), new Vector3(1.2f, 0.8f, 0.8f), p.Storage);
             Configure(chest.AddComponent<StorageChest>(), ("displayName", "Ortak Sandık"), ("workDuration", 0.5f));
+            ModelSkins.Skin(chest, ModelKey.Crate, SkinFit.Width, 1.0f);
+            ModelSkins.Decorate(props, "Sandalye (Tezgah)", ModelKey.Chair, new Vector3(0.15f, 2 * h, backZ - 0.6f), 0.95f, -90f);
+            ModelSkins.Decorate(props, "Yangın Tüpü", ModelKey.Extinguisher, new Vector3(3.2f, 2 * h, backZ - 0.5f), 0.7f);
             // İkinci Elektronik kaynağı: sefere çıkmadan da Kademe 3 yolu açık kalsın.
             var computer = Box("Eski Bilgisayar", props, new Vector3(-3.3f, 2 * h + 0.45f, backZ - 0.5f), new Vector3(0.8f, 0.9f, 0.6f), p.Electric);
             Configure(computer.AddComponent<Furniture>(), ("displayName", "Eski Bilgisayar"), ("workDuration", 5f),
                 ("providesShelter", false), ("salvage.type", (int)ResourceType.Electronics), ("salvage.amount", 1));
 
-            FurnitureProp("Yataklar", props, new Vector3(4.6f, 2 * h + 0.25f, backZ - 0.6f), new Vector3(2f, 0.5f, 1f), p.Furniture);
+            var beds = FurnitureProp("Yataklar", props, new Vector3(4.6f, 2 * h + 0.25f, backZ - 0.6f), new Vector3(2f, 0.5f, 1f), p.Furniture);
+            ModelSkins.Skin(beds.gameObject, ModelKey.Bed, SkinFit.Width, 2.0f, 90f);
             Rubble("Moloz", props, new Vector3(-4.6f, 2 * h, backZ - 0.9f), new Vector3(1f, 0.5f, 1f), p.Rubble, 2, false);
 
             var bucketSpot = Box("Kova (Bodrum Suyu)", props, new Vector3(4.3f, 0 * h + 0.25f, backZ - 0.9f), new Vector3(0.45f, 0.5f, 0.45f), p.Metal);
             Configure(bucketSpot.AddComponent<WaterSource>(), ("displayName", "Kova (Bodrum Suyu)"), ("workDuration", 2f), ("usesFloodWater", true));
+            ModelSkins.Skin(bucketSpot, ModelKey.Bucket, SkinFit.Height, 0.5f);
 
             var tank = Box("Su Bidonu", props, new Vector3(2.3f, 2 * h + 0.45f, backZ - 0.6f), new Vector3(0.5f, 0.9f, 0.5f), p.Water);
             Configure(tank.AddComponent<WaterSource>(), ("displayName", "Su Bidonu"), ("workDuration", 2f),
@@ -459,6 +472,7 @@ namespace AftershockIsle.EditorTools
             var go = Box("Çökmüş Tavan", null, Vector3.zero, new Vector3(2.4f, 1.6f, 2f), p.Rubble);
             Configure(go.AddComponent<RubblePile>(),
                 ("displayName", "Çökmüş Tavan"), ("workDuration", 5f), ("digCount", 8), ("blocksPath", true));
+            ModelSkins.Skin(go, ModelKey.Rubble, SkinFit.Stretch);
 
             var prefab = PrefabUtility.SaveAsPrefabAsset(go, $"{PrefabFolder}/CollapsedCeiling.prefab");
             Object.DestroyImmediate(go);
@@ -479,6 +493,7 @@ namespace AftershockIsle.EditorTools
             var go = Box(name, parent, floorBase + Vector3.up * (size.y * 0.5f), size, material);
             Configure(go.AddComponent<RubblePile>(),
                 ("displayName", name), ("workDuration", 5f), ("digCount", digs), ("blocksPath", blocksPath));
+            ModelSkins.Skin(go, ModelKey.Rubble, SkinFit.Stretch);
         }
 
         static (Transform helicopter, Transform rotor) CreateHelicopter(Palette p)
@@ -497,6 +512,7 @@ namespace AftershockIsle.EditorTools
             var go = Box("Enkaz", null, Vector3.zero, new Vector3(1.3f, 0.6f, 1.2f), p.Rubble);
             Configure(go.AddComponent<RubblePile>(),
                 ("displayName", "Enkaz"), ("workDuration", 4f), ("digCount", 2), ("blocksPath", false));
+            ModelSkins.Skin(go, ModelKey.Rubble, SkinFit.Stretch);
 
             var prefab = PrefabUtility.SaveAsPrefabAsset(go, $"{PrefabFolder}/Debris.prefab");
             Object.DestroyImmediate(go);

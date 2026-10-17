@@ -7,18 +7,16 @@ using UnityEngine;
 namespace AftershockIsle.UI
 {
     /// <summary>
-    /// Geçici IMGUI: nodlu şehir haritası, Enkaz Alanı kurtarma kararı ve sefer durum paneli.
+    /// Geçici IMGUI: nodlu şehir haritası ve sığınak görünümündeyken sefer durum paneli (saha HUD'u FieldExpedition'da).
     /// Haritada lokasyona tıklamak sadece seçer; yola çıkmak ayrı onay ister (yanlışlıkla seçimi önler).
     /// </summary>
     public class ExpeditionWindow : MonoBehaviour
     {
         const int MapWindowId = 4301;
-        const int RescueWindowId = 4302;
         // Pencere açılınca imlecin altında kalan butona yanlışlıkla basılmasın.
         const float InputGraceSeconds = 0.5f;
 
         Rect mapRect = new Rect(0, 0, 620, 480);
-        Rect rescueRect = new Rect(0, 0, 440, 190);
         GUIStyle wrapStyle;
         GUIStyle nodeStyle;
         GUIStyle titleStyle;
@@ -49,12 +47,6 @@ namespace AftershockIsle.UI
                     UIBlocker.Add(mapRect);
                     GUI.Window(MapWindowId, mapRect, DrawMap, $"Şehir Haritası — kâşif: {expeditions.Explorer.DisplayName}");
                     break;
-                case ExpeditionStage.RescueDecision:
-                    Center(ref rescueRect);
-                    UIBlocker.Add(rescueRect);
-                    GUI.Window(RescueWindowId, rescueRect, DrawRescue, "Enkaz Alanı — Karar Anı");
-                    DrawStatusPanel(expeditions);
-                    break;
                 case ExpeditionStage.Departing:
                 case ExpeditionStage.Away:
                 case ExpeditionStage.Returning:
@@ -66,7 +58,7 @@ namespace AftershockIsle.UI
         /// <summary>Sağ üstte: hangi lokasyonda, ne kadar kaldı.</summary>
         void DrawStatusPanel(ExpeditionSystem expeditions)
         {
-            var rect = new Rect(Screen.width - 312, 12, 300, 92);
+            var rect = new Rect(Screen.width - 312, 12, 300, 84);
             GUI.Box(rect, GUIContent.none);
             GUILayout.BeginArea(new Rect(rect.x + 8, rect.y + 6, rect.width - 16, rect.height - 12));
 
@@ -80,12 +72,12 @@ namespace AftershockIsle.UI
                     break;
                 default:
                     var explorer = ExpeditionSystem.AwayExplorer;
-                    GUILayout.Label($"SEFERDE: {explorer?.DisplayName}", titleStyle);
-                    GUILayout.Label($"{expeditions.CurrentSite?.name} — kalan {Mathf.CeilToInt(expeditions.Remaining)} sn" +
-                                    (expeditions.IsRescuing ? " (kazazede çıkarılıyor)" : ""));
-                    var bar = GUILayoutUtility.GetRect(rect.width - 16, 10);
-                    GUI.Box(bar, GUIContent.none);
-                    GUI.DrawTexture(new Rect(bar.x + 1, bar.y + 1, (bar.width - 2) * expeditions.Progress01, bar.height - 2), Texture2D.whiteTexture);
+                    var field = expeditions.Field;
+                    GUILayout.Label($"SEFERDE: {explorer?.DisplayName} — {expeditions.CurrentSite?.name}", titleStyle);
+                    if (explorer != null && field != null)
+                        GUILayout.Label($"Can {explorer.Health:0}/{explorer.MaxHealth:0}   Çanta {field.UsedSlots}/{field.BagSlots}   Kalan {Mathf.CeilToInt(expeditions.Remaining)} sn" +
+                                        (expeditions.IsRescuing ? "   [kazazede kurtarıldı]" : ""));
+                    GUILayout.Label("Tab: sahaya geç ve kâşifi yönet.");
                     break;
             }
 
@@ -134,7 +126,7 @@ namespace AftershockIsle.UI
             if (selectedSite == null)
             {
                 GUILayout.Label("Bir lokasyon seç. Oyun bu ekranda duraklatıldı.", wrapStyle);
-                GUILayout.Label($"Sefer çantası: {expeditions.BagSlots} slot. Dönüşte çanta otomatik olarak sandığa boşaltılır.", wrapStyle);
+                GUILayout.Label($"Sefer çantası: {expeditions.BagSlots} slot. Sahada kâşifi sen yönetirsin; sığınak o sırada çalışmaya devam eder.", wrapStyle);
             }
             else
             {
@@ -156,27 +148,10 @@ namespace AftershockIsle.UI
                 expeditions.CancelMap();
         }
 
-        void DrawRescue(int id)
-        {
-            var expeditions = ExpeditionSystem.Instance;
-            float extraction = SkillTree.Has(SkillId.LifeSaver) ? 10f : 20f;
-
-            GUILayout.Label(
-                $"{expeditions.Explorer.DisplayName} enkaz altında mahsur kalmış birini buldu.\n\n" +
-                $"Kurtarırsan: +1 iş gücü ve yeni bir yetenek dalı, ama gece tüketimi +1 Yaşam Kiti artar. " +
-                $"Çıkarma seferi {extraction:0} sn uzatır.", wrapStyle);
-
-            GUILayout.FlexibleSpace();
-            GUILayout.BeginHorizontal();
-            if (LeftClickLayoutButton("Kurtar")) expeditions.DecideRescue(true);
-            if (LeftClickLayoutButton("Bırak")) expeditions.DecideRescue(false);
-            GUILayout.EndHorizontal();
-        }
-
         static string Details(ExpeditionSite site)
         {
             var text = new StringBuilder(site.description);
-            text.Append($"\nSüre: {site.duration:0} sn.  Ganimet: ");
+            text.Append($"\nSaha süresi: {site.duration:0} sn.  Düşman: {site.dogs + site.raiders}.  Ganimet: ");
             for (int i = 0; i < site.loot.Length; i++)
             {
                 if (i > 0) text.Append(", ");
@@ -184,7 +159,7 @@ namespace AftershockIsle.UI
             }
 
             if (site.hazard != ExpeditionHazard.None)
-                text.Append($"   Risk: %{site.hazardChance * 100f:0} ihtimalle -{site.hazardDamage:0} HP");
+                text.Append($"   Arama tuzağı: %{site.hazardChance * 100f:0} ihtimalle -{site.hazardDamage * 0.7f:0} HP");
 
             if (site.isRescueSite && !ExpeditionSystem.RescueVictimAvailable)
                 text.Append("   (Kurtarılacak kimse yok ya da sığınak dolu.)");

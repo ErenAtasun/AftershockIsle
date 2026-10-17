@@ -11,7 +11,7 @@ using UnityEngine;
 namespace AftershockIsle.Expedition
 {
     /// <summary>Departing/Returning: kâşif kapı ile sokak arasında görünür halde yürüyor.</summary>
-    public enum ExpeditionStage { None, ChoosingSite, Departing, Away, RescueDecision, Returning }
+    public enum ExpeditionStage { None, ChoosingSite, Departing, Away, Returning }
 
     public readonly struct ExpeditionStarted
     {
@@ -43,16 +43,16 @@ namespace AftershockIsle.Expedition
 
     /// <summary>
     /// Dış sefer akışı: kapıda harita açılır (oyun durur) → lokasyon seçilir, kâşif binadan çıkar →
-    /// süre dolunca çantayla kapıdan döner ve çantayı sandığa götürür. Enkaz Alanı'nda yolun yarısında
-    /// kurtarma kararı sorulur. Sefere günde bir kez, yalnızca öğle fazında çıkılır.
+    /// oynanabilir dış sahaya geçilir (FieldExpedition: arama, dövüş, kurtarma) → kâşif çıkıştan dönüp
+    /// çantayı sandığa götürür. Sefere günde bir kez, yalnızca öğle fazında çıkılır; sığınak sahadayken de işler.
     /// </summary>
     public class ExpeditionSystem : MonoBehaviour
     {
         [SerializeField] TimeManager timeManager;
         [SerializeField] DayCycle dayCycle;
         [SerializeField] int baseBagSlots = 3;
-        [SerializeField] float rescueExtraction = 20f;
-        [SerializeField] float hazardStress = 20f;
+        [SerializeField] float rescueExtraction = 8f;
+        [SerializeField] float timeUpStress = 20f;
         [SerializeField] ExpeditionSite[] sites = ExpeditionSite.Defaults();
 
         static readonly Dictionary<SkillBranch, string> rescueNames = new Dictionary<SkillBranch, string>
@@ -66,11 +66,9 @@ namespace AftershockIsle.Expedition
         const float WalkSpeed = 2.5f;
         const float OutsideDistance = 3.5f;
 
-        readonly List<ResourceAmount> loot = new List<ResourceAmount>();
         BuildingLayout building;
+        FieldExpedition field;
         int lastExpeditionDay;
-        bool rescueDecided;
-        bool rescuing;
 
         public static ExpeditionSystem Instance { get; private set; }
 
@@ -78,8 +76,9 @@ namespace AftershockIsle.Expedition
         public ExpeditionStage Stage { get; private set; }
         public Survivor Explorer { get; private set; }
         public ExpeditionSite CurrentSite { get; private set; }
-        public float Remaining { get; private set; }
-        public bool IsRescuing => rescuing;
+        public float Remaining => field != null ? field.Remaining : 0f;
+        public bool IsRescuing => field != null && field.RescueSecured;
+        public FieldExpedition Field => field;
         public int BagSlots => baseBagSlots + (SkillTree.Has(SkillId.WideBag) ? 1 : 0);
 
         /// <summary>Binanın dışında olan (sahnede pasif) kazazede sayısı.</summary>
@@ -88,7 +87,7 @@ namespace AftershockIsle.Expedition
         /// <summary>Şu an binanın dışında olan kâşif (Survivor.All'da görünmez).</summary>
         public static Survivor AwayExplorer =>
             Instance != null && Instance.IsExplorerAway && !Instance.Explorer.IsDead ? Instance.Explorer : null;
-        bool IsExplorerAway => Stage == ExpeditionStage.Away || Stage == ExpeditionStage.RescueDecision;
+        bool IsExplorerAway => Stage == ExpeditionStage.Away;
 
         float ExtractionTime => rescueExtraction * (SkillTree.Has(SkillId.LifeSaver) ? 0.5f : 1f);
         float OutsideX => building.MaxX + OutsideDistance;
@@ -99,8 +98,7 @@ namespace AftershockIsle.Expedition
             (Stage == ExpeditionStage.Departing || Stage == ExpeditionStage.Returning);
 
         /// <summary>0–1 arası sefer ilerlemesi (panel için).</summary>
-        public float Progress01 => CurrentSite == null ? 0f
-            : Mathf.Clamp01(1f - Remaining / (CurrentSite.duration + (IsRescuing ? ExtractionTime : 0f)));
+        public float Progress01 => CurrentSite == null ? 0f : Mathf.Clamp01(1f - Remaining / CurrentSite.duration);
 
         Survivor TransitSurvivor { get; set; }
 
@@ -113,6 +111,10 @@ namespace AftershockIsle.Expedition
             building = FindFirstObjectByType<BuildingLayout>();
             if (timeManager == null) timeManager = FindFirstObjectByType<TimeManager>();
             if (dayCycle == null) dayCycle = FindFirstObjectByType<DayCycle>();
+
+            // Eski sahnelerde serileştirilmiş saha verisi olmayabilir.
+            if (sites == null || sites.Length == 0 || sites[0].lootSpots <= 0) sites = ExpeditionSite.Defaults();
+            field = gameObject.AddComponent<FieldExpedition>();
         }
 
         void OnDestroy()
@@ -151,16 +153,13 @@ namespace AftershockIsle.Expedition
             if (Stage != ExpeditionStage.ChoosingSite || Explorer == null || Explorer.IsDead) return;
 
             CurrentSite = site;
-            Remaining = site.duration;
             lastExpeditionDay = dayCycle.Day;
-            rescueDecided = !site.isRescueSite;
-            rescuing = false;
 
             Explorer.Tasks.CancelAll();
             Stage = ExpeditionStage.Departing;
             timeManager.SetSpeed(TimeSpeed.Normal);
             EventBus.Publish(new ExpeditionStarted(Explorer, site));
-            Debug.Log($"[Sefer] {Explorer.DisplayName} → {site.name} ({site.duration:0} sn)");
+            Debug.Log($"[Sefer] {Explorer.DisplayName} → {site.name} (saha süresi {site.duration:0} sn)");
             TransitSurvivor = Explorer;
             StartCoroutine(DepartRoutine(Explorer));
         }
@@ -171,9 +170,10 @@ namespace AftershockIsle.Expedition
             yield return WalkThroughDoor(explorer, building.MaxX, OutsideX);
             explorer.gameObject.SetActive(false);
             Stage = ExpeditionStage.Away;
+            field.Begin(explorer, CurrentSite, building, BagSlots, ExtractionTime, RescueVictimAvailable);
         }
 
-        IEnumerator ReturnRoutine(Survivor explorer, string hazardReport)
+        IEnumerator ReturnRoutine(Survivor explorer, IReadOnlyList<ResourceAmount> loot, string hazardReport, bool rescuing)
         {
             yield return WalkThroughDoor(explorer, OutsideX, building.MaxX);
 
@@ -187,7 +187,6 @@ namespace AftershockIsle.Expedition
                     rescued = SurvivorRoster.Instance.Spawn(name, branch.Value, DoorFloor, building.MaxX - 0.8f);
                 }
             }
-            rescuing = false;
             Stage = ExpeditionStage.None;
             TransitSurvivor = null;
 
@@ -214,101 +213,53 @@ namespace AftershockIsle.Expedition
             explorer.Mover.Frozen = explorer.IsDead || explorer.IsTrapped;
         }
 
-        public void DecideRescue(bool rescue)
-        {
-            if (Stage != ExpeditionStage.RescueDecision) return;
-
-            rescueDecided = true;
-            rescuing = rescue && RescueVictimAvailable;
-            if (rescuing) Remaining += ExtractionTime;
-            Stage = ExpeditionStage.Away;
-            timeManager.SetSpeed(TimeSpeed.Normal);
-        }
-
         void Update()
         {
-            if (Stage != ExpeditionStage.Away) return;
+            if (Stage != ExpeditionStage.Away || field.Outcome == FieldOutcome.Active) return;
 
-            Remaining -= Time.deltaTime;
+            var outcome = field.Outcome;
+            var explorer = Explorer;
 
-            if (!rescueDecided && Remaining <= CurrentSite.duration * 0.5f)
+            if (outcome == FieldOutcome.Died || explorer.IsDead)
             {
-                if (RescueVictimAvailable)
-                {
-                    Stage = ExpeditionStage.RescueDecision;
-                    timeManager.SetSpeed(TimeSpeed.Paused);
-                    return;
-                }
-                rescueDecided = true;
+                Debug.Log($"[Sefer] {explorer.DisplayName} sahada öldü.");
+                field.End();
+                Stage = ExpeditionStage.None;
+                Explorer = null;
+                CurrentSite = null;
+                TransitSurvivor = null;
+                return;
             }
 
-            if (Remaining <= 0f) Return();
+            Return(explorer, outcome == FieldOutcome.TimeUp);
         }
 
-        void Return()
+        void Return(Survivor explorer, bool timeUp)
         {
-            var explorer = Explorer;
-            var site = CurrentSite;
+            string report = field.Report;
+            if (timeUp)
+            {
+                // Karanlık basınca kaçarak döner; çantanın yarısı yolda düşer.
+                field.DropHalfBag();
+                explorer.Condition.AddStress(timeUpStress);
+                report = (report != null ? report + " " : "") + "Süre doldu, kaçarken çantanın yarısı düştü.";
+            }
+
+            var loot = new List<ResourceAmount>(field.Bag);
+            bool rescuing = field.RescueSecured;
+            field.End();
+
             Stage = ExpeditionStage.Returning;
             Explorer = null;
             CurrentSite = null;
 
             explorer.transform.position = building.Point(DoorFloor, OutsideX);
             explorer.gameObject.SetActive(true);
-
-            RollLoot(site);
             explorer.FillBag(loot);
-            string hazardReport = ApplyHazard(explorer, site);
 
-            Debug.Log($"[Sefer] {explorer.DisplayName} döndü: {loot.Count} çeşit ganimet{(hazardReport != null ? $", {hazardReport}" : "")}");
+            Debug.Log($"[Sefer] {explorer.DisplayName} döndü: {loot.Count} çeşit ganimet{(report != null ? $", {report}" : "")}");
             TransitSurvivor = explorer;
-            StartCoroutine(ReturnRoutine(explorer, hazardReport));
-        }
-
-        void RollLoot(ExpeditionSite site)
-        {
-            loot.Clear();
-            float totalWeight = 0f;
-            foreach (var entry in site.loot) totalWeight += entry.weight;
-            if (totalWeight <= 0f) return;
-
-            for (int slot = 0; slot < BagSlots; slot++)
-            {
-                float roll = Random.value * totalWeight;
-                foreach (var entry in site.loot)
-                {
-                    roll -= entry.weight;
-                    if (roll > 0f) continue;
-
-                    int amount = Random.Range(entry.min, Mathf.Max(entry.min, entry.max) + 1);
-                    AddLoot(entry.type, amount);
-                    break;
-                }
-            }
-        }
-
-        void AddLoot(ResourceType type, int amount)
-        {
-            for (int i = 0; i < loot.Count; i++)
-            {
-                if (loot[i].type != type) continue;
-                loot[i] = new ResourceAmount(type, loot[i].amount + amount);
-                return;
-            }
-            loot.Add(new ResourceAmount(type, amount));
-        }
-
-        string ApplyHazard(Survivor explorer, ExpeditionSite site)
-        {
-            if (site.hazard == ExpeditionHazard.None || Random.value >= site.hazardChance) return null;
-
-            string report = site.hazard == ExpeditionHazard.Fire
-                ? "Klinikte yangın ve dumana yakalandı."
-                : "Göçük altında kaldı, yaralı kurtuldu.";
-
-            explorer.Condition.AddStress(hazardStress);
-            explorer.TakeDamage(site.hazardDamage, $"Seferde: {report}");
-            return report;
+            StartCoroutine(ReturnRoutine(explorer, loot, report, rescuing));
         }
     }
 }

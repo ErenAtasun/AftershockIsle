@@ -1,4 +1,5 @@
 using AftershockIsle.Building;
+using AftershockIsle.CameraControl;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
 using AftershockIsle.Crisis;
@@ -36,6 +37,13 @@ namespace AftershockIsle.Player
         {
             hitCount = Physics.RaycastNonAlloc(PointerRay(), hits, maxRayDistance);
             Hovered = Closest<Interactable>();
+
+            // Dış sahadayken tıklamaları FieldExpedition yönetir; sığınaktaki seçim/emir askıda kalır.
+            if (SideViewCamera.ViewingField)
+            {
+                Hovered = null;
+                return;
+            }
 
             // Ölen ya da sefere çıkan (sahnede pasif) kazazedenin seçimi kalkar.
             if (Selected != null && (Selected.IsDead || !Selected.isActiveAndEnabled)) Select(null);

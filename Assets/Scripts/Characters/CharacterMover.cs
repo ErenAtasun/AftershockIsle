@@ -26,6 +26,11 @@ namespace AftershockIsle.Characters
         readonly List<Waypoint> path = new List<Waypoint>();
         readonly List<Waypoint> buffer = new List<Waypoint>();
         readonly List<Vector3> detour = new List<Vector3>();
+        // Son verilen hedef: yol üstüne yeni engel düşerse (enkaz) aynı hedefe yeniden yol çıkarılır.
+        int targetFloor;
+        float targetX;
+        float? targetZ;
+        int routeVersion;
         int pathIndex;
         Vector2 steerInput;
         Vector3 steerVelocity;
@@ -56,6 +61,9 @@ namespace AftershockIsle.Characters
         /// </summary>
         public bool MoveTo(int floor, float x, float? z = null)
         {
+            targetFloor = floor;
+            targetX = x;
+            targetZ = z;
             steerInput = Vector2.zero;
             steerVelocity = Vector3.zero;
 
@@ -76,6 +84,7 @@ namespace AftershockIsle.Characters
 
             ApplyDepth(z, floor);
             AddDetours();
+            routeVersion = FloorObstacles.Version(building);
             pathIndex = 0;
             return reachable;
         }
@@ -171,6 +180,12 @@ namespace AftershockIsle.Characters
             }
 
             var waypoint = path[pathIndex];
+            if (!waypoint.IsClimb && FloorObstacles.Version(building) != routeVersion)
+            {
+                MoveTo(targetFloor, targetX, targetZ);
+                return;
+            }
+
             float speed = (waypoint.IsClimb ? climbSpeed : walkSpeed) * SpeedMultiplier;
 
             Vector3 facing = waypoint.IsClimb ? Vector3.forward : waypoint.Position - transform.position;

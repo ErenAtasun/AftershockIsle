@@ -3,7 +3,6 @@ using AftershockIsle.CameraControl;
 using AftershockIsle.Core;
 using AftershockIsle.Economy;
 using AftershockIsle.Expedition;
-using AftershockIsle.Skills;
 using UnityEngine;
 
 namespace AftershockIsle.UI

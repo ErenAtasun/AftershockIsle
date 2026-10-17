@@ -1,13 +1,12 @@
 using System.Collections.Generic;
+using AftershockIsle.Building;
+using AftershockIsle.CameraControl;
 using AftershockIsle.Characters;
 using AftershockIsle.Core;
 using AftershockIsle.Crafting;
 using AftershockIsle.Economy;
 using AftershockIsle.Expedition;
-using AftershockIsle.Interaction;
 using AftershockIsle.Player;
-using AftershockIsle.Skills;
-using AftershockIsle.Building;
 using UnityEngine;
 
 namespace AftershockIsle.UI
@@ -121,7 +120,7 @@ namespace AftershockIsle.UI
 
         void OnGUI()
         {
-            if (hidden || ModalMenu.IsOpen || SideViewCamera_ViewingField()) return;
+            if (hidden || ModalMenu.IsOpen || SideViewCamera.ViewingField) return;
 
             titleStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 12, fontStyle = FontStyle.Bold };
             detailStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 11, wordWrap = true };
@@ -144,7 +143,5 @@ namespace AftershockIsle.UI
             if (next != null) GUILayout.Label(next.Detail(), detailStyle);
             GUILayout.EndArea();
         }
-
-        static bool SideViewCamera_ViewingField() => AftershockIsle.CameraControl.SideViewCamera.ViewingField;
     }
 }

@@ -41,7 +41,6 @@ namespace AftershockIsle.Interaction
         void OnEnable() => all.Add(this);
         void OnDisable() => all.Remove(this);
 
-        public bool BlocksPath => blocksPath;
         public float HalfWidth => fullScale.x * 0.5f;
 
         public override string ActionLabel => "Kaz";

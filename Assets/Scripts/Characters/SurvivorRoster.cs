@@ -21,7 +21,6 @@ namespace AftershockIsle.Characters
         BuildingLayout building;
 
         public static SurvivorRoster Instance { get; private set; }
-        public int MaxPopulation => maxPopulation;
         public bool IsFull => Survivor.AliveCount + ExpeditionSystem.AwayCount >= maxPopulation;
 
         void Awake()

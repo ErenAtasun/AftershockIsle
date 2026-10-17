@@ -50,6 +50,8 @@ namespace AftershockIsle.Interaction
         {
             Building = FindFirstObjectByType<BuildingLayout>();
             Floor = Building.FloorAtHeight(transform.position.y + 0.05f);
+            // Oyun sırasında doğan nesne (düşen enkaz) yürüyüş engellerine hemen girsin.
+            if (BlocksMovement) FloorObstacles.Invalidate();
         }
 
         /// <summary>Karakterin duracağı X. Varsayılan: nesnenin önü.</summary>

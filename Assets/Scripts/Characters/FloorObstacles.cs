@@ -28,6 +28,7 @@ namespace AftershockIsle.Characters
         const float NavMargin = 0.05f;
 
         static readonly List<Footprint> footprints = new List<Footprint>();
+        static readonly List<Footprint> previous = new List<Footprint>();
         static float refreshAt = float.MinValue;
         static int refreshFrame = -1;
         static int version;
@@ -122,12 +123,20 @@ namespace AftershockIsle.Characters
         /// <summary>Sonraki sorguda listeyi hemen yenile (ör. yeni enkaz düştü).</summary>
         public static void Invalidate() => refreshAt = float.MinValue;
 
+        /// <summary>Engel listesi her gerçekten değiştiğinde artar; yürüyen karakter bunu görünce yolunu yeniden çıkarır.</summary>
+        public static int Version(BuildingLayout building)
+        {
+            Refresh(building);
+            return version;
+        }
+
         static void Refresh(BuildingLayout building)
         {
             if (Time.unscaledTime < refreshAt || refreshFrame == Time.frameCount) return;
             refreshAt = Time.unscaledTime + RefreshSeconds;
             refreshFrame = Time.frameCount;
-            version++;
+            previous.Clear();
+            previous.AddRange(footprints);
             footprints.Clear();
 
             foreach (var interactable in Object.FindObjectsByType<Interactable>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
@@ -144,6 +153,21 @@ namespace AftershockIsle.Characters
                     Half = new Vector2(bounds.extents.x, bounds.extents.z),
                 });
             }
+
+            if (!SameAsPrevious()) version++;
+        }
+
+        static bool SameAsPrevious()
+        {
+            if (previous.Count != footprints.Count) return false;
+            for (int i = 0; i < footprints.Count; i++)
+            {
+                var a = footprints[i];
+                var b = previous[i];
+                if (a.Floor != b.Floor || (a.Center - b.Center).sqrMagnitude > 0.0001f || (a.Half - b.Half).sqrMagnitude > 0.0001f)
+                    return false;
+            }
+            return true;
         }
     }
 }

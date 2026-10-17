@@ -5,7 +5,6 @@ using AftershockIsle.Core;
 using AftershockIsle.Crafting;
 using AftershockIsle.Crisis;
 using AftershockIsle.Endgame;
-using AftershockIsle.Expedition;
 using AftershockIsle.Interaction;
 using AftershockIsle.Skills;
 using UnityEngine;

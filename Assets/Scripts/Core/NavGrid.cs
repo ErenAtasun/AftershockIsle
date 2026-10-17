@@ -43,8 +43,6 @@ namespace AftershockIsle.Core
             closed = new bool[count];
         }
 
-        public float CellSize => cell;
-
         /// <summary>Her hücrenin merkezini sorarak engelleri yeniden doldurur.</summary>
         public void Fill(Func<Vector2, bool> isBlocked)
         {
@@ -52,8 +50,6 @@ namespace AftershockIsle.Core
                 for (int x = 0; x < width; x++)
                     blocked[z * width + x] = isBlocked(Center(x, z));
         }
-
-        public bool IsBlocked(Vector2 point) => blocked[IndexOf(point)];
 
         /// <summary>
         /// from'dan to'ya yol arar; corners'a ara köşeleri yazar (from ve to hariç).

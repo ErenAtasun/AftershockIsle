@@ -17,21 +17,6 @@ namespace AftershockIsle.Expedition
         public delegate Transform PrimitiveFactory(PrimitiveType type, string name, Color color, bool solid);
         public delegate Renderer[] ArtDresser(Transform box, ArtKey key, float yaw);
 
-        /// <summary>Kapı: düşmanlar binaya girip çıkarken önce kendi taraflarındaki noktaya, sonra öbür tarafa yürür.</summary>
-        public readonly struct Door
-        {
-            public readonly Vector3 Center;
-            public readonly Vector3 Outside;
-            public readonly Vector3 Inside;
-
-            public Door(Vector3 center, Vector3 outside, Vector3 inside)
-            {
-                Center = center;
-                Outside = outside;
-                Inside = inside;
-            }
-        }
-
         /// <summary>İçeride aranacak yer: zemin noktası, kutu boyutu, giydirilecek model ve yönü.</summary>
         public readonly struct SpotSlot
         {
@@ -71,7 +56,6 @@ namespace AftershockIsle.Expedition
 
         readonly List<Renderer> cutaway = new List<Renderer>();
         readonly List<SpotSlot> spotSlots = new List<SpotSlot>();
-        readonly List<Door> doors = new List<Door>();
         readonly PrimitiveFactory make;
         readonly ArtDresser dress;
         readonly float groundY;
@@ -92,7 +76,6 @@ namespace AftershockIsle.Expedition
         /// <summary>İçeride aranacak yerler; sonuncusu kurtarma lokasyonunda mahsur kalanın yeridir.</summary>
         public IReadOnlyList<SpotSlot> SpotSlots => spotSlots;
 
-        public IReadOnlyList<Door> Doors => doors;
         public bool ShowingInterior => showingInterior;
 
         public bool IsInside(Vector3 point) => Interior.Contains(new Vector2(point.x, point.z));
@@ -128,8 +111,6 @@ namespace AftershockIsle.Expedition
             float sideDoorZ = z0 + size.y * 0.5f;
             float lintel = layout == FieldLayout.Ruin || layout == FieldLayout.Construction ? wallHeight : DoorHeight;
             FrontDoor = new Vector2(frontDoorX, z0 - 1.2f);
-            doors.Add(new Door(new Vector3(frontDoorX, groundY, z0), new Vector3(frontDoorX, groundY, z0 - 1f), new Vector3(frontDoorX, groundY, z0 + 1f)));
-            doors.Add(new Door(new Vector3(x1, groundY, sideDoorZ), new Vector3(x1 + 1f, groundY, sideDoorZ), new Vector3(x1 - 1f, groundY, sideDoorZ)));
 
             var floor = make(PrimitiveType.Cube, "Bina Zemini", FloorColor, false);
             floor.position = new Vector3((x0 + x1) * 0.5f, groundY + 0.01f, (z0 + z1) * 0.5f);

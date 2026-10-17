@@ -11,7 +11,7 @@ namespace AftershockIsle.Building
 
     /// <summary>
     /// Binanın elektriği (ana şalter). Açıkken iç lambalar yanar; bodrumdaki su elektriklenebilir.
-    /// Telsiz ve elektrikli pompa ileride elektrik isteyecek.
+    /// Telsizden sinyal göndermek ve elektrikli pompa elektrik ister; kesikken karakterler karanlıkta strese girer.
     /// </summary>
     public class PowerGrid : MonoBehaviour
     {

@@ -11,7 +11,7 @@ namespace AftershockIsle.DebugTools
 {
     /// <summary>
     /// Afet sistemleri gelene kadar test kısayolları. Yalnızca editörde ve development build'de çalışır.
-    /// F6: yangın   F7: boru patlat   F8: artçı sarsıntı   F9: bütünlük -10   F10: rastgele sağlam kolonu çatlat
+    /// F3: gaz kaçağı   F6: yangın   F7: boru patlat   F8: artçı sarsıntı   F9: bütünlük -10   F10: rastgele sağlam kolonu çatlat
     /// F11: her kaynaktan +5 ve +1 yetenek puanı   F12: eksik dalın uzmanı bir test kazazedesi ekle
     /// </summary>
     public class DebugCheats : MonoBehaviour

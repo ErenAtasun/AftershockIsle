@@ -114,6 +114,7 @@ namespace AftershockIsle.EditorTools
             var expeditions = systems.AddComponent<ExpeditionSystem>();
             SetRef(expeditions, "timeManager", timeManager);
             SetRef(expeditions, "dayCycle", dayCycle);
+            SetRef(expeditions, "fieldArt", ModelSkins.BuildFieldArtLibrary());
             systems.AddComponent<ExpeditionWindow>();
             systems.AddComponent<WorkbenchWindow>();
             systems.AddComponent<TutorialHints>();
@@ -349,7 +350,8 @@ namespace AftershockIsle.EditorTools
             var cabinet = FurnitureProp("Dolap", props, new Vector3(1.5f, 0 * h + 0.8f, backZ - 0.45f), new Vector3(1.2f, 1.6f, 0.7f), p.Furniture);
             Configure(cabinet, ("hasSearchLoot", true), ("searchLoot.type", (int)ResourceType.Supplies), ("searchLoot.amount", 2));
             ModelSkins.Skin(cabinet.gameObject, ModelKey.Dresser, SkinFit.Width, 0.9f, ModelSkins.FrontToCamera);
-            Rubble("Moloz", props, new Vector3(-4.5f, 0 * h, backZ - 0.9f), new Vector3(1.1f, 0.6f, 1f), p.Rubble, 3, false);
+            // Odanın ön yarısı boş kalmasın: bazı eşyalar ortada / önde, yürüyen karakter etrafından dolaşır.
+            Rubble("Moloz", props, new Vector3(-4.2f, 0 * h, -1.5f), new Vector3(1.1f, 0.6f, 1f), p.Rubble, 3, false);
 
             // Kat 1: Giriş katı. Dış kapının önü yıkıntıyla kapalı.
             var breaker = Box("Ana Şalter Panosu", props, new Vector3(-4.5f, 1 * h + 1.4f, backZ - 0.2f), new Vector3(0.8f, 1.2f, 0.3f), p.Electric);
@@ -364,11 +366,11 @@ namespace AftershockIsle.EditorTools
                 ("providesShelter", false), ("salvage.amount", 1),
                 ("hasSearchLoot", true), ("searchLoot.type", (int)ResourceType.Supplies), ("searchLoot.amount", 1));
 
-            var table = FurnitureProp("Masa", props, new Vector3(0f, 1 * h + 0.4f, backZ - 0.8f), new Vector3(1.6f, 0.8f, 0.9f), p.Furniture);
+            var table = FurnitureProp("Masa", props, new Vector3(0f, 1 * h + 0.4f, -0.3f), new Vector3(1.6f, 0.8f, 0.9f), p.Furniture);
             ModelSkins.Skin(table.gameObject, ModelKey.Table, SkinFit.Height, 0.8f);
 
             // Süs: masanın yanında sandalye ve yangın odağının yanında yangın tüpü (etkileşimsiz).
-            ModelSkins.Decorate(props, "Sandalye", ModelKey.Chair, new Vector3(0.95f, 1 * h, backZ - 0.8f), 0.95f, 90f);
+            ModelSkins.Decorate(props, "Sandalye", ModelKey.Chair, new Vector3(0.95f, 1 * h, -0.3f), 0.95f, 90f);
             ModelSkins.Decorate(props, "Yangın Tüpü", ModelKey.Extinguisher, new Vector3(-3.5f, 1 * h, backZ - 0.5f), 0.7f);
             Rubble("Yıkıntı (Kapı Önü)", props, new Vector3(7.7f, 1 * h, 0f), new Vector3(1.4f, 1.1f, 1.8f), p.Rubble, 5, true);
 
@@ -388,7 +390,7 @@ namespace AftershockIsle.EditorTools
 
             var beds = FurnitureProp("Yataklar", props, new Vector3(4.6f, 2 * h + 0.25f, backZ - 0.6f), new Vector3(2f, 0.5f, 1f), p.Furniture);
             ModelSkins.Skin(beds.gameObject, ModelKey.Bed, SkinFit.Width, 2.0f, 90f);
-            Rubble("Moloz", props, new Vector3(-4.6f, 2 * h, backZ - 0.9f), new Vector3(1f, 0.5f, 1f), p.Rubble, 2, false);
+            Rubble("Moloz", props, new Vector3(-4.2f, 2 * h, -1.5f), new Vector3(1f, 0.5f, 1f), p.Rubble, 2, false);
 
             var bucketSpot = Box("Kova (Bodrum Suyu)", props, new Vector3(4.3f, 0 * h + 0.25f, backZ - 0.9f), new Vector3(0.45f, 0.5f, 0.45f), p.Metal);
             Configure(bucketSpot.AddComponent<WaterSource>(), ("displayName", "Kova (Bodrum Suyu)"), ("workDuration", 2f), ("usesFloodWater", true));
@@ -405,6 +407,7 @@ namespace AftershockIsle.EditorTools
                 CreateFireSpot(props, layout, floor, fireX, collapseRubble, p);
                 CreateWindow(props, layout, floor, p);
             }
+            CreateGasValve(props, layout, 1, -1.5f, p);
 
             // Kat 3: Çatı. Tahliye alanı yıkıntıyla kapalı; zafer için temizlenmesi gerekecek.
             var radio = Box("Telsiz İstasyonu", props, new Vector3(-3.5f, 3 * h + 0.7f, backZ - 0.6f), new Vector3(1.2f, 1.4f, 1f), p.Electric);
@@ -462,6 +465,29 @@ namespace AftershockIsle.EditorTools
             SetRef(fire, "flameLight", flameLight);
             SetRef(fire, "smokeVisual", smoke.GetComponent<Renderer>());
             SetRef(fire, "collapseRubblePrefab", collapseRubble);
+        }
+
+        /// <summary>Doğalgaz vanası (arka duvarda, borusuyla) ve katı dolduran saydam gaz bulutu.</summary>
+        static void CreateGasValve(Transform parent, BuildingLayout layout, int floor, float x, Palette p)
+        {
+            float floorY = floor * layout.FloorHeight;
+            float backZ = layout.Depth * 0.5f;
+
+            var pipe = Box("Gaz Borusu", parent, new Vector3(x, floorY + (layout.FloorHeight - SlabThickness) * 0.5f, backZ - 0.1f),
+                new Vector3(0.12f, layout.FloorHeight - SlabThickness, 0.12f), p.Electric);
+            Object.DestroyImmediate(pipe.GetComponent<Collider>());
+
+            var valve = Box("Gaz Vanası", parent, new Vector3(x, floorY + 1.1f, backZ - 0.2f), new Vector3(0.45f, 0.35f, 0.25f), p.Exit);
+
+            float gasHeight = layout.FloorHeight - SlabThickness;
+            var gas = Box($"Gaz_{floor}", parent, new Vector3(0f, floorY + gasHeight * 0.5f, 0f),
+                new Vector3(layout.Width, gasHeight, layout.Depth), p.Gas);
+            Object.DestroyImmediate(gas.GetComponent<Collider>());
+            gas.GetComponent<Renderer>().enabled = false;
+
+            var leak = valve.AddComponent<GasLeak>();
+            Configure(leak, ("displayName", "Gaz Vanası"), ("workDuration", 3f));
+            SetRef(leak, "gasVisual", gas.GetComponent<Renderer>());
         }
 
         // Kesit kamerası yan duvarları kenarından gördüğü için pencere arka dış duvarda.
@@ -522,9 +548,10 @@ namespace AftershockIsle.EditorTools
         /// <summary>Kırılan kolonun önüne düşen enkaz. Kolon yeniden dikilmeden önce kazılmalı.</summary>
         static RubblePile CreateDebrisPrefab(Palette p)
         {
-            var go = Box("Enkaz", null, Vector3.zero, new Vector3(1.3f, 0.6f, 1.2f), p.Rubble);
+            // GDD 8.2: kırılan kolonun düşürdüğü tavan enkazı odayı tıkar; kazılana kadar kat içinde geçilemez.
+            var go = Box("Enkaz", null, Vector3.zero, new Vector3(1.4f, 0.9f, 1.6f), p.Rubble);
             Configure(go.AddComponent<RubblePile>(),
-                ("displayName", "Enkaz"), ("workDuration", 4f), ("digCount", 2), ("blocksPath", false));
+                ("displayName", "Tavan Enkazı"), ("workDuration", 4f), ("digCount", 3), ("blocksPath", true));
             ModelSkins.Skin(go, ModelKey.Rubble, SkinFit.Stretch);
 
             var prefab = PrefabUtility.SaveAsPrefabAsset(go, $"{PrefabFolder}/Debris.prefab");
@@ -711,6 +738,7 @@ namespace AftershockIsle.EditorTools
             public readonly Material WaterSurface = MakeTransparent(Get("WaterSurface", new Color(0.2f, 0.45f, 0.85f, 0.55f)));
             public readonly Material Fire = Get("Fire", new Color(1f, 0.45f, 0.1f));
             public readonly Material Smoke = MakeTransparent(Get("Smoke", new Color(0.12f, 0.12f, 0.12f, 0.6f)));
+            public readonly Material Gas = MakeTransparent(Get("Gas", new Color(0.55f, 0.75f, 0.35f, 0.5f)));
             public readonly Material Glass = MakeTransparent(Get("Glass", new Color(0.7f, 0.85f, 0.95f, 0.45f)));
             public readonly Material WindowFrame = Get("WindowFrame", new Color(0.2f, 0.2f, 0.22f));
             public readonly Material Supplies = Get("Supplies", new Color(0.9f, 0.9f, 0.88f));

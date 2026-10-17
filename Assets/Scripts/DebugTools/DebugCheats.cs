@@ -25,6 +25,9 @@ namespace AftershockIsle.DebugTools
             if (GameInput.DebugFloodPressed)
                 DisasterDirector.Fire(DisasterType.PipeBurst);
 
+            if (GameInput.DebugGasPressed)
+                DisasterDirector.Fire(DisasterType.GasLeak);
+
             if (GameInput.DebugQuakePressed)
                 DisasterDirector.Fire(DisasterType.Aftershock);
 

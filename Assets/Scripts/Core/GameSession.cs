@@ -61,6 +61,7 @@ namespace AftershockIsle.Core
         {
             DamageSource.Flood => "Bina su baskınına dayanamadı ve temelden kaydı.",
             DamageSource.Fire => "Yangın taşıyıcı kirişleri yaktı, bina çöktü.",
+            DamageSource.Gas => "Gaz patlaması taşıyıcı duvarları parçaladı, bina çöktü.",
             DamageSource.Aftershock => "Artçı sarsıntı binayı yıktı.",
             _ => "Yapısal bütünlük tükendi, bina çöktü.",
         });

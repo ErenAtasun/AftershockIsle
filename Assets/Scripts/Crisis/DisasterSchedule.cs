@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace AftershockIsle.Crisis
 {
-    public enum DisasterType { Aftershock, PipeBurst, Fire }
+    public enum DisasterType { Aftershock, PipeBurst, Fire, GasLeak }
 
     /// <summary>Hangi gün, hangi fazın kaçıncı saniyesinde hangi afetin geleceği. Zorluk eğrisi buradan ayarlanır.</summary>
     [CreateAssetMenu(menuName = "Aftershock/Disaster Schedule", fileName = "DisasterSchedule")]
@@ -43,21 +43,28 @@ namespace AftershockIsle.Crisis
 
         /// <summary>
         /// Takvim bittikten sonraki günler için sonsuz düzen: her gün sabah ve gece birer sarsıntı;
-        /// çift günlerde boru patlaması, tek günlerde yangın.
+        /// çift günlerde boru patlaması, tek günlerde yangın, üçe bölünen günlerin gecesinde gaz kaçağı.
         /// </summary>
-        public static Entry[] EndlessEntries(int day) => new[]
+        public static Entry[] EndlessEntries(int day)
         {
-            new Entry(day, DayPhase.Morning, 35f, DisasterType.Aftershock),
-            new Entry(day, DayPhase.Morning, day % 2 == 0 ? 10f : 15f, day % 2 == 0 ? DisasterType.PipeBurst : DisasterType.Fire),
-            new Entry(day, DayPhase.Night, 10f, DisasterType.Aftershock),
-        };
+            var entries = new System.Collections.Generic.List<Entry>
+            {
+                new Entry(day, DayPhase.Morning, 35f, DisasterType.Aftershock),
+                new Entry(day, DayPhase.Morning, day % 2 == 0 ? 10f : 15f, day % 2 == 0 ? DisasterType.PipeBurst : DisasterType.Fire),
+                new Entry(day, DayPhase.Night, 10f, DisasterType.Aftershock),
+            };
+            if (day % 3 == 0) entries.Add(new Entry(day, DayPhase.Night, 25f, DisasterType.GasLeak));
+            return entries.ToArray();
+        }
 
         // Varsayılan takvim: 1. gün öğretici (sadece çatlak kolon ve moloz), ilk deprem 2. gece,
-        // ilk boru patlaması 3. sabah, ilk yangın 5. sabah, 6. gün su ve deprem birlikte.
+        // ilk boru patlaması 3. sabah, ilk gaz kaçağı 4. sabah, ilk yangın 5. sabah, 6. gün su ve deprem birlikte,
+        // 7. gün gaz kaçağı ve deprem birlikte.
         public Entry[] entries =
         {
             new Entry(2, DayPhase.Night, 10f, DisasterType.Aftershock),
             new Entry(3, DayPhase.Morning, 20f, DisasterType.PipeBurst),
+            new Entry(4, DayPhase.Morning, 15f, DisasterType.GasLeak),
             new Entry(4, DayPhase.Morning, 45f, DisasterType.Aftershock),
             new Entry(4, DayPhase.Night, 15f, DisasterType.Aftershock),
             new Entry(5, DayPhase.Morning, 30f, DisasterType.Fire),
@@ -65,6 +72,7 @@ namespace AftershockIsle.Crisis
             new Entry(6, DayPhase.Morning, 10f, DisasterType.PipeBurst),
             new Entry(6, DayPhase.Morning, 30f, DisasterType.Aftershock),
             new Entry(6, DayPhase.Night, 10f, DisasterType.Aftershock),
+            new Entry(7, DayPhase.Morning, 20f, DisasterType.GasLeak),
             new Entry(7, DayPhase.Morning, 40f, DisasterType.Aftershock),
             new Entry(7, DayPhase.Night, 10f, DisasterType.Aftershock),
         };

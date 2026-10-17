@@ -35,7 +35,7 @@ namespace AftershockIsle.UI
         float currentUntil;
         bool tutorialEnabled = true;
         bool helpOpen;
-        Rect helpRect = new Rect(0, 0, 620, 520);
+        Rect helpRect = new Rect(0, 0, 700, 560);
         GUIStyle wrapStyle;
         GUIStyle titleStyle;
         float startDelay = 1.5f;
@@ -55,6 +55,8 @@ namespace AftershockIsle.UI
             EventBus.Subscribe<DayPhaseChanged>(OnPhaseChanged);
             EventBus.Subscribe<AftershockWarning>(OnQuakeWarning);
             EventBus.Subscribe<PipeBurst>(OnPipeBurst);
+            EventBus.Subscribe<GasLeakStarted>(OnGasLeak);
+            EventBus.Subscribe<AftershockImpact>(OnQuakeImpact);
             EventBus.Subscribe<FireStarted>(OnFireStarted);
             EventBus.Subscribe<UpkeepResolved>(OnUpkeep);
             EventBus.Subscribe<SkillPointsGained>(OnSkillPoints);
@@ -72,6 +74,8 @@ namespace AftershockIsle.UI
             EventBus.Unsubscribe<DayPhaseChanged>(OnPhaseChanged);
             EventBus.Unsubscribe<AftershockWarning>(OnQuakeWarning);
             EventBus.Unsubscribe<PipeBurst>(OnPipeBurst);
+            EventBus.Unsubscribe<GasLeakStarted>(OnGasLeak);
+            EventBus.Unsubscribe<AftershockImpact>(OnQuakeImpact);
             EventBus.Unsubscribe<FireStarted>(OnFireStarted);
             EventBus.Unsubscribe<UpkeepResolved>(OnUpkeep);
             EventBus.Unsubscribe<SkillPointsGained>(OnSkillPoints);
@@ -120,6 +124,17 @@ namespace AftershockIsle.UI
         void OnPipeBurst(PipeBurst evt) => Show("pipe", "Su baskını",
             "Doğru sıra: 1) Giriş katından şalteri indir (su elektriklenmesin), 2) Bodrumda tulumbayı pompala (Q/E ya da LT/RT'ye dönüşümlü bas), " +
             "3) Boruyu kaynakla, 4) Şalteri kaldır. Su %100'de 45 sn kalırsa bina yıkılır.");
+
+        void OnGasLeak(GasLeakStarted evt) => Show("gas", "Gaz kaçağı!",
+            "Gaz %50'yi geçince kata girilemez ve içeridekiler zehirlenir; %60'ta bir kıvılcım (şalter açıkken) ya da yangın gazı patlatır. " +
+            "Doğru sıra: 1) Şalteri indir, 2) Dış pencereyi kır (gaz tahliye olur), 3) Gaz Vanası'nı kapat, 4) Şalteri kaldır.");
+
+        void OnQuakeImpact(AftershockImpact evt)
+        {
+            if (evt.BrokenColumns > 0)
+                Show("debris", "Tavan enkazı",
+                    "Kırılan kolon tavan enkazı düşürdü: enkaz kat içinde yolu kapatır. Kazarak aç (Kalas da çıkar); kazılana kadar öbür tarafa geçilemez.");
+        }
 
         void OnFireStarted(FireStarted evt) => Show("fire", "Yangın!",
             "Yangınla etkileş: karakter kova doldurup atar (bodrum suyu ya da Su Bidonu). Duman %50'yi geçince kata girilemez; " +
@@ -243,6 +258,8 @@ namespace AftershockIsle.UI
                 "DIŞ SAHA",
                 "  Yürü / nişan / ateş      WASD / fare / sol tık        sol çubuk / sağ çubuk / RT",
                 "  Silah değiştir           Q                            X",
+                "  Çömel (siper)            Shift / C (basılı)           LT (basılı)",
+                "  Alçak siperin arkasında çömelen görünmez; ateş edince bir an doğrulur. Duvar/araba kenarında nişanı kenarın ötesine çevir: köşeden eğilirsin.",
                 "  Kaçış / ara / ilk yardım  Space / F / R                B / A / Y",
                 "  Düşmanlar görünce (!) kovalar, sesi duyunca (?) bakmaya gelir. Tabanca gürültülü, sapan sessiz.",
                 "  Sığınağa dön             Tab                          RB / LB ya da Select",

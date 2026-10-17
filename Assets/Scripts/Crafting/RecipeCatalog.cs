@@ -2,7 +2,7 @@ using AftershockIsle.Economy;
 
 namespace AftershockIsle.Crafting
 {
-    public enum RecipeId { UpgradeTier2, ElectricPump, BypassValve, UpgradeTier3, RadioModule, SteelBeam, LightningRod, AmmoPack, Pistol }
+    public enum RecipeId { UpgradeTier2, ElectricPump, BypassValve, UpgradeTier3, RadioModule, SteelBeam, LightningRod, AmmoPack, Pistol, Shotgun }
 
     public readonly struct RecipeInfo
     {
@@ -59,6 +59,8 @@ namespace AftershockIsle.Crafting
                 new[] { R(ResourceType.Scrap, 1), R(ResourceType.Metal, 1) }, 5f, repeatable: true),
             new RecipeInfo(RecipeId.Pistol, 2, "El Yapımı Tabanca", "Dış seferde sapandan güçlü ve uzun menzilli; ama gürültülü, yakındaki düşmanları uyandırır. Mermi harcar.",
                 new[] { R(ResourceType.Metal, 2), R(ResourceType.Electronics, 1) }, 10f),
+            new RecipeInfo(RecipeId.Shotgun, 2, "Hurda Pompalı", "Dış seferde yakın mesafede yıkıcı, düşmanı geri iter; İri Yağmacı'ya karşı en iyisi. Çok gürültülü, yavaş, atış başına 1 mermi.",
+                new[] { R(ResourceType.Metal, 3), R(ResourceType.Scrap, 3) }, 12f),
         };
 
         public static RecipeInfo Get(RecipeId id) => All[(int)id];

@@ -66,6 +66,8 @@ namespace AftershockIsle.Crisis
             DisasterType.PipeBurst => FloodSystem.Instance == null || FloodSystem.Instance.TryBurstPipe() || FloodSystem.Instance.IsPipeBurst,
             // Yakılacak odak kalmadıysa (hepsi yanıyor/çökmüş) kayıt tüketilir.
             DisasterType.Fire => FireSpot.TryIgniteRandom() || true,
+            // Kaçmayan vana kalmadıysa (hepsi zaten kaçırıyor) kayıt tüketilir.
+            DisasterType.GasLeak => GasLeak.TryStartLeak() || true,
             _ => false,
         };
     }

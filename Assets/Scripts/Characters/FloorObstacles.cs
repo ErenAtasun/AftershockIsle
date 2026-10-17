@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using AftershockIsle.Building;
+using AftershockIsle.Core;
 using AftershockIsle.Interaction;
 using UnityEngine;
 
@@ -9,6 +10,7 @@ namespace AftershockIsle.Characters
     /// Kat içinde serbest yürürken (klavye/gamepad ile) içinden geçilmeyen nesneler: mobilya, tezgah, sandık, kolon...
     /// Etkileşilebilir nesnelerin collider'larından XZ dikdörtgenleri çıkarılır ve yarım saniyede bir yenilenir
     /// (kazılan moloz küçülür, yeni enkaz düşer). Kafa üstündeki duvar nesneleri (boru) engel sayılmaz.
+    /// Aynı engeller, iş ve fare emriyle yürüyen karakterlerin kat içi yolunu da (X-Z ızgarada A*) belirler.
     /// </summary>
     public static class FloorObstacles
     {
@@ -21,10 +23,64 @@ namespace AftershockIsle.Characters
 
         const float RefreshSeconds = 0.5f;
         const float OverheadHeight = 1.6f;
+        const float NavCell = 0.25f;
+        // Köşelerden sürtünmeden geçmek için ızgarada gövdeye eklenen pay.
+        const float NavMargin = 0.05f;
 
         static readonly List<Footprint> footprints = new List<Footprint>();
         static float refreshAt = float.MinValue;
         static int refreshFrame = -1;
+        static int version;
+
+        static NavGrid grid;
+        static BuildingLayout gridBuilding;
+        static int gridFloor = -1;
+        static int gridVersion = -1;
+        static float gridRadius = -1f;
+        static readonly List<Vector2> corners = new List<Vector2>();
+
+        /// <summary>
+        /// Kat içinde from'dan to'ya mobilyaların etrafından dolaşan ara köşeleri result'a ekler (from ve to hariç).
+        /// Doğrudan yol açıksa hiçbir şey eklemez.
+        /// </summary>
+        public static void Route(BuildingLayout building, int floor, Vector3 from, Vector3 to, float radius, List<Vector3> result)
+        {
+            Refresh(building);
+
+            if (grid == null || gridBuilding != building)
+            {
+                grid = new NavGrid(new Vector2(building.MinX, building.MinZ), new Vector2(building.MaxX, building.MaxZ), NavCell);
+                gridBuilding = building;
+                gridFloor = -1;
+            }
+
+            if (gridFloor != floor || gridVersion != version || !Mathf.Approximately(gridRadius, radius))
+            {
+                gridFloor = floor;
+                gridVersion = version;
+                gridRadius = radius;
+                grid.Fill(point => Overlaps(floor, point, radius + NavMargin));
+            }
+
+            grid.FindPath(new Vector2(from.x, from.z), new Vector2(to.x, to.z), corners);
+            float y = building.FloorY(floor);
+            foreach (var corner in corners) result.Add(new Vector3(corner.x, y, corner.y));
+        }
+
+        static bool Overlaps(int floor, Vector2 point, float radius)
+        {
+            foreach (var footprint in footprints)
+            {
+                if (footprint.Floor != floor) continue;
+
+                var offset = point - footprint.Center;
+                var closest = new Vector2(
+                    Mathf.Clamp(offset.x, -footprint.Half.x, footprint.Half.x),
+                    Mathf.Clamp(offset.y, -footprint.Half.y, footprint.Half.y));
+                if ((offset - closest).sqrMagnitude < radius * radius) return true;
+            }
+            return false;
+        }
 
         /// <summary>Daire (karakter) bulunduğu kattaki engellerin dışına itilir.</summary>
         public static Vector3 PushOut(BuildingLayout building, int floor, Vector3 position, float radius)
@@ -71,6 +127,7 @@ namespace AftershockIsle.Characters
             if (Time.unscaledTime < refreshAt || refreshFrame == Time.frameCount) return;
             refreshAt = Time.unscaledTime + RefreshSeconds;
             refreshFrame = Time.frameCount;
+            version++;
             footprints.Clear();
 
             foreach (var interactable in Object.FindObjectsByType<Interactable>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))

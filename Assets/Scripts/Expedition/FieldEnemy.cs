@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace AftershockIsle.Expedition
@@ -9,8 +10,11 @@ namespace AftershockIsle.Expedition
     /// <summary>
     /// Saha düşmanı (MonoBehaviour değil; FieldExpedition sürer). CharacterController ile yürür, duvarlara çarpar.
     /// Görür: görüş mesafesinde ve arada duvar/araba/kasa yoksa (sakinken önündeki 140°'lik açıda; arkasından sızılabilir).
+    /// Kâşifin açıkta kalan noktasına bakar: alçak siperin arkasında çömelen görünmez, köşeden eğilenin sadece kenarı görünür.
     /// Duyar: tabanca sesi yarıçapındaki düşmanlar sesin geldiği yere gider. Birini fark eden yakındakileri de uyarır.
     /// Saldırmadan önce sararır (uyarı): yakın dövüşçü vurur, Silahlı nişan çizgisi çizip ateş eder. Kaçış hasarı boşa çıkarır.
+    /// Binaya kapılardan girip çıkar. Silahlı siper noktası seçer, arkasında çömelir, ateş etmek için doğrulur.
+    /// Bazı Yağmacılar doğrudan değil yandan dolanarak yaklaşır.
     /// </summary>
     public class FieldEnemy
     {
@@ -45,8 +49,24 @@ namespace AftershockIsle.Expedition
         Vector3 sidestep;
         float sidestepTimer;
         float stuckTimer;
+        readonly List<Vector3> route = new List<Vector3>();
+        int routeIndex;
+        float repathTimer;
+        Vector3 routeGoal;
         float wanderTimer;
         Vector3 wanderTarget;
+
+        readonly bool flanker;
+        readonly float flankSide;
+        readonly float bodyHeight;
+        readonly Vector3 bodyScale;
+        readonly Vector3 bodyPosition;
+        bool crouching;
+        int coverIndex = -1;
+        bool hasCover;
+        Vector3 coverPoint;
+        float coverTimer;
+        Vector3 knock;
 
         public FieldEnemy(FieldExpedition field, FieldEnemyKind kind, Transform root, Renderer body, CharacterController controller)
         {
@@ -75,6 +95,11 @@ namespace AftershockIsle.Expedition
             }
 
             health = maxHealth;
+            flanker = kind == FieldEnemyKind.Raider && Random.value < 0.6f;
+            flankSide = Random.value < 0.5f ? -1f : 1f;
+            bodyHeight = controller.height;
+            bodyScale = body.transform.localScale;
+            bodyPosition = body.transform.localPosition;
             wanderTimer = Random.Range(1f, 3f);
             wanderTarget = home;
         }
@@ -83,6 +108,10 @@ namespace AftershockIsle.Expedition
         public bool IsDead => state == EnemyState.Dead;
         public Collider Collider => controller;
         public Vector3 Position => root.position;
+        public float Radius => controller.radius;
+
+        /// <summary>Atışın yöneldiği gövde noktası (çömelince alçalır).</summary>
+        public Vector3 AimPoint => root.position + Vector3.up * (controller.height * 0.6f);
         public float Health01 => health / maxHealth;
         public bool IsAlerted => state == EnemyState.Chase || state == EnemyState.Windup || state == EnemyState.Recover;
         public bool IsInvestigating => state == EnemyState.Investigate;
@@ -108,10 +137,21 @@ namespace AftershockIsle.Expedition
 
         // ---------------------------------------------------------------- Dış olaylar
 
-        /// <summary>Kurşun/taş isabeti. Atışın geldiği yeri öğrenir; İri Yağmacı dışında saldırı hazırlığı bozulur.</summary>
-        public void TakeHit(float amount, Vector3 shooterPosition)
+        /// <summary>
+        /// Kurşun/taş/saçma isabeti. Atışın geldiği yeri öğrenir ve geri savrulur. Saldırı hazırlığı bozulur;
+        /// İri Yağmacı'nınki sadece güçlü darbede (pompalı) bozulur.
+        /// </summary>
+        public void TakeHit(float amount, Vector3 shooterPosition, float knockbackDistance = 0f)
         {
             if (IsDead) return;
+
+            bool heavy = knockbackDistance >= 1f;
+            if (knockbackDistance > 0f)
+            {
+                float resist = kind == FieldEnemyKind.Brute ? 0.35f : kind == FieldEnemyKind.Dog ? 1.4f : 1f;
+                var away = Flat(root.position - shooterPosition).normalized;
+                knock = away * Mathf.Sqrt(28f * knockbackDistance * resist);
+            }
 
             health -= amount;
             flash = 0.08f;
@@ -121,13 +161,14 @@ namespace AftershockIsle.Expedition
                 return;
             }
 
-            if (kind != FieldEnemyKind.Brute && state == EnemyState.Windup)
+            if ((kind != FieldEnemyKind.Brute || heavy) && state == EnemyState.Windup)
             {
                 state = EnemyState.Recover;
                 timer = 0.3f;
                 field.HideAimLine(this);
             }
-            stagger = kind == FieldEnemyKind.Brute ? 0f : 0.15f;
+            stagger = kind == FieldEnemyKind.Brute ? (heavy ? 0.25f : 0f) : heavy ? 0.4f : 0.15f;
+            coverTimer = 0f;
             Alert(shooterPosition);
         }
 
@@ -149,6 +190,7 @@ namespace AftershockIsle.Expedition
         void Die()
         {
             state = EnemyState.Dead;
+            field.ReleaseCover(ref coverIndex);
             field.HideAimLine(this);
             controller.enabled = false;
             root.rotation = Quaternion.Euler(0f, root.eulerAngles.y, 90f);
@@ -165,6 +207,7 @@ namespace AftershockIsle.Expedition
 
             cooldown -= dt;
             UpdateColor(dt);
+            ApplyKnockback(dt);
             if (stagger > 0f)
             {
                 stagger -= dt;
@@ -199,9 +242,10 @@ namespace AftershockIsle.Expedition
         {
             if (field.AvatarIsDead) return false;
 
-            var toAvatar = field.AvatarChest - Eye;
+            // Hedef kâşifin açıkta kalan noktası: çömelikse alçakta, köşeden eğiliyorsa kenarın ötesinde.
+            var toAvatar = field.AvatarTarget - Eye;
             float distance = toAvatar.magnitude;
-            if (distance > (IsAlerted ? sight * 1.5f : sight)) return false;
+            if (distance > (IsAlerted ? sight * 1.5f : sight * field.StealthFactor)) return false;
 
             // Sakinken sadece önüne bakar: arkasından yaklaşmak mümkün.
             if (!IsAlerted)
@@ -210,7 +254,7 @@ namespace AftershockIsle.Expedition
                 if (Vector3.Dot(root.forward, flat) < IdleViewCos && distance > 2f) return false;
             }
 
-            return field.HasLineOfSight(Eye, field.AvatarChest);
+            return field.HasLineOfSight(Eye, field.AvatarTarget);
         }
 
         // Sakin: başladığı yerin çevresinde ağır ağır dolaşır.
@@ -242,6 +286,7 @@ namespace AftershockIsle.Expedition
         {
             if (!sees)
             {
+                SetCrouch(false);
                 // Son görülen yere gider, bulamazsa arar.
                 if (MoveToward(target, speed, dt, 0.5f))
                 {
@@ -256,18 +301,13 @@ namespace AftershockIsle.Expedition
 
             if (kind == FieldEnemyKind.Gunner)
             {
-                // Mesafeyi korur: yaklaşılırsa geri çekilir, uzaktaysa yaklaşır, arada ateş eder.
-                if (distance < 5f) MoveToward(root.position - Flat(field.AvatarFeet - root.position).normalized * 3f, speed, dt, 0.2f);
-                else if (distance > 10f) MoveToward(field.AvatarFeet, speed, dt, 0.2f);
-                else Face(field.AvatarFeet - root.position, dt);
-
-                if (cooldown <= 0f && distance <= reach) BeginWindup();
+                GunnerChase(dt, distance);
                 return;
             }
 
             if (distance > reach * 0.85f)
             {
-                MoveToward(field.AvatarFeet, speed, dt, reach * 0.8f);
+                MoveToward(ApproachPoint(distance), speed, dt, reach * 0.8f);
                 return;
             }
 
@@ -275,11 +315,78 @@ namespace AftershockIsle.Expedition
             if (cooldown <= 0f) BeginWindup();
         }
 
+        // Yandan dolanan Yağmacı uzaktayken hedefin yanındaki bir noktaya yürür, yaklaşınca doğrudan saldırır.
+        Vector3 ApproachPoint(float distance)
+        {
+            if (!flanker || distance < 3.5f) return field.AvatarFeet;
+
+            var toEnemy = Flat(root.position - field.AvatarFeet).normalized;
+            var side = Vector3.Cross(Vector3.up, toEnemy) * flankSide;
+            return field.AvatarFeet + side * 3f + toEnemy * 1.5f;
+        }
+
+        // Silahlı: siper bulursa oraya koşar, arkasında çömelir, ateş zamanı gelince doğrulup nişan alır.
+        // Siper yoksa mesafe korur. Siper işe yaramaz hale gelince (kâşif yer değiştirdi, vuruldu) yenisini arar.
+        void GunnerChase(float dt, float distance)
+        {
+            coverTimer -= dt;
+            if (coverTimer <= 0f)
+            {
+                coverTimer = 1.5f;
+                bool stillGood = hasCover &&
+                                 !field.HasLineOfSight(coverPoint + Vector3.up * 0.7f, field.AvatarChest) &&
+                                 field.HasLineOfSight(coverPoint + Vector3.up * 1.5f, field.AvatarTarget);
+                if (!stillGood) hasCover = field.TryClaimCover(root.position, field.AvatarFeet, ref coverIndex, out coverPoint);
+            }
+
+            if (hasCover)
+            {
+                if (Flat(coverPoint - root.position).magnitude > 0.35f)
+                {
+                    SetCrouch(false);
+                    MoveToward(coverPoint, speed * 1.2f, dt, 0.3f);
+                    return;
+                }
+
+                Face(field.AvatarFeet - root.position, dt);
+                if (cooldown > 0f)
+                {
+                    SetCrouch(true);
+                    return;
+                }
+                BeginWindup();
+                return;
+            }
+
+            SetCrouch(false);
+            if (distance < 5f) MoveToward(root.position - Flat(field.AvatarFeet - root.position).normalized * 3f, speed, dt, 0.2f);
+            else if (distance > 10f) MoveToward(field.AvatarFeet, speed, dt, 0.2f);
+            else Face(field.AvatarFeet - root.position, dt);
+
+            if (cooldown <= 0f && distance <= reach) BeginWindup();
+        }
+
+        // Çömelen düşmanın collider'ı alçalır: alçak siperin üstünden geçen atış ona değmez.
+        void SetCrouch(bool value)
+        {
+            if (crouching == value) return;
+            crouching = value;
+
+            float height = value ? bodyHeight * 0.6f : bodyHeight;
+            controller.height = height;
+            controller.center = new Vector3(0f, height * 0.5f + 0.02f, 0f);
+
+            float factor = value ? 0.6f : 1f;
+            body.transform.localScale = new Vector3(bodyScale.x, bodyScale.y * factor, bodyScale.z);
+            body.transform.localPosition = new Vector3(bodyPosition.x, bodyPosition.y * factor, bodyPosition.z);
+        }
+
         void BeginWindup()
         {
+            SetCrouch(false);
             state = EnemyState.Windup;
             timer = windupTime;
-            aimDirection = (field.AvatarChest - Eye).normalized;
+            aimDirection = (field.AvatarTarget - Eye).normalized;
         }
 
         void Windup(float dt, bool sees)
@@ -289,7 +396,7 @@ namespace AftershockIsle.Expedition
             if (kind == FieldEnemyKind.Gunner)
             {
                 // İlk bölümde hedefi takip eder, son 0.3 sn'de nişan kilitlenir: yana kaçarak kurtulunur.
-                if (timer > 0.3f && sees) aimDirection = (field.AvatarChest - Eye).normalized;
+                if (timer > 0.3f && sees) aimDirection = (field.AvatarTarget - Eye).normalized;
                 Face(aimDirection, dt);
                 field.ShowAimLine(this, Eye, aimDirection, reach, timer <= 0.3f);
             }
@@ -318,11 +425,14 @@ namespace AftershockIsle.Expedition
 
         // ---------------------------------------------------------------- Hareket
 
-        /// <summary>Hedefe doğru yürür; takılırsa kısa süre yana kayar. Varınca true.</summary>
+        /// <summary>Hedefe engellerin etrafından ve kapılardan geçen yolla yürür; takılırsa kısa süre yana kayar. Varınca true.</summary>
         bool MoveToward(Vector3 destination, float moveSpeed, float dt, float stopDistance)
         {
-            var toTarget = Flat(destination - root.position);
-            if (toTarget.magnitude <= stopDistance) return true;
+            if (Flat(destination - root.position).magnitude <= stopDistance) return true;
+
+            var waypoint = NextWaypoint(destination, dt);
+            var toTarget = Flat(waypoint - root.position);
+            if (toTarget.sqrMagnitude < 0.0001f) return false;
 
             var direction = toTarget.normalized;
             if (sidestepTimer > 0f)
@@ -353,6 +463,31 @@ namespace AftershockIsle.Expedition
                 stuckTimer = 0f;
             }
             return false;
+        }
+
+        // Yol yarım saniyede bir ya da hedef bir metreden fazla kayınca yeniden çıkarılır; köşelere vardıkça sıradakine geçilir.
+        Vector3 NextWaypoint(Vector3 destination, float dt)
+        {
+            repathTimer -= dt;
+            bool goalMoved = Flat(destination - routeGoal).sqrMagnitude > 1f;
+            if (repathTimer <= 0f || (goalMoved && repathTimer < 0.35f))
+            {
+                repathTimer = 0.5f + Random.value * 0.2f;
+                routeGoal = destination;
+                routeIndex = 0;
+                field.FindRoute(root.position, destination, route);
+            }
+
+            while (routeIndex < route.Count && Flat(route[routeIndex] - root.position).magnitude < 0.35f) routeIndex++;
+            return routeIndex < route.Count ? route[routeIndex] : destination;
+        }
+
+        void ApplyKnockback(float dt)
+        {
+            if (knock.sqrMagnitude < 0.01f) return;
+            controller.Move(knock * dt);
+            KeepOnGround();
+            knock = Vector3.MoveTowards(knock, Vector3.zero, 14f * dt);
         }
 
         void KeepOnGround()

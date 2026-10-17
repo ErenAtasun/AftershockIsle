@@ -7,7 +7,7 @@ namespace AftershockIsle.Characters
     /// <summary>
     /// Karakteri bina grafiği üzerinde yürütür ve merdivenlerde tırmandırır. İki hareket biçimi:
     /// Yol (iş ve fare emirleri): MoveTo hedefe yol çıkarır; merdivenlere LadderZ çizgisinde yaklaşılır,
-    /// son nokta hedef Z'sidir (nesnenin önü). Doğrudan (klavye/gamepad): Steer ile kat içinde X-Z'de serbest yürür,
+    /// son nokta hedef Z'sidir (nesnenin önü). Kat içi her yürüyüş mobilyaların etrafından dolaşır (FloorObstacles.Route). Doğrudan (klavye/gamepad): Steer ile kat içinde X-Z'de serbest yürür,
     /// mobilyaların etrafından kayar, yol kapatan engellerde durur.
     /// </summary>
     public class CharacterMover : MonoBehaviour
@@ -25,6 +25,7 @@ namespace AftershockIsle.Characters
 
         readonly List<Waypoint> path = new List<Waypoint>();
         readonly List<Waypoint> buffer = new List<Waypoint>();
+        readonly List<Vector3> detour = new List<Vector3>();
         int pathIndex;
         Vector2 steerInput;
         Vector3 steerVelocity;
@@ -74,6 +75,7 @@ namespace AftershockIsle.Characters
             }
 
             ApplyDepth(z, floor);
+            AddDetours();
             pathIndex = 0;
             return reachable;
         }
@@ -95,6 +97,30 @@ namespace AftershockIsle.Characters
                 bool ladder = waypoint.IsClimb || (i + 1 < path.Count && path[i + 1].IsClimb);
                 waypoint.Position.z = ladder ? building.LadderZ : finalZ;
                 path[i] = waypoint;
+            }
+        }
+
+        // Kat içindeki her düz yürüyüşü engellerin etrafından geçen köşelerle böler.
+        void AddDetours()
+        {
+            buffer.Clear();
+            buffer.AddRange(path);
+            path.Clear();
+
+            var from = transform.position;
+            int floor = CurrentFloor;
+            foreach (var waypoint in buffer)
+            {
+                if (!waypoint.IsClimb && waypoint.Floor == floor)
+                {
+                    detour.Clear();
+                    FloorObstacles.Route(building, floor, from, waypoint.Position, BodyRadius, detour);
+                    foreach (var corner in detour) path.Add(new Waypoint(corner, false, floor));
+                }
+
+                path.Add(waypoint);
+                from = waypoint.Position;
+                floor = waypoint.Floor;
             }
         }
 

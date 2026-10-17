@@ -54,6 +54,8 @@ namespace AftershockIsle.Expedition
         [SerializeField] float rescueExtraction = 8f;
         [SerializeField] float timeUpStress = 20f;
         [SerializeField] ExpeditionSite[] sites = ExpeditionSite.Defaults();
+        [Tooltip("Dış sahada kullanılan modeller (sahne kurucu doldurur). Boşsa saha kutularla kurulur.")]
+        [SerializeField] FieldArtLibrary fieldArt;
 
         static readonly Dictionary<SkillBranch, string> rescueNames = new Dictionary<SkillBranch, string>
         {
@@ -170,7 +172,7 @@ namespace AftershockIsle.Expedition
             yield return WalkThroughDoor(explorer, building.MaxX, OutsideX);
             explorer.gameObject.SetActive(false);
             Stage = ExpeditionStage.Away;
-            field.Begin(explorer, CurrentSite, building, BagSlots, ExtractionTime, RescueVictimAvailable, dayCycle.Day);
+            field.Begin(explorer, CurrentSite, building, BagSlots, ExtractionTime, RescueVictimAvailable, dayCycle.Day, fieldArt);
         }
 
         IEnumerator ReturnRoutine(Survivor explorer, IReadOnlyList<ResourceAmount> loot, string hazardReport, bool rescuing)

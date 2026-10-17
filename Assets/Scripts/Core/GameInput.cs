@@ -23,6 +23,9 @@ namespace AftershockIsle.Core
         static int deviceFrame = -1;
         static bool usingGamepad;
 
+        static float rumbleUntil;
+        static bool rumbling;
+
         static int menuFrame = -1;
         static int menuStep;
         static int menuHeldDirection;
@@ -87,6 +90,10 @@ namespace AftershockIsle.Core
         /// <summary>Sahada sol tık / RT: ateş.</summary>
         public static bool FirePressed =>
             (Pointer != null && Pointer.leftButton.wasPressedThisFrame) || (Pad != null && Pad.rightTrigger.wasPressedThisFrame);
+
+        /// <summary>Sahada Shift / C / LT basılı: çömel (siper).</summary>
+        public static bool CrouchHeld => FieldControlsActive &&
+            ((Keys != null && (Keys.leftShiftKey.isPressed || Keys.cKey.isPressed)) || (Pad != null && Pad.leftTrigger.isPressed));
 
         /// <summary>Sahada Q / X (Kare): silah değiştir.</summary>
         public static bool SwitchWeaponPressed => FieldControlsActive &&
@@ -205,6 +212,7 @@ namespace AftershockIsle.Core
 
         // ---------------------------------------------------------------- Test
 
+        public static bool DebugGasPressed => Keys != null && Keys.f3Key.wasPressedThisFrame;
         public static bool DebugSpawnSurvivorPressed => Keys != null && Keys.f12Key.wasPressedThisFrame;
         public static bool DebugFirePressed => Keys != null && Keys.f6Key.wasPressedThisFrame;
         public static bool DebugFloodPressed => Keys != null && Keys.f7Key.wasPressedThisFrame;
@@ -214,6 +222,31 @@ namespace AftershockIsle.Core
         /// <summary>Test: kamera eğimini 15/20/25/30 derece arasında değiştirir.</summary>
         public static bool DebugCameraPitchPressed => Keys != null && Keys.f5Key.wasPressedThisFrame;
         public static bool DebugResourcesPressed => Keys != null && Keys.f11Key.wasPressedThisFrame;
+
+        // ---------------------------------------------------------------- Titreşim
+
+        /// <summary>Gamepad titreşimi (low: ağır motor, high: hafif motor, 0–1). Gerçek zamanla durur.</summary>
+        public static void Rumble(float low, float high, float seconds)
+        {
+            var pad = Pad;
+            if (pad == null || !UsingGamepad) return;
+            pad.SetMotorSpeeds(Mathf.Clamp01(low), Mathf.Clamp01(high));
+            rumbleUntil = Mathf.Max(rumbleUntil, Time.unscaledTime + seconds);
+            rumbling = true;
+        }
+
+        /// <summary>Süresi dolan titreşimi durdurur. Kamera her kare çağırır.</summary>
+        public static void TickRumble()
+        {
+            if (!rumbling || Time.unscaledTime < rumbleUntil) return;
+            StopRumble();
+        }
+
+        public static void StopRumble()
+        {
+            rumbling = false;
+            Pad?.ResetHaptics();
+        }
 
         // ---------------------------------------------------------------- Tuş ipuçları
 
@@ -240,6 +273,7 @@ namespace AftershockIsle.Core
                 InputPrompt.Aim => pad ? "Sağ çubuk" : "Fare",
                 InputPrompt.Fire => pad ? "RT" : "Sol tık",
                 InputPrompt.SwitchWeapon => pad ? "X" : "Q",
+                InputPrompt.Crouch => pad ? "LT" : "Shift",
                 _ => "?",
             };
         }
@@ -349,6 +383,6 @@ namespace AftershockIsle.Core
     public enum InputPrompt
     {
         Move, Dodge, Interact, Heal, Cancel, Pause, Speed, SwitchCharacter,
-        SkillTree, Help, Menu, Confirm, Back, Pump, Aim, Fire, SwitchWeapon,
+        SkillTree, Help, Menu, Confirm, Back, Pump, Aim, Fire, SwitchWeapon, Crouch,
     }
 }

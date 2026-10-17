@@ -54,6 +54,9 @@ namespace AftershockIsle.UI
             EventBus.Subscribe<FireExtinguished>(OnFireExtinguished);
             EventBus.Subscribe<CeilingCollapsed>(OnCeilingCollapsed);
             EventBus.Subscribe<SmokeEvacuation>(OnSmokeEvacuation);
+            EventBus.Subscribe<GasLeakStarted>(OnGasLeak);
+            EventBus.Subscribe<GasLeakStopped>(OnGasStopped);
+            EventBus.Subscribe<GasExploded>(OnGasExploded);
             EventBus.Subscribe<UpkeepResolved>(OnUpkeep);
             EventBus.Subscribe<SurvivorPanicked>(OnPanicked);
             EventBus.Subscribe<SurvivorJoined>(OnJoined);
@@ -96,6 +99,10 @@ namespace AftershockIsle.UI
         void OnFireStarted(FireStarted evt) => ShowNotice($"YANGIN çıktı: {building.GetFloorName(evt.Fire.Floor)}! Kova suyuyla söndür.");
         void OnFireExtinguished(FireExtinguished evt) => ShowNotice($"{building.GetFloorName(evt.Fire.Floor)} yangını söndürüldü.");
         void OnCeilingCollapsed(CeilingCollapsed evt) => ShowNotice($"{building.GetFloorName(evt.Fire.Floor)} tavanı yangından çöktü!");
+        void OnGasLeak(GasLeakStarted evt) => ShowNotice(
+            $"GAZ KAÇAĞI: {building.GetFloorName(evt.Leak.Floor)}! Şalteri indir (kıvılcım patlatır), pencereyi kır, vanayı kapat.", 7f);
+        void OnGasStopped(GasLeakStopped evt) => ShowNotice("Gaz vanası kapatıldı. Kalan gaz dağılıyor.");
+        void OnGasExploded(GasExploded evt) => ShowNotice($"GAZ PATLADI: {building.GetFloorName(evt.Leak.Floor)} alev aldı!", 6f);
         void OnSmokeEvacuation(SmokeEvacuation evt) => ShowNotice($"{evt.Survivor.DisplayName} öksürerek dumandan kaçıyor.");
 
         void OnDisable()
@@ -110,6 +117,9 @@ namespace AftershockIsle.UI
             EventBus.Unsubscribe<FireExtinguished>(OnFireExtinguished);
             EventBus.Unsubscribe<CeilingCollapsed>(OnCeilingCollapsed);
             EventBus.Unsubscribe<SmokeEvacuation>(OnSmokeEvacuation);
+            EventBus.Unsubscribe<GasLeakStarted>(OnGasLeak);
+            EventBus.Unsubscribe<GasLeakStopped>(OnGasStopped);
+            EventBus.Unsubscribe<GasExploded>(OnGasExploded);
             EventBus.Unsubscribe<UpkeepResolved>(OnUpkeep);
             EventBus.Unsubscribe<SurvivorPanicked>(OnPanicked);
             EventBus.Unsubscribe<SurvivorJoined>(OnJoined);
@@ -275,6 +285,19 @@ namespace AftershockIsle.UI
                     "ELEKTRİK KAÇAĞI: bodrumdaki su elektrikli. Suya girmeden önce şalteri indir.", centeredStyle);
             }
             GUI.color = previous;
+
+            foreach (var leak in GasLeak.All)
+            {
+                if (!leak.IsLeaking && leak.Concentration < 1f) continue;
+
+                string floorName = building.GetFloorName(leak.Floor);
+                string danger = leak.IsExplosive ? (PowerGrid.IsOn ? " — PATLAMA RİSKİ: şalteri indir!" : " — patlayıcı yoğunlukta")
+                    : leak.IsBlockingHere ? " — kata girilemiyor, pencereyi kır" : "";
+                GUI.color = new Color(0.65f, 0.9f, 0.35f);
+                string state = leak.IsLeaking ? "GAZ KAÇAĞI" : "GAZ";
+                GUI.Label(new Rect(0, y + 26, Screen.width, 24), $"{state}: {floorName} %{leak.Concentration:0}{danger}", centeredStyle);
+                y += 24;
+            }
 
             foreach (var fire in FireSpot.All)
             {

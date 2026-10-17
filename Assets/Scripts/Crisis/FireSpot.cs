@@ -91,11 +91,12 @@ namespace AftershockIsle.Crisis
         public override string StatusText =>
             $"Yangın %{Intensity:0}  duman %{Smoke:0}. Kova suyu gerekir (her kova -%{extinguishPerBucket:0}).";
 
+        /// <summary>Kat duman ya da gaz yüzünden girilemez durumda mı.</summary>
         public static bool IsSmokeBlocked(int floor)
         {
             foreach (var fire in all)
                 if (fire.Floor == floor && fire.IsSmokeBlockedHere) return true;
-            return false;
+            return GasLeak.IsGasBlocked(floor);
         }
 
         /// <summary>Yanmayan ve tavanı çökmemiş rastgele bir odağı tutuşturur.</summary>

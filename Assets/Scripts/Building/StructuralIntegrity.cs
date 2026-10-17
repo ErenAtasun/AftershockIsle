@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace AftershockIsle.Building
 {
-    public enum DamageSource { Aftershock, Flood, Fire, Debug }
+    public enum DamageSource { Aftershock, Flood, Fire, Gas, Debug }
 
     public readonly struct IntegrityChanged
     {

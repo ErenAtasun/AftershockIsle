@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using AftershockIsle.Expedition;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -112,6 +114,55 @@ namespace AftershockIsle.EditorTools
             model.transform.position += bottomCenter - new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
             return root.gameObject;
         }
+
+        // ---------------------------------------------------------------- Dış saha kütüphanesi
+
+        const string FieldArtPath = "Assets/Art/FieldArtLibrary.asset";
+
+        /// <summary>
+        /// Dış sahanın çalışma anında kullandığı model kütüphanesini oluşturur ya da günceller
+        /// (saha sefer başında kurulduğu için modelleri prefab referansıyla bilmesi gerekir).
+        /// </summary>
+        public static FieldArtLibrary BuildFieldArtLibrary()
+        {
+            EnsureMaterialFolder();
+            var library = AssetDatabase.LoadAssetAtPath<FieldArtLibrary>(FieldArtPath);
+            if (library == null)
+            {
+                library = ScriptableObject.CreateInstance<FieldArtLibrary>();
+                AssetDatabase.CreateAsset(library, FieldArtPath);
+            }
+
+            var entries = new List<FieldArtLibrary.Entry>();
+            foreach (ArtKey art in Enum.GetValues(typeof(ArtKey)))
+            {
+                var key = ToModelKey(art);
+                var prefab = LoadModel(key);
+                if (prefab == null)
+                {
+                    Debug.LogWarning($"Saha modeli bulunamadı: {art}. Sahada kutu olarak kalacak.");
+                    continue;
+                }
+                entries.Add(new FieldArtLibrary.Entry { key = art, prefab = prefab, material = MaterialFor(key) });
+            }
+
+            library.entries = entries.ToArray();
+            EditorUtility.SetDirty(library);
+            AssetDatabase.SaveAssets();
+            return library;
+        }
+
+        static ModelKey ToModelKey(ArtKey art) => art switch
+        {
+            ArtKey.Crate => ModelKey.Crate,
+            ArtKey.Dresser => ModelKey.Dresser,
+            ArtKey.Table => ModelKey.Table,
+            ArtKey.Bed => ModelKey.Bed,
+            ArtKey.Chair => ModelKey.Chair,
+            ArtKey.Rubble => ModelKey.Rubble,
+            ArtKey.Bucket => ModelKey.Bucket,
+            _ => ModelKey.Extinguisher,
+        };
 
         // ---------------------------------------------------------------- Bulma ve malzeme
 

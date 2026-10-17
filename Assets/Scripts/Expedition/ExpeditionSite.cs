@@ -38,6 +38,8 @@ namespace AftershockIsle.Expedition
         public int brutes;
         public int throwers;
         public float fieldLength = 36f;
+        [Tooltip("Sahadaki girilebilir yapının tipi")]
+        public FieldLayout layout = FieldLayout.House;
         public LootEntry[] loot;
         [Tooltip("Aranan noktada tuzak/göçük çıkma türü ve ihtimali")]
         public ExpeditionHazard hazard;
@@ -54,7 +56,7 @@ namespace AftershockIsle.Expedition
             {
                 name = "İnşaat Sahası",
                 description = "Bol kalas ve hurda, az tıbbi malzeme. Göçük riski.",
-                duration = 100f, lootSpots = 4, dogs = 2, raiders = 1,
+                duration = 100f, lootSpots = 4, dogs = 2, raiders = 1, layout = FieldLayout.Construction,
                 loot = new[]
                 {
                     new LootEntry(ResourceType.Scrap, 2, 3, 60f),
@@ -68,7 +70,7 @@ namespace AftershockIsle.Expedition
             {
                 name = "Yıkık Klinik",
                 description = "Bol ilaç ve bandaj (Yaşam Kiti). Yangın ve duman riski.",
-                duration = 100f, lootSpots = 4, dogs = 1, raiders = 1, throwers = 1,
+                duration = 100f, lootSpots = 4, dogs = 1, raiders = 1, throwers = 1, layout = FieldLayout.Clinic,
                 loot = new[]
                 {
                     new LootEntry(ResourceType.Supplies, 1, 2, 70f),
@@ -82,7 +84,7 @@ namespace AftershockIsle.Expedition
             {
                 name = "Terk Edilmiş Atölye",
                 description = "Elektronik çip, akü ve telsiz parçaları. Çürük çatı riski.",
-                duration = 110f, lootSpots = 4, dogs = 0, raiders = 2, brutes = 1,
+                duration = 110f, lootSpots = 4, dogs = 0, raiders = 2, brutes = 1, layout = FieldLayout.Workshop,
                 loot = new[]
                 {
                     new LootEntry(ResourceType.Electronics, 1, 1, 50f),
@@ -96,7 +98,7 @@ namespace AftershockIsle.Expedition
             {
                 name = "Enkaz Alanı",
                 description = "Enkaz altında mahsur kalanlar var. Mahsur kalanı çıkarmak uzun sürer; kurtarılan kişi +1 iş gücü ve yeni yetenek dalı getirir, ama günlük tüketimi de artırır.",
-                duration = 100f, lootSpots = 2, dogs = 2, raiders = 1, throwers = 1,
+                duration = 100f, lootSpots = 2, dogs = 2, raiders = 1, throwers = 1, layout = FieldLayout.Ruin,
                 loot = new[] { new LootEntry(ResourceType.Scrap, 1, 2, 100f) },
                 hazard = ExpeditionHazard.Collapse, hazardChance = 0.1f, hazardDamage = 15f,
                 isRescueSite = true,

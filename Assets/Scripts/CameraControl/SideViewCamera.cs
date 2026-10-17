@@ -38,6 +38,18 @@ namespace AftershockIsle.CameraControl
 
         static Transform fieldFocus;
         static bool viewField;
+        static float kickStrength;
+        static float kickRemaining;
+        static float kickDuration = 0.1f;
+
+        /// <summary>Kısa kamera sarsıntısı (atış, isabet, darbe). Gerçek zamanla söner; sahada da çalışır.</summary>
+        public static void Kick(float strength, float seconds)
+        {
+            if (strength < kickStrength * Mathf.Clamp01(kickRemaining / kickDuration)) return;
+            kickStrength = strength;
+            kickDuration = Mathf.Max(0.01f, seconds);
+            kickRemaining = seconds;
+        }
 
         /// <summary>Dış saha görünümü açık mı (sığınağın yerine kâşif izleniyor).</summary>
         public static bool ViewingField => fieldFocus != null && viewField;
@@ -84,6 +96,7 @@ namespace AftershockIsle.CameraControl
 
             fieldFocus = null;
             viewField = false;
+            kickRemaining = 0f;
             focus = new Vector3(transform.position.x, transform.position.y, building.WalkPlaneZ);
             smoothedFocus = focus;
             targetDistance = distance;
@@ -100,6 +113,7 @@ namespace AftershockIsle.CameraControl
 
         void OnDisable()
         {
+            GameInput.StopRumble();
             EventBus.Unsubscribe<SurvivorSelected>(OnSurvivorSelected);
             EventBus.Unsubscribe<AftershockImpact>(OnAftershockImpact);
         }
@@ -119,6 +133,7 @@ namespace AftershockIsle.CameraControl
         void LateUpdate()
         {
             float dt = Time.unscaledDeltaTime;
+            GameInput.TickRumble();
 
             if (fieldFocus != null && GameInput.ViewSwitchPressed) viewField = !viewField;
             bool showField = ViewingField;
@@ -145,7 +160,7 @@ namespace AftershockIsle.CameraControl
 
                 smoothedFocus = Vector3.SmoothDamp(smoothedFocus, FieldFocusPoint(), ref velocity, smoothTime * 0.6f, Mathf.Infinity, dt);
                 currentFieldDistance = Mathf.Lerp(currentFieldDistance, targetFieldDistance, 1f - Exp(dt));
-                transform.position = smoothedFocus - transform.forward * currentFieldDistance;
+                transform.position = smoothedFocus - transform.forward * currentFieldDistance + KickOffset(dt);
                 return;
             }
 
@@ -174,7 +189,15 @@ namespace AftershockIsle.CameraControl
             smoothedFocus = Vector3.SmoothDamp(smoothedFocus, focus, ref velocity, smoothTime, Mathf.Infinity, dt);
             distance = Mathf.Lerp(distance, targetDistance, 1f - Mathf.Exp(-10f * dt));
 
-            transform.position = smoothedFocus - transform.forward * distance + ShakeOffset();
+            transform.position = smoothedFocus - transform.forward * distance + ShakeOffset() + KickOffset(dt);
+        }
+
+        static Vector3 KickOffset(float dt)
+        {
+            if (kickRemaining <= 0f) return Vector3.zero;
+            kickRemaining -= dt;
+            float strength = kickStrength * Mathf.Clamp01(kickRemaining / kickDuration);
+            return (Vector3)(Random.insideUnitCircle * strength);
         }
 
         void CyclePitch()

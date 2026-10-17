@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using AftershockIsle.Core;
 using UnityEngine;
 
@@ -46,10 +47,24 @@ namespace AftershockIsle.Building
             EventBus.Publish(new PowerChanged(on));
         }
 
+        // Sahne kurucunun bağlamadığı, çalışma anında eklenen lambalar (ModelManager'ın oda lambaları).
+        static readonly List<Light> extraLights = new List<Light>();
+
+        /// <summary>Lambayı şaltere bağlar: şalter inince söner. PowerGrid henüz yoksa kurulunca uygulanır.</summary>
+        public static void RegisterLight(Light light)
+        {
+            if (light == null || extraLights.Contains(light)) return;
+            extraLights.Add(light);
+            if (Instance != null) light.enabled = Instance.on;
+        }
+
         void ApplyLights()
         {
             foreach (var light in interiorLights)
                 if (light != null) light.enabled = on;
+
+            extraLights.RemoveAll(l => l == null);
+            foreach (var light in extraLights) light.enabled = on;
         }
     }
 }

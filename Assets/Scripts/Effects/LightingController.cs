@@ -16,7 +16,10 @@ namespace AftershockIsle.Effects
         Color baseAmbient;
         float factor = 1f;
 
-        void Awake()
+        void Awake() => Rebase();
+
+        /// <summary>Şalter açıkken hedeflenen güneş ve ortam ışığını şimdiki değerlerden yeniden okur (ışık teması değişince).</summary>
+        public void Rebase()
         {
             if (sun != null) baseSun = sun.intensity;
             baseAmbient = RenderSettings.ambientLight;

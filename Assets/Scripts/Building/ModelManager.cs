@@ -3,6 +3,7 @@ using AftershockIsle.Crafting;
 using AftershockIsle.Interaction;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 namespace AftershockIsle.Building
 {
@@ -63,6 +64,31 @@ namespace AftershockIsle.Building
         [Tooltip("Kolon modelinin Y eksenindeki dönüşü (hasarlı yüz kameraya baksın diye)")]
         [SerializeField] float columnYaw = 180f;
 
+        [Header("5. Karanlık Atmosfer (This War of Mine tarzı)")]
+        [Tooltip("İşaretliyken ortam karanlık olur; ışığı pencerelerden giren gün ışığı ve odalardaki ampuller verir")]
+        [SerializeField] bool enableDarkTheme = true;
+        [Tooltip("Binanın arkasından pencerelerden giren soğuk gün ışığının şiddeti")]
+        [SerializeField, Range(0f, 2f)] float darkSunIntensity = 0.7f;
+        [SerializeField] Color sunColor = new Color(0.72f, 0.78f, 0.88f);
+        [Tooltip("Hiç ışık almayan köşelerin seviyesi (düşük = zifiri karanlık)")]
+        [SerializeField, Range(0f, 0.6f)] float darkAmbientLevel = 0.06f;
+        [Tooltip("Sarkan ampul ışığı")]
+        [SerializeField] Color lampColor = new Color(1f, 0.74f, 0.46f);
+        [SerializeField, Range(0f, 10f)] float lampIntensity = 3.2f;
+        [SerializeField, Range(1f, 12f)] float lampRange = 6f;
+        [Tooltip("Katların ortasındaki lambalara ek olarak ampul asılan noktalar (bina yerel X, Y, Z). " +
+                 "Ampulsüz odalar bilerek karanlık kalır.")]
+        [SerializeField] Vector3[] extraLampPositions =
+        {
+            new Vector3(-5.5f, 2.75f, 0.3f),   // bodrum, merdiven tarafı
+            new Vector3(-6.6f, 6.25f, 0.3f),   // giriş katı sol oda
+            new Vector3(6.8f, 9.75f, 0.3f),    // yaşam katı sağ oda
+            new Vector3(-6.2f, 13.25f, 0.3f),  // 3. kat sol oda
+        };
+        [Tooltip("Mum / fener objelerine eklenen ışığın şiddeti ve çapı (ConfigureCandleLightOnObject)")]
+        [SerializeField, Range(0.2f, 3f)] float maxCandleIntensity = 1.4f;
+        [SerializeField, Range(1f, 8f)] float candleRange = 4f;
+
         static Material outlineMaterial;
         readonly Dictionary<Material, Material> runtimeMaterials = new Dictionary<Material, Material>();
 
@@ -90,11 +116,15 @@ namespace AftershockIsle.Building
             runtimeMaterials.Clear();
             ApplyBuilding();
             ApplyWorldBackdrop();
+            // Ek ampuller bina modelinin altına asılır; model kurulduktan sonra.
+            ApplyLightingTheme();
+            // Önce eski greybox eşyaları elenir: tezgah/tulumba giydirmesi sahneye konan asıl eşyayı bulsun.
+            ApplyGreyboxPropsVisibility();
             ApplyFloorPlanks();
             ApplyWorkbench();
             ApplyWaterTank();
+            ApplySketchPropMaterials();
             ApplyColumns();
-            ApplyGreyboxPropsVisibility();
         }
 
         // ---------------------------------------------------------------- 1. Bina
@@ -399,7 +429,23 @@ namespace AftershockIsle.Building
             float cornerAO = 0.32f;
             float useBasementDamp = 0f;
 
-            if (n.Contains("bodrum_duvar"))
+            if (n.StartsWith("cizim_boya"))
+            {
+                // Su deposu varili (Blender çizim stili): mavi-gri boya üzerinde keskin kenarlı turuncu pas lekeleri.
+                baseColor = new Color(0.25f, 0.42f, 0.52f, 1f);
+                patchColor = new Color(0.62f, 0.3f, 0.12f, 1f);
+                noiseScale = 4.5f;
+                noiseThreshold = 0.6f;
+                noiseStrength = 1f;
+                cornerAO = 0f;
+            }
+            else if (n.StartsWith("cizim_"))
+            {
+                // Varilin metal, pirinç, hortum parçaları: düz renk, binaya göre hesaplanan köşe gölgesi yok.
+                noiseStrength = 0.15f;
+                cornerAO = 0f;
+            }
+            else if (n.Contains("bodrum_duvar"))
             {
                 // 2. resimdeki bodrum sıvası + alt yosun yeşili rutubet şeridi + oda köşe gölgesi
                 baseColor = new Color(0.54f, 0.55f, 0.54f, 1f);
@@ -530,6 +576,218 @@ namespace AftershockIsle.Building
             if (target.HasProperty("_CornerAO")) target.SetFloat("_CornerAO", cornerAO);
             if (target.HasProperty("_UseBasementDamp")) target.SetFloat("_UseBasementDamp", useBasementDamp);
             if (target.HasProperty("_Smoothness")) target.SetFloat("_Smoothness", 0.08f);
+            if (target.HasProperty("_MinAmbient"))
+            {
+                float minAmb = Instance != null && Instance.enableDarkTheme ? Instance.darkAmbientLevel : 0.36f;
+                target.SetFloat("_MinAmbient", minAmb);
+            }
+        }
+
+        // ---------------------------------------------------------------- 5. Karanlık Tema & Mum Işığı
+
+        const string LampPrefix = "Ampul_";
+        static Material bulbMaterial;
+        static Material cordMaterial;
+
+        /// <summary>
+        /// This War of Mine tarzı ışık: ortam neredeyse karanlık; binanın arkasından pencerelerden soğuk gün ışığı
+        /// girer, katlardaki ve bazı odalardaki sarkan ampuller sıcak ışık havuzu yapar, ampulsüz odalar karanlık kalır.
+        /// Ampuller şaltere bağlıdır. Renk solukluğu/vinyet/gren için "Aftershock/Karanlık Atmosferi Kur" Volume'u kurar.
+        /// </summary>
+        void ApplyLightingTheme()
+        {
+            if (!enableDarkTheme) return;
+
+            var holder = building.transform.Find(BuildingHolderName);
+            foreach (var light in FindObjectsByType<Light>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (light == null) continue;
+
+                if (light.type == LightType.Directional)
+                {
+                    // Arkadan (+Z) kameraya doğru, pencerelerden içeri eğik düşer.
+                    light.transform.rotation = Quaternion.Euler(32f, 195f, 0f);
+                    light.intensity = darkSunIntensity;
+                    light.color = sunColor;
+                    light.shadows = LightShadows.Soft;
+                    light.shadowStrength = 0.95f;
+                    continue;
+                }
+
+                // Katların ortasındaki lambalar (sahne kurucunun Lamba_0..4) sarkan ampul olur.
+                if (light.transform.IsChildOf(building.transform) && light.name.StartsWith("Lamba_"))
+                {
+                    light.gameObject.SetActive(true);
+                    ConfigureLamp(light);
+                    if (holder != null) CreateBulbVisual(holder, holder.InverseTransformPoint(light.transform.position));
+                }
+            }
+
+            // Bazı odalara ek ampul; bina modeliyle birlikte yerleşir ve şaltere bağlanır.
+            if (holder != null)
+            {
+                for (int i = 0; i < extraLampPositions.Length; i++)
+                {
+                    var lampGo = new GameObject($"{LampPrefix}Isik_{i}");
+                    lampGo.transform.SetParent(holder, false);
+                    lampGo.transform.localPosition = ToHolderLocal(extraLampPositions[i]);
+                    var light = lampGo.AddComponent<Light>();
+                    ConfigureLamp(light);
+                    if (Application.isPlaying) PowerGrid.RegisterLight(light);
+                    CreateBulbVisual(holder, lampGo.transform.localPosition);
+                }
+            }
+
+            RenderSettings.ambientMode = AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(darkAmbientLevel, darkAmbientLevel * 1.02f, darkAmbientLevel * 1.12f);
+
+            var cam = Camera.main;
+            if (cam != null)
+            {
+                cam.clearFlags = CameraClearFlags.SolidColor;
+                cam.backgroundColor = new Color(0.02f, 0.02f, 0.025f);
+            }
+
+            // Şalter kesintisi bu karanlık değerleri temel alsın.
+            var lighting = FindFirstObjectByType<AftershockIsle.Effects.LightingController>();
+            if (lighting != null) lighting.Rebase();
+
+            ApplyPostProcessing(cam);
+        }
+
+        const string AtmosphereVolumeName = "Karanlık Atmosfer (Volume)";
+
+        /// <summary>
+        /// Neredeyse renksiz, kontrastlı, kenarları kararan, grenli görüntü. Sahnede bu isimde elle ayarlanmış bir
+        /// Volume varsa ona dokunulmaz; yoksa kaydedilmeyen geçici bir Volume her açılışta kodla kurulur.
+        /// </summary>
+        static void ApplyPostProcessing(Camera cam)
+        {
+            if (cam != null)
+            {
+                var data = cam.GetUniversalAdditionalCameraData();
+                if (data != null) data.renderPostProcessing = true;
+            }
+
+            var existing = GameObject.Find(AtmosphereVolumeName);
+            if (existing != null)
+            {
+                var userVolume = existing.GetComponent<Volume>();
+                if (userVolume != null && userVolume.sharedProfile != null && (existing.hideFlags & HideFlags.DontSave) == 0) return;
+                if (userVolume != null && userVolume.sharedProfile != null) DestroySafe(userVolume.sharedProfile);
+                DestroySafe(existing);
+            }
+
+            var go = new GameObject(AtmosphereVolumeName) { hideFlags = HideFlags.DontSave };
+            var volume = go.AddComponent<Volume>();
+            volume.isGlobal = true;
+            volume.priority = 10f;
+
+            var profile = ScriptableObject.CreateInstance<VolumeProfile>();
+            profile.name = "AftershockDark_Runtime";
+            profile.hideFlags = HideFlags.DontSave;
+
+            profile.Add<Tonemapping>(true).mode.Override(TonemappingMode.ACES);
+
+            var color = profile.Add<ColorAdjustments>(true);
+            color.postExposure.Override(-0.35f);
+            color.contrast.Override(30f);
+            color.saturation.Override(-78f);
+            color.colorFilter.Override(new Color(0.93f, 0.95f, 1f));
+
+            var smh = profile.Add<ShadowsMidtonesHighlights>(true);
+            smh.shadows.Override(new Vector4(0.92f, 0.96f, 1.05f, -0.08f));
+            smh.highlights.Override(new Vector4(1.04f, 1f, 0.94f, 0f));
+
+            var vignette = profile.Add<Vignette>(true);
+            vignette.color.Override(Color.black);
+            vignette.intensity.Override(0.45f);
+            vignette.smoothness.Override(0.5f);
+
+            var grain = profile.Add<FilmGrain>(true);
+            grain.type.Override(FilmGrainLookup.Medium3);
+            grain.intensity.Override(0.4f);
+            grain.response.Override(0.75f);
+
+            var bloom = profile.Add<Bloom>(true);
+            bloom.threshold.Override(0.95f);
+            bloom.intensity.Override(0.55f);
+            bloom.scatter.Override(0.7f);
+
+            volume.sharedProfile = profile;
+        }
+
+        void ConfigureLamp(Light light)
+        {
+            light.type = LightType.Point;
+            light.color = lampColor;
+            light.intensity = lampIntensity;
+            light.range = lampRange;
+            light.shadows = LightShadows.Soft;
+        }
+
+        /// <summary>Bina yerel konumunu (Blender ölçüsü) model tutucunun yerel uzayına çevirir: tutucu 180° döndürülmüş.</summary>
+        static Vector3 ToHolderLocal(Vector3 buildingLocal) => Quaternion.Euler(0f, 180f, 0f) * buildingLocal;
+
+        /// <summary>Tavandan kabloyla sarkan, kendinden ışıklı küçük ampul (bloom ile parlar).</summary>
+        static void CreateBulbVisual(Transform holder, Vector3 localPosition)
+        {
+            bulbMaterial ??= CreateUnlit("Ampul_Isik", new Color(1f, 0.85f, 0.6f) * 2.2f);
+            cordMaterial ??= CreateUnlit("Ampul_Kablo", new Color(0.03f, 0.03f, 0.03f));
+
+            var bulb = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            bulb.name = LampPrefix + "Gorsel";
+            bulb.transform.SetParent(holder, false);
+            bulb.transform.localPosition = localPosition;
+            bulb.transform.localScale = Vector3.one * 0.13f;
+            bulb.GetComponent<Renderer>().sharedMaterial = bulbMaterial;
+            bulb.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+            DestroySafe(bulb.GetComponent<Collider>());
+
+            var cord = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            cord.name = LampPrefix + "Kablo";
+            cord.transform.SetParent(holder, false);
+            cord.transform.localPosition = localPosition + Vector3.up * 0.25f;
+            cord.transform.localScale = new Vector3(0.012f, 0.45f, 0.012f);
+            cord.GetComponent<Renderer>().sharedMaterial = cordMaterial;
+            cord.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+            DestroySafe(cord.GetComponent<Collider>());
+        }
+
+        static Material CreateUnlit(string name, Color color)
+        {
+            var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color");
+            var mat = new Material(shader) { name = name };
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
+            if (mat.HasProperty("_Color")) mat.SetColor("_Color", color);
+            return mat;
+        }
+
+        /// <summary>
+        /// Seçili bir mum / fener objesine (veya mevcut Point Light'a) patlama yapmayan ideal karanlık tema mum ışığı ekler.
+        /// </summary>
+        public void ConfigureCandleLightOnObject(GameObject target)
+        {
+            if (target == null) return;
+
+            var light = target.GetComponentInChildren<Light>(true);
+            if (light == null)
+            {
+                var lightGo = new GameObject("Mum_Isigi");
+                lightGo.transform.SetParent(target.transform, false);
+                // Işık mumun tam içinde (0,0,0) olursa 1/d^2 yüzünden mumu bembeyaz patlatır; fitilin biraz üstüne ve önüne koy
+                var b = CalculateBounds(target);
+                float topOffset = b.size.y > 0.01f ? (b.max.y - target.transform.position.y) + 0.12f : 0.25f;
+                lightGo.transform.localPosition = new Vector3(0f, topOffset, -0.08f);
+                light = lightGo.AddComponent<Light>();
+            }
+
+            light.type = LightType.Point;
+            light.color = new Color(1.0f, 0.58f, 0.22f); // Sıcak kehribar mum alevi
+            light.intensity = maxCandleIntensity;
+            light.range = candleRange;
+            light.shadows = LightShadows.Soft;
+            light.gameObject.SetActive(true);
         }
 
 #if UNITY_EDITOR
@@ -602,28 +860,129 @@ namespace AftershockIsle.Building
             var pump = FindFirstObjectByType<ManualPump>();
             if (pump == null) return;
 
-            SkinPropWithCustomPrefab(pump.gameObject, waterTankPrefab, 1.25f, 180f);
+            var model = SkinPropWithCustomPrefab(pump.gameObject, waterTankPrefab, 1.25f, 180f);
+            if (model != null) FixBuildingMaterials(model);
+        }
+
+        /// <summary>
+        /// Sahneye elle konan Blender çizim stili eşyalara (Su_Deposu.fbx gibi, "Cizim_" malzemeli) binayla aynı Cel
+        /// görünümünü verir. Yalnızca oyunda: editörde yapılırsa sahneye kaydedilemeyen geçici malzemeler yazılırdı.
+        /// </summary>
+        void ApplySketchPropMaterials()
+        {
+            if (!Application.isPlaying) return;
+            foreach (var renderer in FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
+            {
+                if (renderer.transform.IsChildOf(building.transform)) continue;
+                foreach (var mat in renderer.sharedMaterials)
+                {
+                    if (mat == null || !mat.name.StartsWith("Cizim_")) continue;
+                    FixBuildingMaterials(renderer.gameObject);
+                    break;
+                }
+            }
         }
 
         // ---------------------------------------------------------------- 4. Kolonlar
 
         void ApplyColumns()
         {
+            SyncColumnsWithBlenderBuilding();
             foreach (var column in FindObjectsByType<SupportColumn>(FindObjectsSortMode.None))
                 column.ApplyVisual();
         }
 
+        /// <summary>
+        /// Blender binasındaki "_Kolon_" objelerinin (örn. F1_Kolon_X+2_00_Lv1) tam konumlarını okur,
+        /// sahnedeki etkileşimli SupportColumn objelerini o noktalara taşır ve başlangıç seviyelerini (Lv1/Lv2/Lv3)
+        /// eşleştirir. Böylece kolonlar Blender'da konulan yerlerde durur ve seviyeye göre prefab değiştirir.
+        /// </summary>
+        void SyncColumnsWithBlenderBuilding()
+        {
+            var buildingHolder = building != null ? building.transform.Find(BuildingHolderName) : null;
+            if (buildingHolder == null) return;
+
+            var blenderColumns = new List<Transform>();
+            foreach (var t in buildingHolder.GetComponentsInChildren<Transform>(true))
+            {
+                if (t != null && t.name.Contains("_Kolon_") && t.GetComponent<MeshFilter>() != null)
+                    blenderColumns.Add(t);
+            }
+            if (blenderColumns.Count == 0) return;
+
+            var sceneColumns = new List<SupportColumn>(
+                FindObjectsByType<SupportColumn>(FindObjectsInactive.Include, FindObjectsSortMode.None));
+            sceneColumns.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+            blenderColumns.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+
+            // Önce isimle eşle ("F1_Kolon_X+2_00" ↔ "F1_Kolon_X+2_00_Lv1"), kalanları sırayla.
+            var pairs = new List<(SupportColumn col, Transform bCol)>();
+            var freeScene = new List<SupportColumn>(sceneColumns);
+            var freeBlender = new List<Transform>();
+            foreach (var b in blenderColumns)
+            {
+                string key = System.Text.RegularExpressions.Regex.Replace(b.name, @"_Lv\d+$", "");
+                var match = freeScene.Find(c => c.name == key || c.name == b.name);
+                if (match != null) { pairs.Add((match, b)); freeScene.Remove(match); }
+                else freeBlender.Add(b);
+            }
+            for (int i = 0; i < Mathf.Min(freeScene.Count, freeBlender.Count); i++) pairs.Add((freeScene[i], freeBlender[i]));
+
+            foreach (var (col, bCol) in pairs)
+            {
+                var mf = bCol.GetComponent<MeshFilter>();
+                float colHeight = mf != null && mf.sharedMesh != null
+                    ? mf.sharedMesh.bounds.size.y * Mathf.Abs(bCol.lossyScale.y)
+                    : 3.21f;
+                if (colHeight < 0.5f) colHeight = 3.21f;
+
+                // Blender'daki kolonların pivotu taban merkezindedir; SupportColumn kutusunun merkezi ise ortasındadır.
+                Vector3 bottomWorld = bCol.position;
+                col.gameObject.SetActive(true);
+                col.transform.position = bottomWorld + Vector3.up * (colHeight * 0.5f);
+                col.transform.localScale = new Vector3(0.35f, colHeight, 0.4f);
+                col.RefreshFloorFromPosition();
+
+                // Oyun her zaman Blender'daki başlangıç seviyesiyle açılır (sahnede kayıtlı değer bozuk olsa bile);
+                // kayıtlı oyun yüklenirse SaveManager kendi seviyesini sonradan yazar.
+                var match = System.Text.RegularExpressions.Regex.Match(bCol.name, @"_Lv(\d+)$");
+                int level = match.Success ? int.Parse(match.Groups[1].Value) : 2;
+                var targetState = level >= 3 ? ColumnState.Reinforced : level == 2 ? ColumnState.Cracked : ColumnState.Broken;
+                col.RestoreState(targetState, 1);
+            }
+        }
+
+        /// <summary>
+        /// Eski greybox eşyaları ya tamamen vardır ya tamamen yoktur; görünmez ama etkileşimli kalıp boşlukta
+        /// "[F] ..." yazısı çıkarmaz. Sahneye aynı türde (ve aynı isimde) bir eşya prefabı konduysa greybox kopyası
+        /// kapanır, etkileşim yerleştirilen eşyanın üstünde olur. Prefabı konmamış oyun nesneleri (şalter, telsiz,
+        /// yangın...) görünür kalır; duman, su gibi efekt kutularına dokunulmaz. Yalnızca süs modelleri gizlenir.
+        /// </summary>
         void ApplyGreyboxPropsVisibility()
         {
             bool useCustom = useCustomBuilding && buildingPrefab != null;
             var propsRoot = building.transform.Find("Props");
-            if (propsRoot != null)
+            if (propsRoot != null && useCustom && hideGreyboxProps)
             {
-                bool showOldProps = !useCustom || !hideGreyboxProps;
-                foreach (var renderer in propsRoot.GetComponentsInChildren<Renderer>(true))
+                var placed = new List<Interactable>();
+                foreach (var item in FindObjectsByType<Interactable>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+                    if (!item.transform.IsChildOf(building.transform)) placed.Add(item);
+
+                foreach (Transform prop in propsRoot)
                 {
-                    if (renderer == null) continue;
-                    renderer.enabled = showOldProps;
+                    var interactable = prop.GetComponentInChildren<Interactable>(true);
+                    if (interactable != null)
+                    {
+                        bool replaced = IsReplacedByPlacedItem(interactable, placed);
+                        prop.gameObject.SetActive(!replaced);
+                        if (!replaced) RestoreRenderers(prop);
+                        continue;
+                    }
+
+                    // Etkileşimsiz: kendi kutusu olmayan süs modeli (sandalye, yangın tüpü...) gizlenir;
+                    // duman, su, pist gibi kendi görseli olan efekt kutuları oyun sistemlerine bırakılır.
+                    if (prop.GetComponent<Renderer>() == null) prop.gameObject.SetActive(false);
+                    else RestoreRenderers(prop);
                 }
             }
 
@@ -632,6 +991,37 @@ namespace AftershockIsle.Building
                 var planks = building.transform.Find(PlanksHolderName);
                 if (planks != null) planks.gameObject.SetActive(false);
             }
+        }
+
+        /// <summary>
+        /// Eski sürümün kapattığı görselleri geri açar. Model giydirilmiş kutunun kendisi ("Model" ya da özel model
+        /// çocuğu olan) ve yangının eski kutu alevi (partikül kullanılıyor) kapalı kalır.
+        /// </summary>
+        static void RestoreRenderers(Transform prop)
+        {
+            foreach (var renderer in prop.GetComponentsInChildren<Renderer>(true))
+            {
+                var t = renderer.transform;
+                bool skinnedBox = t.Find("Model") != null || t.Find(CustomSkinHolderName) != null;
+                if (skinnedBox || t.name == "Alev") continue;
+                renderer.enabled = true;
+            }
+        }
+
+        /// <summary>Bina dışına (sahneye) aynı türde bir eşya konmuş mu. Tekil sistem nesnelerinde tür yeter, diğerlerinde isim de eşleşmeli.</summary>
+        static bool IsReplacedByPlacedItem(Interactable greybox, List<Interactable> placed)
+        {
+            bool singleton = greybox is Workbench || greybox is StorageChest || greybox is BurstPipe;
+            string name = greybox.DisplayName ?? string.Empty;
+            foreach (var item in placed)
+            {
+                if (item.GetType() != greybox.GetType()) continue;
+                if (singleton) return true;
+
+                string other = item.DisplayName ?? string.Empty;
+                if (other.Length > 0 && name.Length > 0 && (name.StartsWith(other) || other.StartsWith(name))) return true;
+            }
+            return false;
         }
 
         GameObject ColumnPrefab(int level) => level switch

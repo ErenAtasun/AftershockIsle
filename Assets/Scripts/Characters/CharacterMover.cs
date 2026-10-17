@@ -198,6 +198,9 @@ namespace AftershockIsle.Characters
                 return;
             }
 
+            // Yol, kapalı kapıların aralığından geçer; karakter yaklaşınca kapıyı açar.
+            if (!waypoint.IsClimb) BuildingDoor.OpenNear(transform.position, BodyRadius + 0.5f);
+
             float speed = (waypoint.IsClimb ? climbSpeed : walkSpeed) * SpeedMultiplier;
 
             Vector3 facing = waypoint.IsClimb ? Vector3.forward : waypoint.Position - transform.position;

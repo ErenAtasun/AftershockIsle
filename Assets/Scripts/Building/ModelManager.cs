@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using AftershockIsle.Characters;
 using AftershockIsle.Crafting;
 using AftershockIsle.Interaction;
 using UnityEngine;
@@ -83,10 +84,15 @@ namespace AftershockIsle.Building
         [SerializeField] Color sunColor = new Color(0.72f, 0.78f, 0.88f);
         [Tooltip("Hiç ışık almayan köşelerin seviyesi (düşük = zifiri karanlık)")]
         [SerializeField, Range(0f, 0.6f)] float darkAmbientLevel = 0.06f;
-        [Tooltip("Sarkan ampul ışığı")]
-        [SerializeField] Color lampColor = new Color(1f, 0.74f, 0.46f);
-        [SerializeField, Range(0f, 10f)] float lampIntensity = 3.2f;
-        [SerializeField, Range(1f, 12f)] float lampRange = 6f;
+        [Tooltip("Abajurlu tavan lambası ışığı (soğuk, hafif mavimsi beyaz)")]
+        [SerializeField] Color pendantLampColor = new Color(0.82f, 0.9f, 1f);
+        [SerializeField, Range(0f, 10f)] float pendantLampIntensity = 2.2f;
+        [SerializeField, Range(1f, 12f)] float pendantLampRange = 5.5f;
+        [Tooltip("Ekran kenarlarını karartan siyah vinyetin gücü (0 = yok)")]
+        [SerializeField, Range(0f, 1f)] float screenVignette = 0.42f;
+        [SerializeField, Range(0.01f, 1f)] float screenVignetteSoftness = 0.45f;
+        [Tooltip("Abajurun altından çıkan ışık konisinin açısı")]
+        [SerializeField, Range(60f, 170f)] float pendantLampAngle = 115f;
         [Tooltip("Katların ortasındaki lambalara ek olarak ampul asılan noktalar (bina yerel X, Y, Z). " +
                  "Ampulsüz odalar bilerek karanlık kalır.")]
         [SerializeField] Vector3[] extraLampPositions =
@@ -125,7 +131,9 @@ namespace AftershockIsle.Building
             if (building == null) return;
 
             runtimeMaterials.Clear();
+            AssignDefaultModelsInEditor();
             ApplyBuilding();
+            ApplyWalkBlockers();
             ApplyWorldBackdrop();
             // Ek ampuller bina modelinin altına asılır; model kurulduktan sonra.
             ApplyLightingTheme();
@@ -138,7 +146,75 @@ namespace AftershockIsle.Building
             ApplyColumns();
         }
 
+        /// <summary>Boş bırakılmış model alanlarına projedeki bilinen modeli atar (sahne kaydedilince kalıcı olur).</summary>
+        void AssignDefaultModelsInEditor()
+        {
+#if UNITY_EDITOR
+            if (waterTankPrefab == null)
+            {
+                waterTankPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/WaterTank/Su_Deposu.fbx");
+                if (waterTankPrefab != null && !Application.isPlaying) UnityEditor.EditorUtility.SetDirty(this);
+            }
+#endif
+        }
+
         // ---------------------------------------------------------------- 1. Bina
+
+        const string WalkBlockersName = "Yürüme Engelleri (Model)";
+
+        // Blender binasının bölme duvarları (bina yerel X; kalınlık 0.2 m). Kapı aralığı Z -0.6..0.6, duvar Z -2..2.
+        static readonly (int floor, float x)[] ModelPartitions =
+        {
+            (1, -4.5f), (1, 4f),
+            (2, -1f), (2, 4.5f),
+            (3, -3f), (3, 3f),
+        };
+
+        // Döşemedeki kırık delikler (kat, X aralığı, Z aralığı). Merdiven boşlukları tırmanma yeri olduğu için yok.
+        static readonly (int floor, float minX, float maxX, float minZ, float maxZ)[] ModelFloorHoles =
+        {
+            (1, -1.6f, -0.2f, -1.8f, -0.2f),
+            (3, 0.2f, 1.6f, -1.8f, -0.2f),
+        };
+
+        /// <summary>
+        /// Blender binasında içinden geçilmemesi gereken yerler: bölme duvarları (kapı aralığı hariç; kapalı kapıyı
+        /// BuildingDoor kapatır) ve döşeme delikleri. Fizik collider'ı değil, FloorObstacles'ın okuduğu kutulardır.
+        /// </summary>
+        void ApplyWalkBlockers()
+        {
+            var old = building.transform.Find(WalkBlockersName);
+            if (old != null) DestroySafe(old.gameObject);
+            if (!useCustomBuilding || buildingPrefab == null) return;
+
+            var root = new GameObject(WalkBlockersName) { hideFlags = HideFlags.DontSave }.transform;
+            root.SetParent(building.transform, false);
+
+            const float doorHalf = 0.6f;
+            float halfDepth = building.Depth * 0.5f;
+            float h = building.FloorHeight;
+            foreach (var (floor, x) in ModelPartitions)
+            {
+                float y = floor * h;
+                float segment = halfDepth - doorHalf;
+                AddWalkBlocker(root, $"Bölme_{floor}_{x:0.#}_Ön", new Vector3(x, y + h * 0.5f, -doorHalf - segment * 0.5f), new Vector3(0.2f, h, segment));
+                AddWalkBlocker(root, $"Bölme_{floor}_{x:0.#}_Arka", new Vector3(x, y + h * 0.5f, doorHalf + segment * 0.5f), new Vector3(0.2f, h, segment));
+            }
+
+            foreach (var (floor, minX, maxX, minZ, maxZ) in ModelFloorHoles)
+            {
+                AddWalkBlocker(root, $"Delik_{floor}",
+                    new Vector3((minX + maxX) * 0.5f, floor * h + 0.5f, (minZ + maxZ) * 0.5f),
+                    new Vector3(maxX - minX, 1f, maxZ - minZ));
+            }
+        }
+
+        static void AddWalkBlocker(Transform root, string name, Vector3 center, Vector3 size)
+        {
+            var go = new GameObject(name) { hideFlags = HideFlags.DontSave };
+            go.transform.SetParent(root, false);
+            go.AddComponent<WalkBlocker>().Configure(center, size, false);
+        }
 
         void ApplyBuilding()
         {
@@ -441,6 +517,12 @@ namespace AftershockIsle.Building
                         shared[i] = GetOutlineMaterial();
                         changed = true;
                     }
+                    else if (mat.name.StartsWith(CrackMaterialPrefix))
+                    {
+                        shared[i] = GetCrackMaterial(mat);
+                        renderer.shadowCastingMode = ShadowCastingMode.Off;
+                        changed = true;
+                    }
                     else
                     {
                         shared[i] = GetMatteMaterial(mat);
@@ -467,6 +549,48 @@ namespace AftershockIsle.Building
             // Solidify ters normalli kabuk olduğu için yalnızca arka yüzeyleri (dış konturu) çiz, ön yüzeyi kapatmasın.
             if (outlineMaterial.HasProperty("_Cull")) outlineMaterial.SetFloat("_Cull", (float)CullMode.Back);
             return outlineMaterial;
+        }
+
+        const string CrackMaterialPrefix = "Catlak_Doku_";
+
+        /// <summary>
+        /// Blender'daki çatlak çıkartmaları: dokusu Resources/Catlaklar'dan okunur, duvarın üstüne yarı saydam oturur
+        /// ve ortam ışığıyla birlikte kararır (karanlık odada parlamasın diye Lit).
+        /// </summary>
+        Material GetCrackMaterial(Material source)
+        {
+            if (runtimeMaterials.TryGetValue(source, out var cached) && cached != null) return cached;
+
+            string textureName = source.name.Substring(CrackMaterialPrefix.Length).Replace(" (Instance)", "");
+            var texture = Resources.Load<Texture2D>("Catlaklar/" + textureName);
+            var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+
+            var mat = new Material(shader) { name = source.name + "_Decal" };
+            if (texture == null) Debug.LogWarning($"Çatlak dokusu bulunamadı: Resources/Catlaklar/{textureName}");
+            if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", texture);
+            if (mat.HasProperty("_MainTex")) mat.SetTexture("_MainTex", texture);
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", Color.white);
+            if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", 0f);
+            if (mat.HasProperty("_SpecularHighlights")) mat.SetFloat("_SpecularHighlights", 0f);
+            if (mat.HasProperty("_EnvironmentReflections")) mat.SetFloat("_EnvironmentReflections", 0f);
+            mat.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+            mat.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
+
+            // Saydam (alfa karışımlı), iki yüzlü, derinlik yazmaz.
+            mat.SetFloat("_Surface", 1f);
+            mat.SetFloat("_Blend", 0f);
+            mat.SetFloat("_Cull", (float)CullMode.Off);
+            mat.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+            mat.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+            mat.SetFloat("_SrcBlendAlpha", (float)BlendMode.One);
+            mat.SetFloat("_DstBlendAlpha", (float)BlendMode.OneMinusSrcAlpha);
+            mat.SetFloat("_ZWrite", 0f);
+            mat.SetOverrideTag("RenderType", "Transparent");
+            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            mat.renderQueue = (int)RenderQueue.Transparent;
+
+            runtimeMaterials[source] = mat;
+            return mat;
         }
 
         Material GetMatteMaterial(Material source)
@@ -663,6 +787,8 @@ namespace AftershockIsle.Building
         const string LampPrefix = "Ampul_";
         static Material bulbMaterial;
         static Material cordMaterial;
+        static Material shadeMaterial;
+        static Mesh shadeMesh;
 
         /// <summary>
         /// This War of Mine tarzı ışık: ortam neredeyse karanlık; binanın arkasından pencerelerden soğuk gün ışığı
@@ -728,6 +854,41 @@ namespace AftershockIsle.Building
             if (lighting != null) lighting.Rebase();
 
             ApplyPostProcessing(cam);
+            ApplyScreenVignette();
+        }
+
+        const string VignetteVolumeName = "Siyah Vinyet (Volume)";
+
+        /// <summary>
+        /// Ekran kenarlarına siyah vinyet. Sahnedeki atmosfer Volume'unun profiline dokunmadan, ondan yüksek öncelikli
+        /// ayrı (kaydedilmeyen) bir global Volume ile eklenir; yalnızca vinyeti belirler.
+        /// </summary>
+        void ApplyScreenVignette()
+        {
+            var existing = GameObject.Find(VignetteVolumeName);
+            if (existing != null)
+            {
+                var oldVolume = existing.GetComponent<Volume>();
+                if (oldVolume != null && oldVolume.sharedProfile != null) DestroySafe(oldVolume.sharedProfile);
+                DestroySafe(existing);
+            }
+            if (screenVignette <= 0.001f) return;
+
+            var go = new GameObject(VignetteVolumeName) { hideFlags = HideFlags.DontSave };
+            var volume = go.AddComponent<Volume>();
+            volume.isGlobal = true;
+            volume.priority = 50f;
+
+            var profile = ScriptableObject.CreateInstance<VolumeProfile>();
+            profile.name = "SiyahVinyet_Runtime";
+            profile.hideFlags = HideFlags.DontSave;
+            var vignette = profile.Add<Vignette>(true);
+            vignette.color.Override(Color.black);
+            vignette.center.Override(new Vector2(0.5f, 0.5f));
+            vignette.intensity.Override(screenVignette);
+            vignette.smoothness.Override(screenVignetteSoftness);
+            vignette.rounded.Override(false);
+            volume.sharedProfile = profile;
         }
 
         const string AtmosphereVolumeName = "Karanlık Atmosfer (Volume)";
@@ -792,41 +953,94 @@ namespace AftershockIsle.Building
             volume.sharedProfile = profile;
         }
 
+        /// <summary>Abajur ışığı yalnızca aşağı ve yanlara döker; tavan ve duvar üstleri karanlıkta kalır.</summary>
         void ConfigureLamp(Light light)
         {
-            light.type = LightType.Point;
-            light.color = lampColor;
-            light.intensity = lampIntensity;
-            light.range = lampRange;
+            light.type = LightType.Spot;
+            light.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            light.spotAngle = pendantLampAngle;
+            // Geniş yumuşak kenar: ışık havuzu ortada toplanır, kenara doğru karanlığa erir.
+            light.innerSpotAngle = pendantLampAngle * 0.25f;
+            light.color = pendantLampColor;
+            light.intensity = pendantLampIntensity;
+            light.range = pendantLampRange;
             light.shadows = LightShadows.Soft;
         }
 
         /// <summary>Bina yerel konumunu (Blender ölçüsü) model tutucunun yerel uzayına çevirir: tutucu 180° döndürülmüş.</summary>
         static Vector3 ToHolderLocal(Vector3 buildingLocal) => Quaternion.Euler(0f, 180f, 0f) * buildingLocal;
 
-        /// <summary>Tavandan kabloyla sarkan, kendinden ışıklı küçük ampul (bloom ile parlar).</summary>
+        /// <summary>
+        /// Tavandan kabloyla sarkan siyah kubbe abajur ve altında parlayan çıplak ampul (bloom ile parlar).
+        /// Abajur gölge düşürmez; ışığın aşağı dökülmesini spot açısı sağlar.
+        /// </summary>
         static void CreateBulbVisual(Transform holder, Vector3 localPosition)
         {
-            bulbMaterial ??= CreateUnlit("Ampul_Isik", new Color(1f, 0.85f, 0.6f) * 2.2f);
+            bulbMaterial ??= CreateUnlit("Ampul_Isik", new Color(0.9f, 0.95f, 1f) * 3f);
             cordMaterial ??= CreateUnlit("Ampul_Kablo", new Color(0.03f, 0.03f, 0.03f));
+            shadeMaterial ??= CreateUnlit("Ampul_Abajur", new Color(0.035f, 0.037f, 0.04f));
+            if (shadeMaterial.HasProperty("_Cull")) shadeMaterial.SetFloat("_Cull", (float)CullMode.Off);
+            shadeMesh ??= CreateShadeMesh();
 
             var bulb = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             bulb.name = LampPrefix + "Gorsel";
             bulb.transform.SetParent(holder, false);
             bulb.transform.localPosition = localPosition;
-            bulb.transform.localScale = Vector3.one * 0.13f;
+            bulb.transform.localScale = Vector3.one * 0.1f;
             bulb.GetComponent<Renderer>().sharedMaterial = bulbMaterial;
             bulb.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
             DestroySafe(bulb.GetComponent<Collider>());
 
+            var shade = new GameObject(LampPrefix + "Abajur");
+            shade.transform.SetParent(holder, false);
+            shade.transform.localPosition = localPosition + Vector3.up * 0.01f;
+            shade.AddComponent<MeshFilter>().sharedMesh = shadeMesh;
+            var shadeRenderer = shade.AddComponent<MeshRenderer>();
+            shadeRenderer.sharedMaterial = shadeMaterial;
+            shadeRenderer.shadowCastingMode = ShadowCastingMode.Off;
+
             var cord = GameObject.CreatePrimitive(PrimitiveType.Cube);
             cord.name = LampPrefix + "Kablo";
             cord.transform.SetParent(holder, false);
-            cord.transform.localPosition = localPosition + Vector3.up * 0.25f;
-            cord.transform.localScale = new Vector3(0.012f, 0.45f, 0.012f);
+            cord.transform.localPosition = localPosition + Vector3.up * 0.42f;
+            cord.transform.localScale = new Vector3(0.012f, 0.5f, 0.012f);
             cord.GetComponent<Renderer>().sharedMaterial = cordMaterial;
             cord.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
             DestroySafe(cord.GetComponent<Collider>());
+        }
+
+        /// <summary>Altı açık, yayvan kubbe abajur: profil Y ekseni etrafında döndürülür (merkez ampul hizası).</summary>
+        static Mesh CreateShadeMesh()
+        {
+            Vector2[] profile =
+            {
+                new Vector2(0.025f, 0.19f), new Vector2(0.07f, 0.18f), new Vector2(0.15f, 0.14f),
+                new Vector2(0.22f, 0.08f), new Vector2(0.27f, 0.02f), new Vector2(0.285f, -0.01f),
+            };
+            const int segments = 24;
+            var vertices = new List<Vector3>();
+            var triangles = new List<int>();
+            for (int s = 0; s <= segments; s++)
+            {
+                float a = s * Mathf.PI * 2f / segments;
+                float c = Mathf.Cos(a), sn = Mathf.Sin(a);
+                foreach (var p in profile) vertices.Add(new Vector3(p.x * c, p.y, p.x * sn));
+            }
+            int ring = profile.Length;
+            for (int s = 0; s < segments; s++)
+            {
+                for (int k = 0; k < ring - 1; k++)
+                {
+                    int a0 = s * ring + k, a1 = a0 + 1, b0 = a0 + ring, b1 = b0 + 1;
+                    triangles.AddRange(new[] { a0, b0, a1, a1, b0, b1 });
+                }
+            }
+            var mesh = new Mesh { name = "Ampul_Abajur" };
+            mesh.SetVertices(vertices);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
         }
 
         static Material CreateUnlit(string name, Color color)
@@ -880,7 +1094,7 @@ namespace AftershockIsle.Building
             {
                 string path = UnityEditor.AssetDatabase.GUIDToAssetPath(g);
                 var mat = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(path);
-                if (mat == null) continue;
+                if (mat == null || mat.name.StartsWith(CrackMaterialPrefix)) continue;
 
                 if (mat.name.StartsWith("Cizim_Dis_Hat") || mat.name.Contains("Outline"))
                 {
@@ -935,8 +1149,50 @@ namespace AftershockIsle.Building
             var pump = FindFirstObjectByType<ManualPump>();
             if (pump == null) return;
 
+            // Sahneye elle konmuş su deposu varsa tulumba odur: gri kutu görünmez olur ve deponun yerine taşınır.
+            var placedTank = FindPlacedWaterTank();
+            if (placedTank != null)
+            {
+                MovePumpOntoPlacedTank(pump, placedTank);
+                return;
+            }
+
             var model = SkinPropWithCustomPrefab(pump.gameObject, waterTankPrefab, 1.25f, 180f);
             if (model != null) FixBuildingMaterials(model);
+        }
+
+        const string PlacedWaterTankName = "Su_Deposu";
+
+        /// <summary>Bina dışında (sahnede) duran, adı Su_Deposu ile başlayan obje: elle yerleştirilmiş depo.</summary>
+        GameObject FindPlacedWaterTank()
+        {
+            foreach (var t in FindObjectsByType<Transform>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            {
+                if (!t.name.StartsWith(PlacedWaterTankName) || t.IsChildOf(building.transform)) continue;
+                if (t.parent != null && t.parent.name.StartsWith(PlacedWaterTankName)) continue;
+                if (t.GetComponentInChildren<Renderer>() == null) continue;
+                return t.gameObject;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Tulumbanın gri kutusunu ve önceki giydirmesini gizler, etkileşimi elle konan deponun üstüne oturtur:
+        /// tıklama alanı ve yürüme engeli deponun sınırı olur.
+        /// </summary>
+        void MovePumpOntoPlacedTank(ManualPump pump, GameObject tank)
+        {
+            var go = pump.gameObject;
+            var oldSkin = go.transform.Find(CustomSkinHolderName);
+            if (oldSkin != null) DestroySafe(oldSkin.gameObject);
+            var defaultModel = go.transform.Find("Model");
+            if (defaultModel != null) defaultModel.gameObject.SetActive(false);
+            foreach (var renderer in go.GetComponentsInChildren<Renderer>(true)) renderer.enabled = false;
+
+            var bounds = CalculateBounds(tank);
+            go.transform.position = bounds.center;
+            FitBoxColliderToBounds(go, bounds);
+            pump.RefreshFloorFromPosition();
         }
 
         /// <summary>
@@ -1046,11 +1302,28 @@ namespace AftershockIsle.Building
                 foreach (Transform prop in propsRoot)
                 {
                     var interactable = prop.GetComponentInChildren<Interactable>(true);
+                    if (interactable is SmokeWindow smokeWindow)
+                    {
+                        AlignSmokeWindowToModel(smokeWindow, propsRoot);
+                        continue;
+                    }
+
                     if (interactable != null)
                     {
                         bool replaced = IsReplacedByPlacedItem(interactable, placed);
                         prop.gameObject.SetActive(!replaced);
-                        if (!replaced) RestoreRenderers(prop);
+                        if (!replaced)
+                        {
+                            RestoreRenderers(prop);
+                            FitColliderToDefaultModel(interactable);
+                        }
+                        continue;
+                    }
+
+                    // Dış pencerenin camı: pencere artık Blender modelinde.
+                    if (prop.name.StartsWith("Cam_"))
+                    {
+                        foreach (var renderer in prop.GetComponentsInChildren<Renderer>(true)) renderer.enabled = false;
                         continue;
                     }
 
@@ -1065,6 +1338,42 @@ namespace AftershockIsle.Building
             {
                 var planks = building.transform.Find(PlanksHolderName);
                 if (planks != null) planks.gameObject.SetActive(false);
+            }
+        }
+
+        // Blender binasındaki arka duvar pencerelerinin merkez X'leri (kat → pencereler). Pencere 1.2 x 1.3 m, denizlik 0.95 m.
+        static readonly Dictionary<int, float[]> ModelWindowX = new Dictionary<int, float[]>
+        {
+            { 1, new[] { -6.2f, 0f, 5.7f } },
+            { 2, new[] { -4.75f, 0.3f, 3.2f, 6.2f } },
+            { 3, new[] { -5f, 0f } },
+        };
+
+        /// <summary>
+        /// Gri kutu "Dış Pencere" görünmez olur ve o kattaki en yakın gerçek pencerenin üstüne taşınır;
+        /// pencereyi kırma etkileşimi böylece modeldeki pencereden yapılır.
+        /// </summary>
+        void AlignSmokeWindowToModel(SmokeWindow window, Transform propsRoot)
+        {
+            foreach (var renderer in window.GetComponentsInChildren<Renderer>(true)) renderer.enabled = false;
+
+            var t = window.transform;
+            int floor = Mathf.RoundToInt((building.transform.InverseTransformPoint(t.position).y - 1.6f) / building.FloorHeight);
+            if (!ModelWindowX.TryGetValue(floor, out var xs)) return;
+
+            Vector3 local = building.transform.InverseTransformPoint(t.position);
+            float bestX = xs[0];
+            foreach (float x in xs)
+                if (Mathf.Abs(x - local.x) < Mathf.Abs(bestX - local.x)) bestX = x;
+
+            float backZ = building.Depth * 0.5f;
+            t.position = building.transform.TransformPoint(new Vector3(bestX, floor * building.FloorHeight + 1.6f, backZ - 0.03f));
+
+            if (window.TryGetComponent<BoxCollider>(out var box))
+            {
+                Vector3 s = t.lossyScale;
+                box.center = Vector3.zero;
+                box.size = new Vector3(1.2f / Mathf.Max(0.001f, s.x), 1.3f / Mathf.Max(0.001f, s.y), 0.2f / Mathf.Max(0.001f, s.z));
             }
         }
 
@@ -1164,11 +1473,41 @@ namespace AftershockIsle.Building
                 var bottomTarget = targetBox.transform.position + Vector3.down * (boxScale.y * 0.5f);
                 var modelBottom = new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
                 model.transform.position += bottomTarget - modelBottom;
+
+                // Tıklama ve yürüme engeli eski kutunun değil, görünen modelin sınırı olsun.
+                FitBoxColliderToBounds(targetBox, CalculateBounds(model));
             }
 
             var boxRenderer = targetBox.GetComponent<MeshRenderer>();
             if (boxRenderer != null) boxRenderer.enabled = false;
             return model;
+        }
+
+        /// <summary>Kutuya giydirilmiş varsayılan "Model" çocuğu varsa collider o modelin sınırına oturur.</summary>
+        static void FitColliderToDefaultModel(Interactable interactable)
+        {
+            var model = interactable.transform.Find("Model");
+            if (model == null || !model.gameObject.activeInHierarchy) return;
+            if (model.GetComponentInChildren<Renderer>() == null) return;
+            FitBoxColliderToBounds(interactable.gameObject, CalculateBounds(model.gameObject));
+        }
+
+        /// <summary>Nesnenin BoxCollider'ını dünya sınırına oturtur (nesne dönük/ölçekli olabilir).</summary>
+        static void FitBoxColliderToBounds(GameObject target, Bounds worldBounds)
+        {
+            var box = target.GetComponent<BoxCollider>();
+            if (box == null || worldBounds.size.sqrMagnitude < 0.0001f) return;
+
+            var t = target.transform;
+            var x = t.InverseTransformVector(new Vector3(worldBounds.size.x, 0f, 0f));
+            var y = t.InverseTransformVector(new Vector3(0f, worldBounds.size.y, 0f));
+            var z = t.InverseTransformVector(new Vector3(0f, 0f, worldBounds.size.z));
+            box.center = t.InverseTransformPoint(worldBounds.center);
+            box.size = new Vector3(
+                Mathf.Abs(x.x) + Mathf.Abs(y.x) + Mathf.Abs(z.x),
+                Mathf.Abs(x.y) + Mathf.Abs(y.y) + Mathf.Abs(z.y),
+                Mathf.Abs(x.z) + Mathf.Abs(y.z) + Mathf.Abs(z.z));
+            FloorObstacles.Invalidate();
         }
 
         static void AutoAssignFolderTextures(GameObject sourcePrefab, GameObject instance)

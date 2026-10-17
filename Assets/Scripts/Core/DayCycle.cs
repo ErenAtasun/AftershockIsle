@@ -79,6 +79,13 @@ namespace AftershockIsle.Core
             EventBus.Publish(new DayPhaseChanged(Day, phase));
         }
 
+        /// <summary>Test kısayolu: gün değişmeden doğrudan istenen faza geçer (sayaç baştan başlar).</summary>
+        public void JumpToPhase(DayPhase phase)
+        {
+            if (Day == 0) Day = 1;
+            EnterPhase(phase);
+        }
+
         public void RestoreState(int day, DayPhase phase, float phaseElapsed)
         {
             Day = day;

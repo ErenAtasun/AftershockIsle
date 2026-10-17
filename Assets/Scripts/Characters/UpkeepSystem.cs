@@ -54,21 +54,28 @@ namespace AftershockIsle.Characters
             float medMultiplier = AftershockIsle.Crafting.PlaceableStructure.HasAny(AftershockIsle.Crafting.RecipeId.MedStation) ? 1.5f : 1f;
             float comfortMultiplier = AftershockIsle.Crafting.PlaceableStructure.HasAny(AftershockIsle.Crafting.RecipeId.ComfortCorner) ? 1.4f : 1f;
 
+            bool hasChef = false;
+            foreach (var s in eaters)
+                if (s != null && !s.IsDead && s.HasTrait(TraitId.Chef)) hasChef = true;
+
             foreach (var survivor in eaters)
             {
                 if (survivor.IsDead) continue;
 
-                if (ResourceStorage.Instance.TrySpend(cost))
+                bool chefSavedKit = hasChef && ResourceStorage.Instance.Has(cost) && Random.value < 0.35f;
+                if (chefSavedKit || ResourceStorage.Instance.TrySpend(cost))
                 {
                     survivor.Heal(healWhenFed * medMultiplier);
-                    survivor.Condition.Feed(stressReliefWhenFed * comfortMultiplier);
+                    float extraChefRelief = hasChef ? 5f : 0f;
+                    survivor.Condition.Feed(stressReliefWhenFed * comfortMultiplier + extraChefRelief);
                     fed++;
                     continue;
                 }
 
                 hungry++;
-                if (survivor.Condition.Starve(stressWhenHungry))
-                    survivor.TakeDamage(starvationDamage, "Açlıktan bitkin düştü.");
+                float appetiteMult = survivor.HasTrait(TraitId.BigAppetite) ? 1.4f : 1f;
+                if (survivor.Condition.Starve(stressWhenHungry * appetiteMult))
+                    survivor.TakeDamage(starvationDamage * appetiteMult, "Açlıktan bitkin düştü.");
             }
 
             EventBus.Publish(new UpkeepResolved(fed, hungry));

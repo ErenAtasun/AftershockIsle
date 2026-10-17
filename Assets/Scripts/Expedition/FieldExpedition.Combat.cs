@@ -17,8 +17,8 @@ namespace AftershockIsle.Expedition
         /// <summary>Düşmanın görüp nişan aldığı nokta: köşeden eğiliyorsa kenarın ötesindeki omuz, değilse göğüs.</summary>
         public Vector3 AvatarTarget => leanSide != 0 ? leanPoint : AvatarChest;
 
-        /// <summary>Sakin düşmanın görüş mesafesi çarpanı: çömelik kâşif daha geç fark edilir.</summary>
-        public float StealthFactor => CrouchedLow ? 0.6f : 1f;
+        /// <summary>Sakin düşmanın görüş mesafesi çarpanı: çömelik kâşif ve yoğun sis daha geç fark edilir.</summary>
+        public float StealthFactor => (CrouchedLow ? 0.6f : 1f) * AftershockIsle.Crisis.WeatherSystem.EnemyVisionMultiplier;
 
         /// <summary>Çömelik ve ateş için doğrulmamış: alçak siperin arkasında görünmez.</summary>
         bool CrouchedLow => crouched && riseTimer <= 0f;
@@ -158,19 +158,25 @@ namespace AftershockIsle.Expedition
             if (fireCooldown > 0f || IsDodging || searchTarget != null) return;
 
             var info = CurrentWeapon;
+            bool sharpshooter = explorer != null && explorer.HasTrait(AftershockIsle.Characters.TraitId.Sharpshooter);
 
             // Çömelikken ateş: siperin üstünden atmak için bir an doğrulur (o sürede açıkta).
             if (crouched) riseTimer = RiseSeconds;
 
-            if (info.UsesAmmo && (Workbench.Instance == null || !Workbench.Instance.TryUseAmmo()))
+            if (info.UsesAmmo)
             {
-                Say("Mermi yok! Tezgahta Mermi Paketi üret ya da sapana geç.");
-                fireCooldown = 0.3f;
-                return;
+                bool freeShot = sharpshooter && Workbench.Instance != null && Workbench.Instance.Ammo > 0 && Random.value < 0.25f;
+                if (!freeShot && (Workbench.Instance == null || !Workbench.Instance.TryUseAmmo()))
+                {
+                    Say("Mermi yok! Tezgahta Mermi Paketi üret ya da sapana geç.");
+                    fireCooldown = 0.3f;
+                    return;
+                }
             }
 
             fireCooldown = info.Interval;
             var from = Muzzle;
+            float dmgMultiplier = sharpshooter ? 1.25f : 1f;
 
             // Her saçma ayrı ışın; aynı düşmana değenlerin hasarı toplanıp tek seferde uygulanır (tek sayı, tek geri itme).
             pelletHits.Clear();
@@ -181,7 +187,7 @@ namespace AftershockIsle.Expedition
                 if (enemy == null) continue;
 
                 pelletHits.TryGetValue(enemy, out float total);
-                pelletHits[enemy] = total + info.Damage;
+                pelletHits[enemy] = total + info.Damage * dmgMultiplier;
             }
 
             bool killed = false;

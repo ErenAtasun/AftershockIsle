@@ -1,6 +1,7 @@
 using AftershockIsle.Building;
 using AftershockIsle.Core;
 using AftershockIsle.Crafting;
+using AftershockIsle.Crisis;
 using UnityEngine;
 
 namespace AftershockIsle.Characters
@@ -61,14 +62,22 @@ namespace AftershockIsle.Characters
             bool hasHeater = PlaceableStructure.HasOnFloor(RecipeId.ShelterHeater, floor);
             bool isLit = PowerGrid.IsOn || hasHeater || !indoors;
 
+            if (survivor.HasTrait(TraitId.Claustrophobic) && floor == 0 && tasks.State == TaskState.Working)
+            {
+                AddStress(0.35f * dt);
+            }
+
             if (tasks.State == TaskState.Working && !isLit)
             {
-                AddStress(darkWorkStressPerSecond * dt);
+                float coldFactor = hasHeater ? 1f : WeatherSystem.ColdDarkStressMultiplier;
+                float claustroFactor = survivor.HasTrait(TraitId.Claustrophobic) ? 1.8f : 1f;
+                AddStress(darkWorkStressPerSecond * coldFactor * claustroFactor * dt);
             }
             else if (tasks.State == TaskState.Idle && !mover.IsMoving && isLit)
             {
                 float comfortBonus = PlaceableStructure.HasOnFloor(RecipeId.ComfortCorner, floor) ? 2.5f : 1f;
-                RelieveStress(calmRecoveryPerSecond * comfortBonus * dt);
+                float optimistBonus = survivor.HasTrait(TraitId.Optimist) ? 1.35f : 1f;
+                RelieveStress(calmRecoveryPerSecond * comfortBonus * optimistBonus * dt);
             }
         }
 
@@ -76,6 +85,7 @@ namespace AftershockIsle.Characters
         {
             if (survivor.IsDead || IsPanicking || amount <= 0f) return;
 
+            if (survivor.HasTrait(TraitId.Optimist)) amount *= 0.75f;
             Stress = Mathf.Min(maxStress, Stress + amount);
             if (Stress >= maxStress) StartPanic();
         }

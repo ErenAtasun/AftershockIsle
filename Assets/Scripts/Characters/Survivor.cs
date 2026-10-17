@@ -46,6 +46,7 @@ namespace AftershockIsle.Characters
 
         ResourceAmount carried;
         readonly List<ResourceAmount> bag = new List<ResourceAmount>();
+        readonly List<TraitId> traits = new List<TraitId>();
         MaterialPropertyBlock block;
         float trappedRemaining;
 
@@ -65,6 +66,8 @@ namespace AftershockIsle.Characters
 
         public string DisplayName => displayName;
         public SkillBranch Branch => branch;
+        public IReadOnlyList<TraitId> Traits => traits;
+        public bool HasTrait(TraitId id) => traits.Contains(id);
         public CharacterMover Mover { get; private set; }
         public TaskRunner Tasks { get; private set; }
         public SurvivorCondition Condition { get; private set; }
@@ -78,11 +81,37 @@ namespace AftershockIsle.Characters
         public float TrappedRemaining => trappedRemaining;
         public bool CanAct => !IsDead && !IsTrapped && !Condition.IsPanicking;
 
+        public string TraitsSummary()
+        {
+            if (traits.Count == 0) return "Özellik Yok";
+            var parts = new string[traits.Count];
+            for (int i = 0; i < traits.Count; i++)
+            {
+                var info = TraitCatalog.Get(traits[i]);
+                parts[i] = info.IsPositive ? $"+{info.Name}" : $"-{info.Name}";
+            }
+            return string.Join(", ", parts);
+        }
+
+        public void SetTraits(IEnumerable<TraitId> newTraits)
+        {
+            traits.Clear();
+            if (newTraits != null) traits.AddRange(newTraits);
+            maxHealth = HasTrait(TraitId.Frail) ? 85f : 100f;
+            Health = Mathf.Min(Health, maxHealth);
+        }
+
         void Awake()
         {
             Mover = GetComponent<CharacterMover>();
             Tasks = GetComponent<TaskRunner>();
             Condition = GetComponent<SurvivorCondition>();
+            if (traits.Count == 0)
+            {
+                int seed = (displayName != null ? displayName.GetHashCode() : 0) ^ (int)branch * 397;
+                TraitCatalog.RollBalancedTraits(traits, seed);
+            }
+            maxHealth = HasTrait(TraitId.Frail) ? 85f : 100f;
             Health = maxHealth;
             SetSelected(false);
             RefreshCarry();
@@ -97,6 +126,10 @@ namespace AftershockIsle.Characters
         {
             displayName = newName;
             branch = newBranch;
+            int seed = (displayName != null ? displayName.GetHashCode() : 0) ^ (int)branch * 7919 ^ all.Count * 97;
+            TraitCatalog.RollBalancedTraits(traits, seed);
+            maxHealth = HasTrait(TraitId.Frail) ? 85f : 100f;
+            Health = maxHealth;
             RefreshBodyColor();
         }
 
@@ -104,10 +137,20 @@ namespace AftershockIsle.Characters
         {
             if (IsDead) return;
 
-            // Hız çarpanları: yük × tükenmişlik × yetenek. Her kare hesaplamak durum takibinden ucuz.
-            float carry = IsCarrying && carried.type.IsHeavy() ? heavyCarrySpeed : 1f;
-            Mover.SpeedMultiplier = carry * Condition.SpeedMultiplier * SkillTree.MoveSpeedBonus;
-            Tasks.WorkSpeedMultiplier = Condition.SpeedMultiplier;
+            // Hız çarpanları: yük × tükenmişlik × yetenek × özellikler.
+            bool sprinter = HasTrait(TraitId.Sprinter);
+            float heavyFactor = sprinter ? Mathf.Max(heavyCarrySpeed, 0.88f) : heavyCarrySpeed;
+            float carry = IsCarrying && carried.type.IsHeavy() ? heavyFactor : 1f;
+            float traitMoveBonus = sprinter ? 1.2f : 1f;
+            Mover.SpeedMultiplier = carry * Condition.SpeedMultiplier * SkillTree.MoveSpeedBonus * traitMoveBonus;
+
+            float pyrophobicFactor = 1f;
+            if (HasTrait(TraitId.Pyrophobic))
+            {
+                var fire = AftershockIsle.Crisis.FireSpot.ForFloor(Mover.CurrentFloor);
+                if (fire != null && fire.IsBurning) pyrophobicFactor = 0.8f;
+            }
+            Tasks.WorkSpeedMultiplier = Condition.SpeedMultiplier * pyrophobicFactor;
 
             if (!IsTrapped) return;
             trappedRemaining = Mathf.Max(0f, trappedRemaining - Time.deltaTime);
@@ -137,6 +180,7 @@ namespace AftershockIsle.Characters
         {
             if (IsDead) return;
 
+            if (HasTrait(TraitId.Miner)) duration *= 0.5f;
             trappedRemaining = Mathf.Max(trappedRemaining, duration);
             Mover.Halt();
             Mover.Frozen = true;

@@ -198,7 +198,8 @@ namespace AftershockIsle.Characters
             toTarget.y = 0f;
             mover.FaceDirection(toTarget.sqrMagnitude > 0.09f ? toTarget : Vector3.forward);
 
-            progress += Time.deltaTime * WorkSpeedMultiplier * SkillTree.WorkSpeedBonus(Current.Category);
+            float traitSpeed = TraitCatalog.GetWorkSpeedMultiplier(survivor, Current.Category);
+            progress += Time.deltaTime * WorkSpeedMultiplier * SkillTree.WorkSpeedBonus(Current.Category) * traitSpeed;
             if (progress < Current.WorkDuration) return;
 
             var done = Current;

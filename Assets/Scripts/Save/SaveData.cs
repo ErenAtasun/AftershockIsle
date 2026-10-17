@@ -31,6 +31,10 @@ namespace AftershockIsle.Save
         public List<RubbleSaveData> rubbles = new List<RubbleSaveData>();
         public List<SurvivorSaveData> survivors = new List<SurvivorSaveData>();
         public List<PlacedStructureSaveData> placedStructures = new List<PlacedStructureSaveData>();
+
+        public int currentWeather;
+        public List<int> triggeredNarrativeDays = new List<int>();
+        public int motherGiftDueDay = -1;
     }
 
     [Serializable]
@@ -213,5 +217,6 @@ namespace AftershockIsle.Save
         public float stress;
         public int hunger;
         public float panicRemaining;
+        public List<int> traitIds;
     }
 }

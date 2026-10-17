@@ -459,6 +459,9 @@ namespace AftershockIsle.Save
                 foreach (var b in s.Bag)
                     bagList.Add(new ResourceItemSaveData { type = (int)b.type, amount = b.amount });
 
+                var traitList = new List<int>();
+                foreach (var t in s.Traits) traitList.Add((int)t);
+
                 data.survivors.Add(new SurvivorSaveData
                 {
                     displayName = s.DisplayName,
@@ -477,7 +480,16 @@ namespace AftershockIsle.Save
                     stress = s.Condition != null ? s.Condition.Stress : 0f,
                     hunger = s.Condition != null ? s.Condition.Hunger : 0,
                     panicRemaining = s.Condition != null ? s.Condition.PanicRemaining : 0f,
+                    traitIds = traitList,
                 });
+            }
+
+            // 20. Weather & Narrative
+            data.currentWeather = (int)WeatherSystem.Current;
+            if (NarrativeEventSystem.Instance != null)
+            {
+                data.triggeredNarrativeDays = new List<int>(NarrativeEventSystem.Instance.GetTriggeredDays());
+                data.motherGiftDueDay = NarrativeEventSystem.Instance.MotherGiftDueDay;
             }
 
             return data;
@@ -714,11 +726,28 @@ namespace AftershockIsle.Save
                         if (sData.bag != null)
                             foreach (var b in sData.bag) bag.Add(new ResourceAmount((ResourceType)b.type, b.amount));
 
+                        if (sData.traitIds != null && sData.traitIds.Count > 0)
+                        {
+                            var traits = new List<TraitId>();
+                            foreach (var t in sData.traitIds) traits.Add((TraitId)t);
+                            match.SetTraits(traits);
+                        }
+
                         match.RestoreState(sData.health, sData.isDead, carried, sData.isCarrying, sData.trappedRemaining, bag, sData.position);
                         if (match.Condition != null)
                             match.Condition.RestoreState(sData.stress, sData.hunger, sData.panicRemaining);
                     }
                 }
+            }
+
+            // 20. Weather & Narrative
+            if (WeatherSystem.Instance != null)
+            {
+                WeatherSystem.Instance.SetWeather((WeatherType)data.currentWeather);
+            }
+            if (NarrativeEventSystem.Instance != null)
+            {
+                NarrativeEventSystem.Instance.RestoreState(data.triggeredNarrativeDays, data.motherGiftDueDay);
             }
         }
     }

@@ -73,7 +73,17 @@ namespace AftershockIsle.UI
             EventBus.Subscribe<SaveCompleted>(OnSaveCompleted);
             EventBus.Subscribe<GameLoaded>(OnGameLoaded);
             EventBus.Subscribe<StructurePlaced>(OnStructurePlaced);
+            EventBus.Subscribe<WeatherChanged>(OnWeatherChanged);
+            EventBus.Subscribe<NarrativeNotice>(OnNarrativeNotice);
         }
+
+        void OnWeatherChanged(WeatherChanged evt)
+        {
+            if (evt.Weather != WeatherType.Clear)
+                ShowNotice($"Hava Durumu: {WeatherSystem.ToDisplayName(evt.Weather)} — {WeatherSystem.ToEffectSummary(evt.Weather)}", 5f);
+        }
+
+        void OnNarrativeNotice(NarrativeNotice evt) => ShowNotice(evt.Message, 6f);
 
         void OnStructurePlaced(StructurePlaced evt)
         {
@@ -161,6 +171,8 @@ namespace AftershockIsle.UI
             EventBus.Unsubscribe<SaveCompleted>(OnSaveCompleted);
             EventBus.Unsubscribe<GameLoaded>(OnGameLoaded);
             EventBus.Unsubscribe<StructurePlaced>(OnStructurePlaced);
+            EventBus.Unsubscribe<WeatherChanged>(OnWeatherChanged);
+            EventBus.Unsubscribe<NarrativeNotice>(OnNarrativeNotice);
         }
 
         // Paneller alanlarını OnGUI'de yeniden bildirir; LateUpdate OnGUI'den önce çalışır.
@@ -224,10 +236,10 @@ namespace AftershockIsle.UI
 
         void DrawInfoPanel()
         {
-            var rect = new Rect(12, 12, 400, 355);
+            var rect = new Rect(12, 12, 415, 410);
             UIBlocker.Add(rect);
             GUILayout.BeginArea(rect, GUI.skin.box);
-            GUILayout.Label($"Gün {dayCycle.Day} — {dayCycle.Phase.ToDisplayName()} ({Mathf.CeilToInt(dayCycle.PhaseRemaining)} sn)");
+            GUILayout.Label($"Gün {dayCycle.Day} — {dayCycle.Phase.ToDisplayName()} ({Mathf.CeilToInt(dayCycle.PhaseRemaining)} sn)   Hava: {WeatherSystem.ToDisplayName(WeatherSystem.Current)}");
             GUILayout.Label($"Hız: {SpeedLabel(timeManager.Speed)}   Nüfus: {Survivor.AliveCount + ExpeditionSystem.AwayCount}");
 
             var away = ExpeditionSystem.AwayExplorer;
@@ -243,6 +255,7 @@ namespace AftershockIsle.UI
             {
                 var condition = selected.Condition;
                 GUILayout.Label($"Seçili: {selected.DisplayName} [{selected.Branch.ToDisplayName()}] ({building.GetFloorName(selected.Mover.CurrentFloor)})");
+                GUILayout.Label($"Özellikler: {selected.TraitsSummary()}");
                 GUILayout.Label($"HP {selected.Health:0}/{selected.MaxHealth:0}   Stres %{condition.Stress:0}   Açlık {condition.Hunger}/{SurvivorCondition.MaxHunger}{(condition.IsExhausted ? "  (Tükenmiş)" : "")}");
                 GUILayout.Label($"Görev: {TaskLabel(selected.Tasks)}");
                 string bag = selected.HasBag ? $"   Çanta: {LootText(selected.ExpeditionBag)}" : "";
@@ -263,6 +276,21 @@ namespace AftershockIsle.UI
                 if (PlacementController.Instance != null)
                     PlacementController.Instance.ToggleBuildMode();
             }
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("🚪 Kapı Olayı Test", GUILayout.Height(22)))
+            {
+                if (NarrativeEventSystem.Instance != null)
+                    NarrativeEventSystem.Instance.TriggerNextDoorEncounter();
+            }
+            if (GUILayout.Button("🌦 Hava Değiştir", GUILayout.Height(22)))
+            {
+                if (WeatherSystem.Instance != null)
+                {
+                    var next = (WeatherType)(((int)WeatherSystem.Current + 1) % 5);
+                    WeatherSystem.Instance.SetWeather(next);
+                }
+            }
+            GUILayout.EndHorizontal();
             GUILayout.EndArea();
         }
 

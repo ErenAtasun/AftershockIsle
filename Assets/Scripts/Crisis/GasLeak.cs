@@ -128,7 +128,7 @@ namespace AftershockIsle.Crisis
 
             Concentration += (IsLeaking ? leakPerSecond : -decayPerSecond) * dt;
             var window = SmokeWindow.ForFloor(Floor);
-            if (window != null && window.IsBroken) Concentration -= ventPerSecond * dt;
+            if (window != null && window.IsBroken) Concentration -= ventPerSecond * WeatherSystem.SmokeVentMultiplier * dt;
             Concentration = Mathf.Clamp(Concentration, 0f, 100f);
 
             if (IsBlockingHere) AffectSurvivors(dt);

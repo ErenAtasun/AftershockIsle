@@ -225,6 +225,12 @@ namespace AftershockIsle.Crisis
                 Smoke += smokePerSecondAtFull * suppressorFactor * (Intensity / 100f) * dt;
                 StructuralIntegrity.Instance.SetDrain(this, integrityDrainPerSecond * Intensity / 100f, DamageSource.Fire);
 
+                foreach (var s in Survivor.All)
+                {
+                    if (s != null && !s.IsDead && s.Mover.CurrentFloor == Floor && s.HasTrait(TraitId.Pyrophobic))
+                        s.Condition.AddStress(1.2f * dt);
+                }
+
                 fullBurnTimer = IsAtFullBurn ? fullBurnTimer + dt : 0f;
                 if (fullBurnTimer >= collapseAfterFullBurn) CollapseCeiling();
             }
@@ -234,7 +240,7 @@ namespace AftershockIsle.Crisis
             }
 
             var window = SmokeWindow.ForFloor(Floor);
-            if (window != null && window.IsBroken) Smoke -= ventPerSecond * dt;
+            if (window != null && window.IsBroken) Smoke -= ventPerSecond * WeatherSystem.SmokeVentMultiplier * dt;
             Smoke = Mathf.Clamp(Smoke, 0f, 100f);
 
             if (IsSmokeBlockedHere) AffectSurvivorsInSmoke(dt);
@@ -250,10 +256,11 @@ namespace AftershockIsle.Crisis
             {
                 if (survivor.IsDead || survivor.Mover.CurrentFloor != Floor || survivor.Mover.IsClimbing) continue;
 
-                survivor.TakeDamage(smokeDamagePerSecond * maskFactor * dt, "Dumandan zehirlendi.");
-                survivor.Condition.AddStress(smokeStressPerSecond * maskFactor * dt);
+                float traitFactor = survivor.HasTrait(TraitId.Firefighter) ? 0.5f : 1f;
+                survivor.TakeDamage(smokeDamagePerSecond * maskFactor * traitFactor * dt, "Dumandan zehirlendi.");
+                survivor.Condition.AddStress(smokeStressPerSecond * maskFactor * traitFactor * dt);
 
-                if (hasGasMask) continue;
+                if (hasGasMask || survivor.HasTrait(TraitId.Firefighter)) continue;
 
                 // Pencere kıran kalır; geçen (yürüyen) dokunulmaz; duran/çalışan öksürerek kaçar.
                 if (!survivor.CanAct || survivor.Mover.IsMoving || survivor.Tasks.Current is SmokeWindow) continue;

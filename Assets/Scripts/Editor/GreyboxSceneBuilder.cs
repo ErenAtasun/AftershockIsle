@@ -138,6 +138,8 @@ namespace AftershockIsle.EditorTools
             systems.AddComponent<SaveManager>();
             systems.AddComponent<ShelterGrid>();
             systems.AddComponent<PlacementController>();
+            systems.AddComponent<WeatherSystem>();
+            systems.AddComponent<NarrativeEventSystem>();
 
             var survivorPrefab = CreateSurvivorPrefab(palette);
             SetRef(systems.AddComponent<SurvivorRoster>(), "survivorPrefab", survivorPrefab.GetComponent<Survivor>());

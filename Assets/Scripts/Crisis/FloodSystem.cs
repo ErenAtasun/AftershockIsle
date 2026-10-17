@@ -65,6 +65,7 @@ namespace AftershockIsle.Crisis
         {
             Instance = this;
             building = FindFirstObjectByType<BuildingLayout>();
+            if (pipe == null) pipe = FindFirstObjectByType<BurstPipe>();
             if (waterVisual != null) waterRenderer = waterVisual.GetComponent<Renderer>();
             RefreshVisual();
         }

@@ -7,7 +7,7 @@ using UnityEngine.Rendering;
 
 namespace AftershockIsle.EditorTools
 {
-    public enum ModelKey { Chair, Pipe, Bucket, Dresser, Crate, Table, Rubble, Bed, Extinguisher }
+    public enum ModelKey { Chair, Pipe, Bucket, Dresser, Crate, Table, Rubble, Bed, Extinguisher, Workbench, Planks }
 
     public enum SkinFit
     {
@@ -183,6 +183,8 @@ namespace AftershockIsle.EditorTools
             ModelKey.Table => path.Contains("/masa/"),
             ModelKey.Rubble => path.Contains("/moloz/"),
             ModelKey.Bed => path.Contains("/yatak/"),
+            ModelKey.Workbench => path.Contains("/workbench/") && path.EndsWith("bencht.fbx"),
+            ModelKey.Planks => path.Contains("/tahtalar/") && path.EndsWith("tahtalar.fbx"),
             _ => path.EndsWith("ntup.fbx"), // yangın tüpü: klasör adındaki Türkçe karakter bozuk görünebiliyor
         };
 
@@ -204,10 +206,21 @@ namespace AftershockIsle.EditorTools
                     materialName = "ModelRust"; texturePath = FindTexture("tex_rust.png"); break;
                 case ModelKey.Extinguisher:
                     materialName = "ModelExtinguisher"; texturePath = FindTexture("ntup_Doku.png"); break;
+                case ModelKey.Planks:
+                    materialName = "ModelPlanks"; texturePath = FindTexture("plank_diffuse.png"); break;
+                case ModelKey.Workbench:
+                    materialName = "ModelBench_wood"; texturePath = FindTexture("/workbench/tex_wood.png"); break;
                 default:
                     materialName = "ModelAtlasA"; texturePath = FindTexture("/modeller/sandalye/sandalye_Doku.png"); break;
             }
 
+            var material = CreateOrUpdateMaterial(materialName, texturePath);
+            materials[key] = material;
+            return material;
+        }
+
+        static Material CreateOrUpdateMaterial(string materialName, string texturePath)
+        {
             EnsureMaterialFolder();
             string path = $"{MaterialFolder}/{materialName}.mat";
             var material = AssetDatabase.LoadAssetAtPath<Material>(path);
@@ -228,18 +241,42 @@ namespace AftershockIsle.EditorTools
             if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", Color.white);
             if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", 0.15f);
             EditorUtility.SetDirty(material);
-
-            materials[key] = material;
             return material;
         }
 
         static void ApplyMaterial(GameObject model, ModelKey key)
         {
+            if (key == ModelKey.Workbench)
+            {
+                ApplyWorkbenchMaterials(model);
+                return;
+            }
+
             var material = MaterialFor(key);
             foreach (var renderer in model.GetComponentsInChildren<Renderer>())
             {
                 var slots = new Material[renderer.sharedMaterials.Length];
                 for (int i = 0; i < slots.Length; i++) slots[i] = material;
+                renderer.sharedMaterials = slots;
+            }
+        }
+
+        static void ApplyWorkbenchMaterials(GameObject model)
+        {
+            foreach (var renderer in model.GetComponentsInChildren<Renderer>())
+            {
+                var shared = renderer.sharedMaterials;
+                var slots = new Material[shared.Length];
+                for (int i = 0; i < shared.Length; i++)
+                {
+                    string rawName = shared[i] != null ? shared[i].name.ToLowerInvariant() : "wood";
+                    string suffix = rawName.Replace("mat_", "");
+                    int dot = suffix.IndexOf('.');
+                    if (dot > 0) suffix = suffix.Substring(0, dot);
+
+                    string texPath = FindTexture($"/workbench/tex_{suffix}.png") ?? FindTexture("/workbench/tex_wood.png");
+                    slots[i] = CreateOrUpdateMaterial($"ModelBench_{suffix}", texPath);
+                }
                 renderer.sharedMaterials = slots;
             }
         }

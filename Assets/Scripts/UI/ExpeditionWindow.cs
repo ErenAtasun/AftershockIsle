@@ -139,7 +139,7 @@ namespace AftershockIsle.UI
             if (shown == null)
             {
                 GUILayout.Label("Bir lokasyon seç. Oyun bu ekranda duraklatıldı.", wrapStyle);
-                GUILayout.Label($"Sefer çantası: {expeditions.BagSlots} slot. Sahada kâşifi sen yönetirsin; sığınak o sırada çalışmaya devam eder.", wrapStyle);
+                GUILayout.Label($"Sefer çantası: {expeditions.BagSlots} slot (yoldaşla +1). Sahada kâşifi sen yönetirsin; yoldaş seni takip edip ateş eder ama o gün sığınakta çalışamaz. Sığınak çalışmaya devam eder.", wrapStyle);
             }
             else
             {
@@ -152,6 +152,13 @@ namespace AftershockIsle.UI
                 () => expeditions.Depart(selectedSite), selectedSite != null && !InGracePeriod);
             nav.Button(new Rect(mapRect.width - 112, mapRect.height - 32, 100, 24),
                 new GUIContent($"Vazgeç ({GameInput.Prompt(InputPrompt.Back)})"), expeditions.CancelMap, !InGracePeriod);
+
+            var partner = expeditions.Companion;
+            bool anyone = expeditions.CompanionCandidates().Count > 0;
+            string partnerText = partner != null ? $"Yoldaş: {partner.DisplayName} ({partner.Health:0} HP)"
+                : anyone ? "Yoldaş: yok (seç)" : "Yoldaş: uygun kimse yok";
+            nav.Button(new Rect(10, mapRect.height - 32, 260, 24), new GUIContent(partnerText),
+                expeditions.CycleCompanion, anyone && !InGracePeriod);
 
             nav.EndDraw();
         }

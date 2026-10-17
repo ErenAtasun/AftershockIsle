@@ -78,7 +78,8 @@ namespace AftershockIsle.Skills
 
             // Seferdeki kâşif sahnede pasiftir ama hâlâ takımdadır.
             var away = ExpeditionSystem.AwayExplorer;
-            return away != null && away.Branch == branch;
+            var awayCompanion = ExpeditionSystem.AwayCompanion;
+            return (away != null && away.Branch == branch) || (awayCompanion != null && awayCompanion.Branch == branch);
         }
 
         public bool CanUnlock(SkillId id, out string reason)

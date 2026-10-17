@@ -30,7 +30,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.3, y: 0.6, z: 1.2}
+  m_LocalScale: {x: 1.4, y: 0.9, z: 1.6}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 4743001728914481127}
@@ -126,13 +126,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3dbe7c33db2c5904d9f5cf7756f6b5c0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AftershockIsle.Interaction.RubblePile
-  displayName: Enkaz
+  displayName: "Tavan Enkaz\u0131"
   workDuration: 4
-  digCount: 2
+  digCount: 3
   yieldPerDig:
     type: 0
     amount: 1
-  blocksPath: 0
+  blocksPath: 1
 --- !u!1 &2352935278706111122
 GameObject:
   m_ObjectHideFlags: 0
@@ -160,7 +160,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.7692308, y: 1.6666666, z: 0.8333333}
+  m_LocalScale: {x: 0.71428573, y: 1.1111112, z: 0.625}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2955371116570990713}
@@ -185,8 +185,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1.3, y: 0.6, z: 1.2}
-  m_Center: {x: 2.3283067e-10, y: -0.00000000372529, z: -0.00000000745058}
+  m_Size: {x: 1.4, y: 0.9, z: 1.6}
+  m_Center: {x: -9.313224e-10, y: -0.000000007450581, z: 0}
 --- !u!1001 &3353263221436104594
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -197,27 +197,27 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: 6f9bc0df6c6aa1449943de491f6361a4, type: 3}
       propertyPath: m_LocalScale.x
-      value: 2.4895012
+      value: 2.6810012
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 6f9bc0df6c6aa1449943de491f6361a4, type: 3}
       propertyPath: m_LocalScale.y
-      value: 1.3406193
+      value: 2.0109289
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 6f9bc0df6c6aa1449943de491f6361a4, type: 3}
       propertyPath: m_LocalScale.z
-      value: 2.3347328
+      value: 3.112977
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 6f9bc0df6c6aa1449943de491f6361a4, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0.0036799689
+      value: 0.003963042
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 6f9bc0df6c6aa1449943de491f6361a4, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -0.022696018
+      value: -0.034044027
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 6f9bc0df6c6aa1449943de491f6361a4, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0.11745772
+      value: 0.15661031
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 6f9bc0df6c6aa1449943de491f6361a4, type: 3}
       propertyPath: m_LocalRotation.w

@@ -42,10 +42,13 @@ namespace AftershockIsle.UI
         bool welcomed;
 
         // Hoş geldin ipucu ilk sırada olsun: oyun başında otomatik seçim de bir ipucu tetikler.
-        void Awake() =>
+        void Awake()
+        {
+            if (GetComponent<FirstDayGuide>() == null) gameObject.AddComponent<FirstDayGuide>();
             Show("welcome", "Aftershock: Isle",
                     "Binayı ayakta tut, kazazedeleri hayatta tut, çatıdan helikopterle tahliye ol. Tab / LB-RB ile karakter seç, WASD / sol çubukla yürüt, " +
                     "F / A ile yanındaki işi yaptır (moloz kaz, kolon destekle). Space / Y zamanı durdurur. H / D-pad sol: kontrol rehberi. Fare de çalışır.");
+        }
 
         void OnEnable()
         {

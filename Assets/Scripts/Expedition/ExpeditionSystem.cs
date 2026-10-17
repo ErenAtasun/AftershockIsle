@@ -45,6 +45,7 @@ namespace AftershockIsle.Expedition
     /// Dış sefer akışı: kapıda harita açılır (oyun durur) → lokasyon seçilir, kâşif binadan çıkar →
     /// oynanabilir dış sahaya geçilir (FieldExpedition: arama, dövüş, kurtarma) → kâşif çıkıştan dönüp
     /// çantayı sandığa götürür. Sefere günde bir kez, yalnızca öğle fazında çıkılır; sığınak sahadayken de işler.
+    /// İstenirse haritada bir yoldaş seçilir: o da sahaya gider (ateş eder, çantaya +1 slot), kâşifle birlikte döner.
     /// </summary>
     public class ExpeditionSystem : MonoBehaviour
     {
@@ -77,6 +78,8 @@ namespace AftershockIsle.Expedition
         public IReadOnlyList<ExpeditionSite> Sites => sites;
         public ExpeditionStage Stage { get; private set; }
         public Survivor Explorer { get; private set; }
+        /// <summary>Haritada seçilen ya da seferdeki yoldaş (yoksa null).</summary>
+        public Survivor Companion { get; private set; }
         public ExpeditionSite CurrentSite { get; private set; }
         public float Remaining => field != null ? field.Remaining : 0f;
         public bool IsRescuing => field != null && field.RescueSecured;
@@ -84,7 +87,12 @@ namespace AftershockIsle.Expedition
         public int BagSlots => baseBagSlots + (SkillTree.Has(SkillId.WideBag) ? 1 : 0);
 
         /// <summary>Binanın dışında olan (sahnede pasif) kazazede sayısı.</summary>
-        public static int AwayCount => AwayExplorer != null ? 1 : 0;
+        public static int AwayCount => (AwayExplorer != null ? 1 : 0) + (AwayCompanion != null ? 1 : 0);
+
+        /// <summary>Seferdeki yoldaş (Survivor.All'da görünmez); ölürse null.</summary>
+        public static Survivor AwayCompanion =>
+            Instance != null && Instance.Stage == ExpeditionStage.Away && Instance.Companion != null && !Instance.Companion.IsDead
+                ? Instance.Companion : null;
 
         /// <summary>Şu an binanın dışında olan kâşif (Survivor.All'da görünmez).</summary>
         public static Survivor AwayExplorer =>
@@ -139,6 +147,7 @@ namespace AftershockIsle.Expedition
 
             Stage = ExpeditionStage.ChoosingSite;
             Explorer = explorer;
+            Companion = null;
             timeManager.SetSpeed(TimeSpeed.Paused);
             Debug.Log($"[Sefer] Harita açıldı: {explorer.DisplayName}");
         }
@@ -148,6 +157,25 @@ namespace AftershockIsle.Expedition
             if (Stage != ExpeditionStage.ChoosingSite) return;
             Stage = ExpeditionStage.None;
             Explorer = null;
+            Companion = null;
+        }
+
+        /// <summary>Yoldaş adaylarını sırayla döner: yok → birinci → ikinci → ... → yok.</summary>
+        public void CycleCompanion()
+        {
+            if (Stage != ExpeditionStage.ChoosingSite) return;
+
+            var candidates = CompanionCandidates();
+            int index = Companion != null ? candidates.IndexOf(Companion) : -1;
+            Companion = index + 1 < candidates.Count ? candidates[index + 1] : null;
+        }
+
+        public List<Survivor> CompanionCandidates()
+        {
+            var result = new List<Survivor>();
+            foreach (var survivor in Survivor.All)
+                if (survivor != Explorer && !survivor.IsDead && !survivor.IsTrapped && survivor.isActiveAndEnabled) result.Add(survivor);
+            return result;
         }
 
         public void Depart(ExpeditionSite site)
@@ -157,11 +185,19 @@ namespace AftershockIsle.Expedition
             CurrentSite = site;
             lastExpeditionDay = dayCycle.Day;
 
+            if (Companion != null && (Companion.IsDead || Companion.IsTrapped || !Companion.isActiveAndEnabled)) Companion = null;
+
             Explorer.Tasks.CancelAll();
+            if (Companion != null)
+            {
+                Companion.Tasks.CancelAll();
+                StartCoroutine(WalkThroughDoor(Companion, building.MaxX, OutsideX));
+            }
             Stage = ExpeditionStage.Departing;
             timeManager.SetSpeed(TimeSpeed.Normal);
             EventBus.Publish(new ExpeditionStarted(Explorer, site));
-            Debug.Log($"[Sefer] {Explorer.DisplayName} → {site.name} (saha süresi {site.duration:0} sn)");
+            Debug.Log($"[Sefer] {Explorer.DisplayName} → {site.name} (saha süresi {site.duration:0} sn" +
+                      (Companion != null ? $", yoldaş {Companion.DisplayName}" : "") + ")");
             TransitSurvivor = Explorer;
             StartCoroutine(DepartRoutine(Explorer));
         }
@@ -171,8 +207,10 @@ namespace AftershockIsle.Expedition
         {
             yield return WalkThroughDoor(explorer, building.MaxX, OutsideX);
             explorer.gameObject.SetActive(false);
+            if (Companion != null) Companion.gameObject.SetActive(false);
             Stage = ExpeditionStage.Away;
-            field.Begin(explorer, CurrentSite, building, BagSlots, ExtractionTime, RescueVictimAvailable, dayCycle.Day, fieldArt);
+            field.Begin(explorer, CurrentSite, building, BagSlots + (Companion != null ? 1 : 0), ExtractionTime,
+                        RescueVictimAvailable, dayCycle.Day, fieldArt, Companion);
         }
 
         IEnumerator ReturnRoutine(Survivor explorer, IReadOnlyList<ResourceAmount> loot, string hazardReport, bool rescuing)
@@ -196,6 +234,18 @@ namespace AftershockIsle.Expedition
             if (!explorer.IsDead && StorageChest.Main != null) explorer.Tasks.Assign(StorageChest.Main, false);
 
             EventBus.Publish(new ExpeditionReturned(explorer, new List<ResourceAmount>(loot), hazardReport, rescued));
+        }
+
+        // Sağ kalan yoldaş kapıdan içeri girer (ölen sahada kalır).
+        void BringCompanionHome()
+        {
+            var partner = Companion;
+            Companion = null;
+            if (partner == null || partner.IsDead) return;
+
+            partner.transform.position = building.Point(DoorFloor, OutsideX);
+            partner.gameObject.SetActive(true);
+            StartCoroutine(WalkThroughDoor(partner, OutsideX, building.MaxX));
         }
 
         IEnumerator WalkThroughDoor(Survivor explorer, float fromX, float toX)
@@ -226,6 +276,7 @@ namespace AftershockIsle.Expedition
             {
                 Debug.Log($"[Sefer] {explorer.DisplayName} sahada öldü.");
                 field.End();
+                BringCompanionHome();
                 Stage = ExpeditionStage.None;
                 Explorer = null;
                 CurrentSite = null;
@@ -250,6 +301,7 @@ namespace AftershockIsle.Expedition
             var loot = new List<ResourceAmount>(field.Bag);
             bool rescuing = field.RescueSecured;
             field.End();
+            BringCompanionHome();
 
             Stage = ExpeditionStage.Returning;
             Explorer = null;

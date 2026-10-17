@@ -48,6 +48,8 @@ namespace AftershockIsle.Characters
             var eaters = new System.Collections.Generic.List<Survivor>(Survivor.All);
             var away = ExpeditionSystem.AwayExplorer;
             if (away != null) eaters.Add(away);
+            var awayCompanion = ExpeditionSystem.AwayCompanion;
+            if (awayCompanion != null) eaters.Add(awayCompanion);
 
             foreach (var survivor in eaters)
             {

@@ -13,5 +13,5 @@ MonoBehaviour:
   m_Name: DayCycleConfig
   m_EditorClassIdentifier: Assembly-CSharp::AftershockIsle.Core.DayCycleConfig
   morningDuration: 90
-  noonDuration: 60
+  noonDuration: 105
   nightDuration: 45

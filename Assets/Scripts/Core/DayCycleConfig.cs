@@ -9,7 +9,7 @@ namespace AftershockIsle.Core
         [Min(1f)] public float morningDuration = 90f;
 
         [Tooltip("Öğle: dış sefer / keşif (sn)")]
-        [Min(1f)] public float noonDuration = 60f;
+        [Min(1f)] public float noonDuration = 105f;
 
         [Tooltip("Gece: afet baskısı ve tüketim (sn)")]
         [Min(1f)] public float nightDuration = 45f;

@@ -419,7 +419,9 @@ namespace AftershockIsle.Expedition
             }
 
             float distance = Flat(field.AvatarFeet - root.position).magnitude;
-            if (distance <= reach + 0.3f && field.HasLineOfSight(Eye, field.AvatarChest))
+            if (field.CompanionCloserThanAvatar(root.position, reach + 0.3f))
+                field.DamageCompanion(damage, $"Seferde {Label} tarafından öldürüldü.");
+            else if (distance <= reach + 0.3f && field.HasLineOfSight(Eye, field.AvatarChest))
                 field.DamageAvatar(damage, $"Seferde {Label} tarafından öldürüldü.");
         }
 

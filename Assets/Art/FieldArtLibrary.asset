@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9833a2b21deb41b48adde618f0e0be28, type: 3}
+  m_Name: FieldArtLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::AftershockIsle.Expedition.FieldArtLibrary
+  entries:
+  - key: 0
+    prefab: {fileID: 919132149155446097, guid: 4cde4a6ab977a6e48a98ef6791e3bc3e, type: 3}
+    material: {fileID: 2100000, guid: 2e27fd4eaa465ff438f23865b1725376, type: 2}
+  - key: 1
+    prefab: {fileID: 919132149155446097, guid: e8212d57e4c5e7e418756131fab02a3d, type: 3}
+    material: {fileID: 2100000, guid: 2e27fd4eaa465ff438f23865b1725376, type: 2}
+  - key: 2
+    prefab: {fileID: 919132149155446097, guid: 596b6d2bdb9afd548bdff29be4af419f, type: 3}
+    material: {fileID: 2100000, guid: eb0131cf591868f45b7739371556f6c8, type: 2}
+  - key: 3
+    prefab: {fileID: 919132149155446097, guid: e5488f7dcf8c8424aab9519827ec9546, type: 3}
+    material: {fileID: 2100000, guid: 2e27fd4eaa465ff438f23865b1725376, type: 2}
+  - key: 4
+    prefab: {fileID: 919132149155446097, guid: bba9202f41b69d94fae1669a98ca0708, type: 3}
+    material: {fileID: 2100000, guid: eb0131cf591868f45b7739371556f6c8, type: 2}
+  - key: 5
+    prefab: {fileID: 919132149155446097, guid: 6f9bc0df6c6aa1449943de491f6361a4, type: 3}
+    material: {fileID: 2100000, guid: eb0131cf591868f45b7739371556f6c8, type: 2}
+  - key: 6
+    prefab: {fileID: 919132149155446097, guid: 2c0751cd6f7252940a05ca4a95f3bac1, type: 3}
+    material: {fileID: 2100000, guid: eb0131cf591868f45b7739371556f6c8, type: 2}
+  - key: 7
+    prefab: {fileID: 919132149155446097, guid: 39eeba4fa2556574f93ecf465adfd501, type: 3}
+    material: {fileID: 2100000, guid: 1f7a5e88d2e7deb4a93e4d0ac42b9f73, type: 2}

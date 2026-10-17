@@ -24,6 +24,10 @@ MonoBehaviour:
     type: 1
   - day: 4
     phase: 0
+    atSecond: 15
+    type: 3
+  - day: 4
+    phase: 0
     atSecond: 45
     type: 0
   - day: 4
@@ -50,6 +54,10 @@ MonoBehaviour:
     phase: 2
     atSecond: 10
     type: 0
+  - day: 7
+    phase: 0
+    atSecond: 20
+    type: 3
   - day: 7
     phase: 0
     atSecond: 40

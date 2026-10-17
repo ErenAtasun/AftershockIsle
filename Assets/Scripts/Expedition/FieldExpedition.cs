@@ -90,6 +90,8 @@ namespace AftershockIsle.Expedition
         readonly List<Tracer> tracers = new List<Tracer>();
         readonly List<Vector3> coverPoints = new List<Vector3>();
         readonly List<Vector2> navCorners = new List<Vector2>();
+        FieldCompanion companion;
+        Survivor partner;
         NavGrid nav;
         readonly HashSet<int> claimedCover = new HashSet<int>();
         readonly List<ResourceAmount> bag = new List<ResourceAmount>();
@@ -176,9 +178,11 @@ namespace AftershockIsle.Expedition
         // ---------------------------------------------------------------- Kurulum / bitiş
 
         public void Begin(Survivor who, ExpeditionSite expeditionSite, BuildingLayout building, int slots, float extraction,
-                          bool canRescue, int day, FieldArtLibrary artLibrary)
+                          bool canRescue, int day, FieldArtLibrary artLibrary, Survivor companionSurvivor = null)
         {
             art = artLibrary;
+            partner = companionSurvivor;
+            companion = null;
             explorer = who;
             site = expeditionSite;
             bagSlots = slots;
@@ -234,6 +238,8 @@ namespace AftershockIsle.Expedition
             SideViewCamera.SetFieldFocus(null);
             if (root != null) Destroy(root);
             root = null;
+            companion = null;
+            partner = null;
             explorer = null;
             Outcome = FieldOutcome.Idle;
         }
@@ -279,6 +285,7 @@ namespace AftershockIsle.Expedition
             BuildNavGrid();
             BuildEnemies(length);
             BuildAvatar(midZ);
+            BuildCompanion();
         }
 
         // Görünmez sınırlar: ön kaldırım, arka harabeler ve çıkışın gerisi.
@@ -586,6 +593,36 @@ namespace AftershockIsle.Expedition
             nose.localScale = new Vector3(0.3f, 0.2f, 0.5f);
         }
 
+        // Yoldaş kâşifin hemen arkasında doğar.
+        void BuildCompanion()
+        {
+            if (partner == null || partner.IsDead) return;
+
+            var color = BranchColor(partner);
+            var companionRoot = new GameObject("Yoldaş").transform;
+            companionRoot.SetParent(root.transform, false);
+            companionRoot.SetPositionAndRotation(AvatarFeet + new Vector3(-1.2f, 0f, 0.8f), Quaternion.Euler(0f, 90f, 0f));
+
+            var companionController = companionRoot.gameObject.AddComponent<CharacterController>();
+            companionController.radius = AvatarRadius;
+            companionController.height = 1.8f;
+            companionController.center = new Vector3(0f, 0.92f, 0f);
+            companionController.stepOffset = 0.1f;
+            companionController.skinWidth = 0.03f;
+
+            var body = Make(PrimitiveType.Capsule, "Gövde", color, companionRoot);
+            body.localPosition = new Vector3(0f, 0.95f, 0f);
+            body.localRotation = Quaternion.identity;
+            body.localScale = new Vector3(0.7f, 0.95f, 0.7f);
+
+            var nose = Make(PrimitiveType.Cube, "Yön", Color.white, body);
+            nose.localPosition = new Vector3(0f, 0.3f, 0.55f);
+            nose.localRotation = Quaternion.identity;
+            nose.localScale = new Vector3(0.3f, 0.2f, 0.5f);
+
+            companion = new FieldCompanion(this, partner, companionRoot, body.GetComponent<Renderer>(), companionController, color, groundY);
+        }
+
         static Color BranchColor(Survivor survivor) => survivor.Branch switch
         {
             SkillBranch.Construction => new Color(0.95f, 0.55f, 0.2f),
@@ -657,6 +694,7 @@ namespace AftershockIsle.Expedition
 
             UpdateMovement(input, dt);
             foreach (var enemy in enemies) enemy.Tick(dt);
+            companion?.Tick(dt);
             UpdateTracers(dt);
             UpdateSearch(input, dt);
             UpdateFlash(dt);
@@ -916,7 +954,7 @@ namespace AftershockIsle.Expedition
             float length = Vector3.Distance(from, aimPoint);
 
             FieldEnemy struck = null;
-            if (Physics.Raycast(from, shot, out var hit, length + 0.5f, ~0, QueryTriggerInteraction.Ignore))
+            if (CastSkippingAlly(from, shot, length + 0.5f, out var hit))
             {
                 length = hit.distance;
                 if (enemyByCollider.TryGetValue(hit.collider, out var enemy) && !enemy.IsDead) struck = enemy;
@@ -1106,8 +1144,70 @@ namespace AftershockIsle.Expedition
         /// <summary>İki nokta arasında duvar, araba, kasa yığını yoksa true (kâşifin kendisi engel sayılmaz).</summary>
         public bool HasLineOfSight(Vector3 from, Vector3 to)
         {
-            if (!Physics.Linecast(from, to, out var hit, ~0, QueryTriggerInteraction.Ignore)) return true;
+            if (!CastSkippingAlly(from, to - from, (to - from).magnitude, out var hit)) return true;
             return hit.collider == controller;
+        }
+
+        /// <summary>Yoldaşın ateş edebileceği açıklık: araya duvar/siper girmiyorsa true (kâşif ve yoldaş mermiyi kesmez).</summary>
+        public bool HasClearShot(Vector3 from, Vector3 to)
+        {
+            if (!CastSkippingAlly(from, to - from, (to - from).magnitude, out var hit)) return true;
+            return hit.collider == controller || (hit.collider != null && enemyByCollider.ContainsKey(hit.collider));
+        }
+
+        // Işın yoldaşın gövdesinden geçip devam eder (arkadaşın arkasındaki düşman da görülür ve vurulur).
+        bool CastSkippingAlly(Vector3 from, Vector3 direction, float length, out RaycastHit hit)
+        {
+            hit = default;
+            if (length <= 0.0001f) return false;
+
+            direction.Normalize();
+            float travelled = 0f;
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                if (!Physics.Raycast(from, direction, out hit, length - travelled, ~0, QueryTriggerInteraction.Ignore)) return false;
+                if (companion == null || hit.collider != companion.Collider) return true;
+
+                travelled += hit.distance + 0.05f;
+                from = hit.point + direction * 0.05f;
+            }
+            return false;
+        }
+
+        public IReadOnlyList<FieldEnemy> Enemies => enemies;
+
+        /// <summary>Yoldaşın atışı: izi çizer, ses çıkarır; isabet ederse düşmana hasar verir.</summary>
+        public void CompanionShoot(FieldCompanion shooter, FieldEnemy target, float damage, bool hits, float noise)
+        {
+            var from = shooter.Chest;
+            var aim = hits ? target.AimPoint : target.AimPoint + new Vector3(Random.Range(-0.8f, 0.8f), 0.2f, Random.Range(-0.8f, 0.8f));
+            var direction = (aim - from).normalized;
+            ShowTracer(from, direction, Vector3.Distance(from, aim), new Color(0.6f, 0.9f, 1f));
+            MakeNoise(from, noise);
+
+            if (!hits) return;
+            target.TakeHit(damage, shooter.Position);
+            Float($"-{damage:0}", target.AimPoint + Vector3.up * 0.6f, new Color(0.6f, 0.9f, 1f));
+        }
+
+        /// <summary>Düşman darbesi yoldaşa mı gidiyor: menzildeyse ve kâşiften yakınsa.</summary>
+        public bool CompanionCloserThanAvatar(Vector3 from, float reach)
+        {
+            if (companion == null || companion.IsDead) return false;
+
+            float toCompanion = FlatXZ(companion.Position - from).magnitude;
+            if (toCompanion > reach) return false;
+            return AvatarIsDead || toCompanion < FlatXZ(AvatarFeet - from).magnitude;
+        }
+
+        public void DamageCompanion(float amount, string cause)
+        {
+            if (companion == null || companion.IsDead || amount <= 0f) return;
+
+            companion.Survivor.TakeDamage(amount, cause);
+            companion.Hurt();
+            Float($"-{amount:0}", companion.LabelPoint, new Color(1f, 0.35f, 0.3f));
+            Say(companion.IsDead ? $"{companion.Survivor.DisplayName} öldü!" : $"{companion.Survivor.DisplayName} yaralandı.");
         }
 
         public void AlertAllies(FieldEnemy source, Vector3 position, float radius)
@@ -1152,6 +1252,8 @@ namespace AftershockIsle.Expedition
                                Vector3.Cross(direction, toTarget).magnitude <= 0.45f &&
                                (!blocked || hit.distance >= along - 0.4f || hit.collider == controller);
             if (hitsBody || hitsExposed) DamageAvatar(damage, $"Seferde {enemy.Label} tarafından vuruldu.");
+            else if (blocked && companion != null && hit.collider == companion.Collider)
+                DamageCompanion(damage, $"Seferde {enemy.Label} tarafından vuruldu.");
 
             ShowTracer(from, direction, length, new Color(1f, 0.5f, 0.3f));
             MakeNoise(enemy.Position, 10f);
@@ -1440,6 +1542,11 @@ namespace AftershockIsle.Expedition
             }
 
             DrawBar(avatar.position + Vector3.up * 1.3f, explorer.Health / explorer.MaxHealth, Color.green, 56);
+            if (companion != null && !companion.IsDead)
+            {
+                DrawLabel(companion.LabelPoint + Vector3.up * 0.25f, companion.Survivor.DisplayName, new Color(0.7f, 0.9f, 1f));
+                DrawBar(companion.LabelPoint, companion.Survivor.Health / companion.Survivor.MaxHealth, Color.green, 44);
+            }
 
             foreach (var item in floaters)
             {
@@ -1507,7 +1614,7 @@ namespace AftershockIsle.Expedition
         void DrawPanel()
         {
             const float width = 440f;
-            var rect = new Rect((Screen.width - width) * 0.5f, 10, width, 112);
+            var rect = new Rect((Screen.width - width) * 0.5f, 10, width, companion != null ? 130 : 112);
             GUI.Box(rect, GUIContent.none);
             GUILayout.BeginArea(new Rect(rect.x + 8, rect.y + 6, rect.width - 16, rect.height - 12));
 
@@ -1521,6 +1628,9 @@ namespace AftershockIsle.Expedition
             string ammo = info.UsesAmmo ? $"   Mermi: {(Workbench.Instance != null ? Workbench.Instance.Ammo : 0)}" : "   (sessiz, sınırsız)";
             string stance = leanSide != 0 ? "Köşeden ateş" : CrouchedLow ? "Çömelik" : crouched ? "Doğruldu (açıkta)" : "Ayakta";
             GUILayout.Label($"Silah: {info.Name}{ammo}   Duruş: {stance}{(inCover ? "  [SİPERDE]" : "")}", small);
+            if (companion != null)
+                GUILayout.Label(companion.IsDead ? $"Yoldaş: {companion.Survivor.DisplayName} öldü"
+                    : $"Yoldaş: {companion.Survivor.DisplayName}   Can {companion.Survivor.Health:0}/{companion.Survivor.MaxHealth:0}", small);
             if (messageTimer > 0f && message != null) GUILayout.Label(message, small);
 
             GUILayout.EndArea();

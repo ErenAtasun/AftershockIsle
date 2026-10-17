@@ -11,6 +11,7 @@ namespace AftershockIsle.Interaction
     /// Bir karaktere iş olarak verilebilen nesne. Karakter çalışma noktasına yürür,
     /// WorkDuration kadar çalışır, sonra Complete çağrılır. Aynı anda tek karakter çalışabilir.
     /// </summary>
+    [SelectionBase]
     public abstract class Interactable : MonoBehaviour
     {
         [SerializeField] string displayName = "Nesne";

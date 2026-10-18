@@ -11,6 +11,9 @@ namespace AftershockIsle.Building
     /// </summary>
     public class WalkBlocker : MonoBehaviour
     {
+        [Tooltip("İşaretliyse kutu her açılışta bu objenin (ve çocuklarının) görünen modeline oturur: sahneye konan mobilyaya " +
+                 "eklemek yeterli. Kapalıysa aşağıdaki merkez/boyut kullanılır.")]
+        [SerializeField] bool fitToModel;
         [SerializeField] Vector3 center;
         [SerializeField] Vector3 size = Vector3.one;
         [Tooltip("İş ve fare emriyle yürüyenler yol çıkarırken bunu yok sayar (kapı: geçerken kendiliğinden açılır). " +
@@ -40,14 +43,39 @@ namespace AftershockIsle.Building
 
         public void Configure(Vector3 localCenter, Vector3 localSize, bool passable)
         {
+            fitToModel = false;
             center = localCenter;
             size = localSize;
             passableForRoutes = passable;
             FloorObstacles.Invalidate();
         }
 
+        // Inspector'dan eklenince (Add Component) modele otursun.
+        void Reset() => fitToModel = true;
+
+        void FitToRenderers()
+        {
+            bool found = false;
+            var bounds = new Bounds();
+            foreach (var r in GetComponentsInChildren<Renderer>())
+            {
+                if (r is ParticleSystemRenderer) continue;
+                if (found) bounds.Encapsulate(r.bounds); else { bounds = r.bounds; found = true; }
+            }
+            if (!found) return;
+
+            center = transform.InverseTransformPoint(bounds.center);
+            var x = transform.InverseTransformVector(new Vector3(bounds.size.x, 0f, 0f));
+            var y = transform.InverseTransformVector(new Vector3(0f, bounds.size.y, 0f));
+            var z = transform.InverseTransformVector(new Vector3(0f, 0f, bounds.size.z));
+            size = new Vector3(Mathf.Abs(x.x) + Mathf.Abs(y.x) + Mathf.Abs(z.x),
+                               Mathf.Abs(x.y) + Mathf.Abs(y.y) + Mathf.Abs(z.y),
+                               Mathf.Abs(x.z) + Mathf.Abs(y.z) + Mathf.Abs(z.z));
+        }
+
         void OnEnable()
         {
+            if (fitToModel) FitToRenderers();
             all.Add(this);
             FloorObstacles.Invalidate();
         }

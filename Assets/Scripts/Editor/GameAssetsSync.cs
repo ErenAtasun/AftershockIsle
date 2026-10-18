@@ -30,7 +30,7 @@ namespace AftershockIsle.EditorTools
             if (imported.Concat(deleted).Concat(moved).Concat(movedFrom).Any(path =>
                 {
                     string p = path.Replace('\\', '/');
-                    return p.StartsWith(WatchedRoot) || p.StartsWith(WatchedGunsRoot);
+                    return (p.StartsWith(WatchedRoot) || p.StartsWith(WatchedGunsRoot)) && IsLibrarySource(p);
                 }))
             {
                 Schedule();
@@ -53,6 +53,17 @@ namespace AftershockIsle.EditorTools
                         Schedule();
                     }
             };
+        }
+
+        // Yalnızca kütüphaneyi gerçekten değiştiren dosyalar (model, görsel, prefab) yeniden kurmayı tetikler.
+        // Malzeme (.mat) ve diğer asset yazımları sayılmaz: Sync, ModelManager'ı yeniler, o da bina malzemelerini
+        // Assets/Models altında günceller; bunlar tetikleseydi import sonsuz döngüye girerdi.
+        static readonly string[] LibraryExtensions = { ".fbx", ".obj", ".blend", ".prefab", ".png", ".jpg", ".jpeg", ".tga", ".psd" };
+
+        static bool IsLibrarySource(string path)
+        {
+            string ext = Path.GetExtension(path).ToLowerInvariant();
+            return LibraryExtensions.Contains(ext);
         }
 
         static void Schedule()

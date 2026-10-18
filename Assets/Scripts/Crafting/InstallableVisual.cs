@@ -41,7 +41,10 @@ namespace AftershockIsle.Crafting
         void Apply(bool installed)
         {
             IsInstalled = installed;
-            foreach (var renderer in GetComponentsInChildren<Renderer>(true)) renderer.enabled = installed;
+            // Model giydirilmişse (ModelManager'ın CustomModelSkin'i) gri kutunun kendisi hep kapalı kalır.
+            bool skinned = transform.Find("CustomModelSkin") != null;
+            foreach (var renderer in GetComponentsInChildren<Renderer>(true))
+                renderer.enabled = installed && !(skinned && renderer.gameObject == gameObject);
             foreach (var collider in GetComponentsInChildren<Collider>(true)) collider.enabled = installed;
         }
     }

@@ -105,13 +105,7 @@ namespace AftershockIsle.UI
                 return;
             }
 
-            // Sığınaktayken 'I' ile açıp kapatma
-            if (GameInput.InventoryPressed && !ModalMenu.IsOpen && !isOpen)
-            {
-                Open();
-                return;
-            }
-
+            // Sığınakta sabah envanteri açılmaz (This War of Mine mantığı; sadece sefer hazırlığında çanta açılır).
             if (!isOpen) return;
 
             ModalMenu.MarkOpen();
@@ -127,20 +121,12 @@ namespace AftershockIsle.UI
 
         public void Toggle()
         {
-            if (isOpen) Close();
-            else Open();
+            ExpeditionWindow.Instance?.OpenShelterInventory();
         }
 
         public void Open()
         {
-            if (isOpen) return;
-            isOpen = true;
-            root.SetActive(true);
-            SoundManager.Play(SoundId.Search, 0.45f);
-            Refresh();
-
-            if (slots.Count > 0 && EventSystem.current != null)
-                EventSystem.current.SetSelectedGameObject(slots[0].Button.gameObject);
+            ExpeditionWindow.Instance?.OpenShelterInventory();
         }
 
         public void Close()

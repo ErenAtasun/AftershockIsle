@@ -102,6 +102,7 @@ namespace AftershockIsle.UI
         Image stressGauge;
         Text cardTask;
         Text cardTraits;
+        Button healButton;
         GameObject selectHint;
 
         GameObject evacChip;
@@ -130,11 +131,6 @@ namespace AftershockIsle.UI
         void Start()
         {
             UiFactory.EnsureEventSystem();
-            if (FindFirstObjectByType<InventoryWindow>() == null)
-            {
-                var invGo = new GameObject("InventoryWindow");
-                invGo.AddComponent<InventoryWindow>();
-            }
             Build();
         }
 
@@ -322,25 +318,25 @@ namespace AftershockIsle.UI
                 UiTooltip.Attach(holder.gameObject, () => ResourceTip(type));
             }
 
-            // Çanta (Envanter) ve Harita Kısayol Butonları
+            // Envanter ve Harita Kısayol Butonları
             // Kaynak satırının hemen altında, sağa yaslı: bütünlük çubuğu ve uyarılarla çakışmaz.
             const float navHeight = 40f;
             var quickNav = UiFactory.Rect("QuickNav", parent);
-            UiFactory.Place(quickNav, new Vector2(1f, 1f), new Vector2(-Margin, -Margin - height - 6f), new Vector2(330f, navHeight));
+            UiFactory.Place(quickNav, new Vector2(1f, 1f), new Vector2(-Margin, -Margin - height - 6f), new Vector2(326f, navHeight));
 
-            var mapBtn = UiFactory.TextButton(quickNav, "HARİTA [M]", new Vector2(160f, navHeight), () =>
+            var invBtn = UiFactory.TextButton(quickNav, "ENVANTER [I]", new Vector2(158f, navHeight), () =>
+            {
+                ExpeditionWindow.Instance?.OpenShelterInventory();
+            }, UiFactory.SlateLight, 15);
+            UiFactory.Place((RectTransform)invBtn.transform, new Vector2(0f, 0.5f), Vector2.zero, new Vector2(158f, navHeight));
+            UiTooltip.Attach(invBtn.gameObject, () => "Sığınak Deposu & Sefer Çantası (I)\nEvdeki eşyaları ve kâşifin envanter slotlarını incele/ayarla.");
+
+            var mapBtn = UiFactory.TextButton(quickNav, "HARİTA [M]", new Vector2(158f, navHeight), () =>
             {
                 ExpeditionWindow.Instance?.OpenInspection();
-            }, UiFactory.SlateLight, 16);
-            UiFactory.Place((RectTransform)mapBtn.transform, new Vector2(1f, 0.5f), Vector2.zero, new Vector2(160f, navHeight));
+            }, UiFactory.SlateLight, 15);
+            UiFactory.Place((RectTransform)mapBtn.transform, new Vector2(1f, 0.5f), Vector2.zero, new Vector2(158f, navHeight));
             UiTooltip.Attach(mapBtn.gameObject, () => "Şehir Keşif Haritası (M)\nLokasyonları, tehlikeleri ve ganimetleri incele.");
-
-            var bagBtn = UiFactory.TextButton(quickNav, "ÇANTA [I]", new Vector2(160f, navHeight), () =>
-            {
-                InventoryWindow.Instance?.Toggle();
-            }, UiFactory.SlateLight, 16);
-            UiFactory.Place((RectTransform)bagBtn.transform, new Vector2(1f, 0.5f), new Vector2(-170f, 0f), new Vector2(160f, navHeight));
-            UiTooltip.Attach(bagBtn.gameObject, () => "Sığınak Envanteri (I)\nDepodaki malzeme, mermi, alet ve kuruluma hazır yapılar.");
 
             var chip = UiFactory.Panel(parent, "Elektrik Kesik", new Color(0.55f, 0.16f, 0.12f, 0.95f));
             UiFactory.Place(chip.rectTransform, new Vector2(1f, 1f), new Vector2(-Margin, -Margin - height - 6f - navHeight - 6f), new Vector2(190f, 30f));
@@ -383,6 +379,10 @@ namespace AftershockIsle.UI
             stressGauge = Gauge(panel.transform, skin != null ? skin.stressFrames : null, new Vector2(-12f, -8f), "Stres");
             UiTooltip.Attach(hungerGauge.gameObject, HungerTip);
             UiTooltip.Attach(stressGauge.gameObject, StressTip);
+
+            healButton = UiFactory.TextButton(panel.transform, "İyileştir", new Vector2(92f, 30f), HealSelected, UiFactory.Good, 13);
+            UiFactory.Place((RectTransform)healButton.transform, new Vector2(1f, 0.5f), new Vector2(-12f, -10f), new Vector2(92f, 30f));
+            UiTooltip.Attach(healButton.gameObject, () => "1 Yaşam Kiti harcar (+35 Can, açlığı sıfırlar, -15 Stres)");
 
             var chip = UiFactory.Panel(parent, "Seçim İpucu", UiFactory.Slate);
             UiFactory.Place(chip.rectTransform, new Vector2(0f, 0f), new Vector2(Margin, 34f), new Vector2(300f, 34f));
@@ -651,6 +651,32 @@ namespace AftershockIsle.UI
             string carried = selected.IsCarrying ? $"  ·  Elinde: {selected.Carried}" : "";
             cardTask.text = state + carried;
             cardTraits.text = selected.TraitsSummary();
+
+            int kits = ResourceStorage.Instance != null ? ResourceStorage.Instance.Get(ResourceType.Supplies) : 0;
+            bool needsHelp = selected.Health < selected.MaxHealth || condition.Hunger > 0 || condition.Stress >= 10f;
+            healButton.interactable = kits > 0 && needsHelp && !selected.IsTrapped;
+        }
+
+        void HealSelected()
+        {
+            var selected = commands != null ? commands.Selected : null;
+            if (selected == null || selected.IsDead) return;
+
+            var storage = ResourceStorage.Instance;
+            if (storage == null || !storage.TrySpend(new ResourceAmount(ResourceType.Supplies, 1)))
+            {
+                AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.EmptyClick, 0.5f);
+                return;
+            }
+
+            selected.Heal(35f);
+            selected.Condition.Feed(15f);
+            selected.Condition.RelieveStress(15f);
+
+            var chatter = selected.GetComponent<SurvivorChatter>();
+            if (chatter != null) chatter.Say("İlaç ve yemek çok iyi geldi... Teşekkürler!", 3.5f, Color.green);
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.CraftSuccess, 0.6f);
+            UpdateCard();
         }
 
         static void SetGauge(Image gauge, Sprite[] frames, int level)

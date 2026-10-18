@@ -12,16 +12,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dbb7dae58f2549942a755dfa01b72376, type: 3}
   m_Name: CharacterLibrary
   m_EditorClassIdentifier: Assembly-CSharp::AftershockIsle.Characters.CharacterLibrary
-  prefab: {fileID: 919132149155446097, guid: adda1e6a421c7a64c9691578b2fc1f59, type: 3}
+  prefab: {fileID: 3344797552917926168, guid: da1203547328fdb41974e0b5334e799a, type: 3}
   moveClip: {fileID: -203655887218126122, guid: 2e727f1d798922645892268998d232d0, type: 3}
   walkClip: {fileID: -203655887218126122, guid: 384153e45ee89c54fb631ec78afadf4b, type: 3}
   idleClip: {fileID: -203655887218126122, guid: fd4ec9422e15be842a8288231fa8345d, type: 3}
   idlePoseTime: 0.41
   moveSpeedReference: 4.1
   walkSpeedReference: 1.7
+  walkKneeStraighten: 0.5
+  walkThighStraighten: 0.2
   walkBackClip: {fileID: -203655887218126122, guid: 14600e1c8e63bd44db045a0b3e19b51f, type: 3}
   runBackClip: {fileID: -203655887218126122, guid: 7bbac02551e0b6b4095d12ff6f31551e, type: 3}
-  strafeLeftClip: {fileID: -203655887218126122, guid: 61aaceedac0eae74da5bafcb78e5a5c4, type: 3}
+  strafeLeftClip: {fileID: -203655887218126122, guid: 39eb9fe8461525f46a6f688b958dcd6c, type: 3}
   strafeRightClip: {fileID: -203655887218126122, guid: 06ab8c6749a39e8468c73bb99670509f, type: 3}
   fireClip: {fileID: -203655887218126122, guid: 966af547e3d98c2499650aa6fd1cf3e3, type: 3}
   reloadClip: {fileID: -203655887218126122, guid: 1929f7c6e96bff4489b3a72f17404ff7, type: 3}
@@ -107,3 +109,8 @@ MonoBehaviour:
     prefab: {fileID: 919132149155446097, guid: 82a916c3f588c28498310ad8b6deab83, type: 3}
     material: {fileID: 8435880323186433047, guid: 82a916c3f588c28498310ad8b6deab83, type: 3}
     worldLength: 0.96
+  dogPrefab: {fileID: 4248197375101405997, guid: 2658abc5fee3a7548a90543920743983, type: 3}
+  dogIdleClip: {fileID: 4123543702230365045, guid: 8b45c309ff3464b4cb0c1ac2b30b1284, type: 3}
+  dogWalkClip: {fileID: 908190396042855974, guid: a03dd0c6e4f443a3bc85983280b0a7ed, type: 3}
+  dogRunClip: {fileID: -7333529752703446270, guid: 741c8910e295e9542a0473a14eb0a205, type: 3}
+  dogYawOffset: 0

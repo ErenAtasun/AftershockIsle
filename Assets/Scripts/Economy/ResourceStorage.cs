@@ -25,7 +25,7 @@ namespace AftershockIsle.Economy
             new ResourceAmount(ResourceType.Supplies, 3),
         };
 
-        readonly int[] counts = new int[ResourceTypes.Count];
+        readonly int[] counts = new int[System.Enum.GetValues(typeof(ResourceType)).Length];
 
         public static ResourceStorage Instance { get; private set; }
 
@@ -33,7 +33,11 @@ namespace AftershockIsle.Economy
         {
             Instance = this;
             foreach (var start in startingAmounts)
-                counts[(int)start.type] += start.amount;
+            {
+                int idx = (int)start.type;
+                if (idx >= 0 && idx < counts.Length)
+                    counts[idx] += start.amount;
+            }
         }
 
         void OnDestroy()
@@ -41,7 +45,11 @@ namespace AftershockIsle.Economy
             if (Instance == this) Instance = null;
         }
 
-        public int Get(ResourceType type) => counts[(int)type];
+        public int Get(ResourceType type)
+        {
+            int idx = (int)type;
+            return (idx >= 0 && idx < counts.Length) ? counts[idx] : 0;
+        }
 
         public bool Has(ResourceAmount cost) => Get(cost.type) >= cost.amount;
 
@@ -81,8 +89,10 @@ namespace AftershockIsle.Economy
 
         void Change(ResourceType type, int delta)
         {
-            counts[(int)type] += delta;
-            EventBus.Publish(new ResourcesChanged(type, counts[(int)type]));
+            int idx = (int)type;
+            if (idx < 0 || idx >= counts.Length) return;
+            counts[idx] = Mathf.Max(0, counts[idx] + delta);
+            EventBus.Publish(new ResourcesChanged(type, counts[idx]));
         }
 
         public void RestoreState(int scrap, int metal, int electronics, int supplies)

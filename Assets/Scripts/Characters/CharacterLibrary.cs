@@ -39,6 +39,10 @@ namespace AftershockIsle.Characters
         public float moveSpeedReference = 4.1f;
         [Tooltip("Yürüyüş klibinin kendi hızı (m/sn).")]
         public float walkSpeedReference = 1.7f;
+        [Tooltip("Hareket ederken diz bükülmesinin ne kadarı silinsin (0: klip aynen, 1: bacak düz). Klip modele göre fazla büküyorsa artır.")]
+        [Range(0f, 1f)] public float walkKneeStraighten = 0f;
+        [Tooltip("Hareket ederken uyluk (kalça) eğiminin ne kadarı silinsin (diz yükselmesini azaltır).")]
+        [Range(0f, 1f)] public float walkThighStraighten = 0f;
 
         [Header("Nişan & Çatışma Animasyonları (Basic Shooter Pack)")]
         public AnimationClip walkBackClip;
@@ -66,6 +70,15 @@ namespace AftershockIsle.Characters
 
         [Header("Silah Modelleri (Low Poly Guns Pack)")]
         public GunVisualEntry[] guns = Array.Empty<GunVisualEntry>();
+
+        [Header("Köpek Görünümü (RSG_DogsPack)")]
+        [Tooltip("Saha düşmanı köpekler için 3B model (P_GermanShepherd / SK_GermanShepherd_01).")]
+        public GameObject dogPrefab;
+        public AnimationClip dogIdleClip;
+        public AnimationClip dogWalkClip;
+        public AnimationClip dogRunClip;
+        [Tooltip("Köpek modeli yanlış yöne bakıyorsa buradan döndür.")]
+        public float dogYawOffset = 0f;
 
         public bool TryGetGun(GunModelKind kind, int variant, out GunVisualEntry entry)
         {

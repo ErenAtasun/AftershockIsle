@@ -169,7 +169,11 @@ namespace AftershockIsle.Expedition
             }
             stagger = kind == FieldEnemyKind.Brute ? (heavy ? 0.25f : 0f) : heavy ? 0.4f : 0.15f;
             coverTimer = 0f;
-            if (body != null) body.GetComponentInParent<AftershockIsle.Characters.CharacterView>()?.PlayHit();
+            if (body != null)
+            {
+                body.GetComponentInParent<AftershockIsle.Characters.CharacterView>()?.PlayHit();
+                body.GetComponentInParent<AftershockIsle.Characters.FieldDogView>()?.PlayHit();
+            }
             Alert(shooterPosition);
         }
 
@@ -196,6 +200,7 @@ namespace AftershockIsle.Expedition
             controller.enabled = false;
             root.rotation = Quaternion.Euler(0f, root.eulerAngles.y, 90f);
             root.position += Vector3.up * 0.3f;
+            if (body != null) body.GetComponentInParent<AftershockIsle.Characters.FieldDogView>()?.SetDead();
             field.Tint(body, baseColor * 0.35f);
             field.OnEnemyKilled(this);
         }

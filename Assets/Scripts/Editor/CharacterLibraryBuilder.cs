@@ -10,8 +10,10 @@ using UnityEngine.Rendering;
 namespace AftershockIsle.EditorTools
 {
     /// <summary>
-    /// Assets/Models altındaki "Char" klasöründeki karakter FBX'inden (Basic Shooter Pack / Ch15_nonPBR.fbx vb.)
-    /// ve Assets/Low Poly Guns altındaki silah modellerinden CharacterLibrary asset'ini kurar.
+    /// Assets/Adventure_Character altındaki ana karakter prefabından (Man_01.prefab),
+    /// Assets/RSG_DogsPack altındaki köpek modelinden (P_GermanShepherd / SK_GermanShepherd_01),
+    /// Assets/Models altındaki animasyonlardan ve Assets/Low Poly Guns altındaki silahlardan
+    /// CharacterLibrary asset'ini kurar. URP uyumluluğu için malzemeleri otomatik günceller.
     /// </summary>
     public static class CharacterLibraryBuilder
     {
@@ -22,10 +24,12 @@ namespace AftershockIsle.EditorTools
 
         public static CharacterLibrary Build()
         {
+            UpgradeMaterialsToUrp();
+
             string mainPath = FindMainModel();
             if (mainPath == null)
             {
-                Debug.LogWarning("Karakter modeli bulunamadı (Assets/Models/**/Char/*.fbx). Karakterler kapsül olarak kalacak.");
+                Debug.LogWarning("Karakter modeli bulunamadı (Assets/Adventure_Character veya Assets/Models/**/Char/*.fbx).");
                 return null;
             }
 
@@ -37,7 +41,7 @@ namespace AftershockIsle.EditorTools
             }
 
             library.prefab = AssetDatabase.LoadAssetAtPath<GameObject>(mainPath);
-            library.moveClip = FirstClip(mainPath);
+            library.moveClip = null;
             library.walkClip = null;
             library.idleClip = null;
             library.walkBackClip = null;
@@ -52,9 +56,14 @@ namespace AftershockIsle.EditorTools
             library.turnLeftClip = null;
             library.turnRightClip = null;
 
-            // Yanındaki ek animasyon dosyaları (Basic Shooter Pack vb.).
-            string folder = Path.GetDirectoryName(mainPath).Replace('\\', '/');
-            foreach (string guid in AssetDatabase.FindAssets("t:Model", new[] { folder }))
+            // Animasyon kliplerini ara: Basic Shooter Pack veya Models klasörleri
+            var animFolders = new List<string>();
+            string mainFolder = Path.GetDirectoryName(mainPath).Replace('\\', '/');
+            if (AssetDatabase.IsValidFolder(mainFolder)) animFolders.Add(mainFolder);
+            if (AssetDatabase.IsValidFolder("Assets/Models/Char/Basic Shooter Pack")) animFolders.Add("Assets/Models/Char/Basic Shooter Pack");
+            if (AssetDatabase.IsValidFolder(ModelRoot) && !animFolders.Contains(ModelRoot)) animFolders.Add(ModelRoot);
+
+            foreach (string guid in AssetDatabase.FindAssets("t:Model", animFolders.ToArray()))
             {
                 string path = AssetDatabase.GUIDToAssetPath(guid).Replace('\\', '/');
                 if (path == mainPath) continue;
@@ -65,33 +74,33 @@ namespace AftershockIsle.EditorTools
 
                 if (lower.Contains("idle"))
                 {
-                    library.idleClip = clip;
+                    library.idleClip ??= clip;
                 }
                 else if (lower.Contains("walk") && lower.Contains("back"))
                 {
-                    library.walkBackClip = clip;
+                    library.walkBackClip ??= clip;
                 }
                 else if (lower.Contains("walk"))
                 {
-                    library.walkClip = clip;
+                    library.walkClip ??= clip;
                     library.walkSpeedReference = 1.7f;
                 }
                 else if (lower.Contains("run") && lower.Contains("back"))
                 {
-                    library.runBackClip = clip;
+                    library.runBackClip ??= clip;
                 }
                 else if (lower.Contains("run"))
                 {
-                    library.moveClip = clip;
+                    library.moveClip ??= clip;
                     library.moveSpeedReference = 4.1f;
                 }
                 else if (lower.Contains("strafe") && lower.Contains("left"))
                 {
-                    library.strafeLeftClip = clip;
+                    library.strafeLeftClip ??= clip;
                 }
                 else if (lower.Contains("strafe") && lower.Contains("right"))
                 {
-                    library.strafeRightClip = clip;
+                    library.strafeRightClip ??= clip;
                 }
                 else if (lower.Contains("strafe"))
                 {
@@ -100,31 +109,31 @@ namespace AftershockIsle.EditorTools
                 }
                 else if (lower.Contains("firing") || lower.Contains("fire") || lower.Contains("shoot"))
                 {
-                    library.fireClip = clip;
+                    library.fireClip ??= clip;
                 }
                 else if (lower.Contains("reload"))
                 {
-                    library.reloadClip = clip;
+                    library.reloadClip ??= clip;
                 }
                 else if (lower.Contains("hit"))
                 {
-                    library.hitClip = clip;
+                    library.hitClip ??= clip;
                 }
                 else if (lower.Contains("jump"))
                 {
-                    library.jumpClip = clip;
+                    library.jumpClip ??= clip;
                 }
                 else if (lower.Contains("toss") || lower.Contains("grenade"))
                 {
-                    library.tossClip = clip;
+                    library.tossClip ??= clip;
                 }
                 else if (lower.Contains("turn") && lower.Contains("left"))
                 {
-                    library.turnLeftClip = clip;
+                    library.turnLeftClip ??= clip;
                 }
                 else if (lower.Contains("turn") && lower.Contains("right"))
                 {
-                    library.turnRightClip = clip;
+                    library.turnRightClip ??= clip;
                 }
             }
 
@@ -134,20 +143,37 @@ namespace AftershockIsle.EditorTools
                 library.moveSpeedReference = library.walkSpeedReference;
             }
 
-            var bodyTexture = FindTexture(folder, mainPath, "1001_Diffuse");
-            var bodyNormal = FindTexture(folder, mainPath, "1001_Normal");
-            var hairTexture = FindTexture(folder, mainPath, "1002_Diffuse");
-            var hairNormal = FindTexture(folder, mainPath, "1002_Normal");
+            // Adventure_Character veya eski model için dokular
+            var bodyTexture = FindTexture("Assets/Adventure_Character/Textures", mainPath, "Man_Body_Albedo")
+                              ?? FindTexture("Assets/Adventure_Character/Textures", mainPath, "Albedo")
+                              ?? FindTexture(mainFolder, mainPath, "1001_Diffuse");
+            var bodyNormal = FindTexture("Assets/Adventure_Character/Textures", mainPath, "Man_Body_Normals")
+                             ?? FindTexture(mainFolder, mainPath, "1001_Normal");
+            var hairTexture = FindTexture("Assets/Adventure_Character/Textures", mainPath, "Man_Cloth_Up_Albedo_01")
+                              ?? FindTexture(mainFolder, mainPath, "1002_Diffuse");
+            var hairNormal = FindTexture("Assets/Adventure_Character/Textures", mainPath, "Man_Cloth_Up_Normals")
+                             ?? FindTexture(mainFolder, mainPath, "1002_Normal");
+
             library.bodyMaterial = CreateOrUpdateMaterial("CharacterBody", bodyTexture, bodyNormal);
             library.hairMaterial = CreateOrUpdateMaterial("CharacterHair", hairTexture, hairNormal);
             library.hasTextures = bodyTexture != null;
             library.hasSecondaryTexture = hairTexture != null;
 
+            // Silahlar
             library.guns = BuildGunEntries();
+
+            // Köpek varlıkları (RSG_DogsPack)
+            var (dogPrefab, dogIdle, dogWalk, dogRun) = FindDogAssets();
+            library.dogPrefab = dogPrefab;
+            library.dogIdleClip = dogIdle;
+            library.dogWalkClip = dogWalk;
+            library.dogRunClip = dogRun;
+            library.dogYawOffset = 0f;
 
             EditorUtility.SetDirty(library);
             AssetDatabase.SaveAssets();
-            Debug.Log($"Karakter kütüphanesi hazır: {mainPath} (koşu: {(library.moveClip != null ? library.moveClip.name : "yok")}, " +
+            Debug.Log($"[Karakter Kütüphanesi] Hazır: {mainPath} (Köpek: {(library.dogPrefab != null ? library.dogPrefab.name : "yok")}, " +
+                      $"koşu: {(library.moveClip != null ? library.moveClip.name : "yok")}, " +
                       $"yürüyüş: {(library.walkClip != null ? library.walkClip.name : "yok")}, " +
                       $"bekleme: {(library.idleClip != null ? library.idleClip.name : "sabit kare")}, " +
                       $"silah sayısı: {library.guns.Length}).");
@@ -156,6 +182,27 @@ namespace AftershockIsle.EditorTools
 
         static string FindMainModel()
         {
+            // 1. Öncelikli: Adventure_Character paketi (Man_03 eksiksiz gövde, pantolon ve ayakkabı içerir)
+            if (AssetDatabase.IsValidFolder("Assets/Adventure_Character"))
+            {
+                foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { "Assets/Adventure_Character/Prefabs", "Assets/Adventure_Character" }))
+                {
+                    string path = AssetDatabase.GUIDToAssetPath(guid).Replace('\\', '/');
+                    if (path.EndsWith("Man_03.prefab", StringComparison.OrdinalIgnoreCase)) return path;
+                }
+                foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { "Assets/Adventure_Character/Prefabs", "Assets/Adventure_Character" }))
+                {
+                    string path = AssetDatabase.GUIDToAssetPath(guid).Replace('\\', '/');
+                    if (path.EndsWith("Man_04.prefab", StringComparison.OrdinalIgnoreCase)) return path;
+                }
+                foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { "Assets/Adventure_Character/Prefabs", "Assets/Adventure_Character" }))
+                {
+                    string path = AssetDatabase.GUIDToAssetPath(guid).Replace('\\', '/');
+                    if (path.Contains("Man_")) return path;
+                }
+            }
+
+            // 2. Yedek: Basic Shooter Pack / Berkecan / Diğerleri
             string shooterPack = null;
             string berkecan = null;
             string fallback = null;
@@ -165,7 +212,6 @@ namespace AftershockIsle.EditorTools
                 string path = AssetDatabase.GUIDToAssetPath(guid).Replace('\\', '/');
                 if (!path.Contains("/Char/")) continue;
 
-                // Sadece içinde SkinnedMeshRenderer / Mesh bulunan ana karakter FBX'lerini seç (Without Skin animasyonlarını atla).
                 bool hasMesh = AssetDatabase.LoadAllAssetsAtPath(path).OfType<Mesh>().Any();
                 if (!hasMesh) continue;
 
@@ -180,6 +226,157 @@ namespace AftershockIsle.EditorTools
                 if (lowerName.Contains("karakter") || fallback == null) fallback ??= path;
             }
             return shooterPack ?? berkecan ?? fallback;
+        }
+
+        static (GameObject prefab, AnimationClip idle, AnimationClip walk, AnimationClip run) FindDogAssets()
+        {
+            GameObject dogPrefab = null;
+            AnimationClip idle = null;
+            AnimationClip walk = null;
+            AnimationClip run = null;
+
+            if (AssetDatabase.IsValidFolder("Assets/RSG_DogsPack"))
+            {
+                foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { "Assets/RSG_DogsPack" }))
+                {
+                    string path = AssetDatabase.GUIDToAssetPath(guid).Replace('\\', '/');
+                    if (path.Contains("GermanShepherd"))
+                    {
+                        dogPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                        if (dogPrefab != null) break;
+                    }
+                }
+
+                if (dogPrefab == null)
+                {
+                    foreach (string guid in AssetDatabase.FindAssets("t:Model", new[] { "Assets/RSG_DogsPack" }))
+                    {
+                        string path = AssetDatabase.GUIDToAssetPath(guid).Replace('\\', '/');
+                        if (path.Contains("GermanShepherd") && path.EndsWith(".fbx", StringComparison.OrdinalIgnoreCase))
+                        {
+                            dogPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                            if (dogPrefab != null) break;
+                        }
+                    }
+                }
+
+                foreach (string guid in AssetDatabase.FindAssets("t:Model", new[] { "Assets/RSG_DogsPack" }))
+                {
+                    string path = AssetDatabase.GUIDToAssetPath(guid).Replace('\\', '/');
+                    string name = Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
+                    var clip = FirstClip(path);
+                    if (clip == null) continue;
+
+                    if (name.Contains("idle") && name.Contains("breath")) idle = clip;
+                    else if (name.Contains("idle") && idle == null) idle = clip;
+                    else if (name.Contains("walk") && !name.Contains("turn")) walk = clip;
+                    else if (name.Contains("run") && name.Contains("loop")) run = clip;
+                    else if (name.Contains("run") && run == null) run = clip;
+                }
+            }
+
+            return (dogPrefab, idle, walk, run);
+        }
+
+        static void UpgradeMaterialsToUrp()
+        {
+            var urpShader = GraphicsSettings.currentRenderPipeline != null
+                ? GraphicsSettings.currentRenderPipeline.defaultShader
+                : Shader.Find("Universal Render Pipeline/Lit");
+
+            if (urpShader == null) urpShader = Shader.Find("Universal Render Pipeline/Lit");
+            if (urpShader == null) return;
+
+            // 1. Adventure_Character malzemeleri
+            if (AssetDatabase.IsValidFolder("Assets/Adventure_Character/Materials"))
+            {
+                foreach (string guid in AssetDatabase.FindAssets("t:Material", new[] { "Assets/Adventure_Character/Materials" }))
+                {
+                    string path = AssetDatabase.GUIDToAssetPath(guid);
+                    var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+                    if (mat == null) continue;
+
+                    Texture mainTex = null;
+                    if (mat.HasProperty("_BaseMap") && mat.GetTexture("_BaseMap") != null) mainTex = mat.GetTexture("_BaseMap");
+                    else if (mat.HasProperty("_MainTex") && mat.GetTexture("_MainTex") != null) mainTex = mat.GetTexture("_MainTex");
+
+                    Texture bumpTex = null;
+                    if (mat.HasProperty("_BumpMap") && mat.GetTexture("_BumpMap") != null) bumpTex = mat.GetTexture("_BumpMap");
+
+                    Texture metallicTex = null;
+                    if (mat.HasProperty("_MetallicGlossMap") && mat.GetTexture("_MetallicGlossMap") != null) metallicTex = mat.GetTexture("_MetallicGlossMap");
+                    else if (mat.HasProperty("_MetallicSpecGlossMap") && mat.GetTexture("_MetallicSpecGlossMap") != null) metallicTex = mat.GetTexture("_MetallicSpecGlossMap");
+
+                    Texture occTex = null;
+                    if (mat.HasProperty("_OcclusionMap") && mat.GetTexture("_OcclusionMap") != null) occTex = mat.GetTexture("_OcclusionMap");
+
+                    if (mat.shader != urpShader) mat.shader = urpShader;
+                    if (mainTex != null) mat.SetTexture("_BaseMap", mainTex);
+                    if (bumpTex != null)
+                    {
+                        mat.SetTexture("_BumpMap", bumpTex);
+                        mat.EnableKeyword("_NORMALMAP");
+                    }
+                    if (metallicTex != null)
+                    {
+                        mat.SetTexture("_MetallicSpecGlossMap", metallicTex);
+                        mat.EnableKeyword("_METALLICSPECGLOSSMAP");
+                    }
+                    if (occTex != null) mat.SetTexture("_OcclusionMap", occTex);
+                    mat.SetColor("_BaseColor", Color.white);
+                    mat.SetFloat("_Smoothness", 0.35f);
+                    EditorUtility.SetDirty(mat);
+                }
+            }
+
+            // 2. RSG_DogsPack malzemeleri
+            if (AssetDatabase.IsValidFolder("Assets/RSG_DogsPack/HDRP/Materials"))
+            {
+                foreach (string guid in AssetDatabase.FindAssets("t:Material", new[] { "Assets/RSG_DogsPack/HDRP/Materials" }))
+                {
+                    string path = AssetDatabase.GUIDToAssetPath(guid);
+                    var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+                    if (mat == null) continue;
+
+                    Texture mainTex = null;
+                    if (mat.HasProperty("_BaseColorMap") && mat.GetTexture("_BaseColorMap") != null) mainTex = mat.GetTexture("_BaseColorMap");
+                    else if (mat.HasProperty("_BaseMap") && mat.GetTexture("_BaseMap") != null) mainTex = mat.GetTexture("_BaseMap");
+                    else if (mat.HasProperty("_MainTex") && mat.GetTexture("_MainTex") != null) mainTex = mat.GetTexture("_MainTex");
+
+                    Texture bumpTex = null;
+                    if (mat.HasProperty("_NormalMap") && mat.GetTexture("_NormalMap") != null) bumpTex = mat.GetTexture("_NormalMap");
+                    else if (mat.HasProperty("_BumpMap") && mat.GetTexture("_BumpMap") != null) bumpTex = mat.GetTexture("_BumpMap");
+
+                    Texture maskTex = null;
+                    if (mat.HasProperty("_MaskMap") && mat.GetTexture("_MaskMap") != null) maskTex = mat.GetTexture("_MaskMap");
+
+                    if (mat.shader != urpShader) mat.shader = urpShader;
+                    if (mainTex != null) mat.SetTexture("_BaseMap", mainTex);
+                    if (bumpTex != null)
+                    {
+                        mat.SetTexture("_BumpMap", bumpTex);
+                        mat.EnableKeyword("_NORMALMAP");
+                    }
+                    if (maskTex != null)
+                    {
+                        mat.SetTexture("_MetallicSpecGlossMap", maskTex);
+                        mat.EnableKeyword("_METALLICSPECGLOSSMAP");
+                    }
+                    mat.SetColor("_BaseColor", Color.white);
+                    mat.SetFloat("_Smoothness", 0.25f);
+
+                    if (mat.name.Contains("Transparent"))
+                    {
+                        mat.SetFloat("_Surface", 0f);
+                        mat.SetFloat("_AlphaClip", 1f);
+                        mat.SetFloat("_Cutoff", 0.5f);
+                        mat.EnableKeyword("_ALPHATEST_ON");
+                        mat.renderQueue = 2450;
+                    }
+
+                    EditorUtility.SetDirty(mat);
+                }
+            }
         }
 
         static CharacterLibrary.GunVisualEntry[] BuildGunEntries()
@@ -244,7 +441,7 @@ namespace AftershockIsle.EditorTools
 
             var urpShader = GraphicsSettings.currentRenderPipeline != null
                 ? GraphicsSettings.currentRenderPipeline.defaultShader
-                : Shader.Find("Standard");
+                : Shader.Find("Universal Render Pipeline/Lit");
 
             if (mat == null)
             {
@@ -265,7 +462,6 @@ namespace AftershockIsle.EditorTools
             return mat;
         }
 
-        // FBX'in içindeki gerçek klip ("__preview__" önizlemeleri hariç).
         static AnimationClip FirstClip(string path)
         {
             var clips = new List<AnimationClip>();
@@ -276,8 +472,11 @@ namespace AftershockIsle.EditorTools
 
         static Texture2D FindTexture(string folder, string mainPath, string namePart)
         {
-            foreach (string guid in AssetDatabase.FindAssets($"{namePart} t:Texture2D", new[] { folder }))
-                return AssetDatabase.LoadAssetAtPath<Texture2D>(AssetDatabase.GUIDToAssetPath(guid));
+            if (AssetDatabase.IsValidFolder(folder))
+            {
+                foreach (string guid in AssetDatabase.FindAssets($"{namePart} t:Texture2D", new[] { folder }))
+                    return AssetDatabase.LoadAssetAtPath<Texture2D>(AssetDatabase.GUIDToAssetPath(guid));
+            }
 
             foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(mainPath))
                 if (asset is Texture2D tex && tex.name.IndexOf(namePart, StringComparison.OrdinalIgnoreCase) >= 0)
@@ -298,7 +497,7 @@ namespace AftershockIsle.EditorTools
             var material = AssetDatabase.LoadAssetAtPath<Material>(path);
             var shader = GraphicsSettings.currentRenderPipeline != null
                 ? GraphicsSettings.currentRenderPipeline.defaultShader
-                : Shader.Find("Standard");
+                : Shader.Find("Universal Render Pipeline/Lit");
 
             if (material == null)
             {

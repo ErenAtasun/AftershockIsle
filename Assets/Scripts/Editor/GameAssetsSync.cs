@@ -18,6 +18,8 @@ namespace AftershockIsle.EditorTools
     {
         const string WatchedRoot = "Assets/Models/";
         const string WatchedGunsRoot = "Assets/Low Poly Guns/";
+        const string WatchedCharRoot = "Assets/Adventure_Character/";
+        const string WatchedDogsRoot = "Assets/RSG_DogsPack/";
         const string ResourcesFolder = "Assets/Resources";
         const string GameAssetsPath = ResourcesFolder + "/GameAssets.asset";
         const string UiSkinPath = "Assets/Art/UiSkin.asset";
@@ -30,7 +32,8 @@ namespace AftershockIsle.EditorTools
             if (imported.Concat(deleted).Concat(moved).Concat(movedFrom).Any(path =>
                 {
                     string p = path.Replace('\\', '/');
-                    return (p.StartsWith(WatchedRoot) || p.StartsWith(WatchedGunsRoot)) && IsLibrarySource(p);
+                    return (p.StartsWith(WatchedRoot) || p.StartsWith(WatchedGunsRoot) ||
+                            p.StartsWith(WatchedCharRoot) || p.StartsWith(WatchedDogsRoot)) && IsLibrarySource(p);
                 }))
             {
                 Schedule();
@@ -45,8 +48,8 @@ namespace AftershockIsle.EditorTools
             {
                     var assets = AssetDatabase.LoadAssetAtPath<GameAssets>(GameAssetsPath);
                     if (assets == null || assets.characters == null || assets.characters.prefab == null ||
+                        assets.characters.dogPrefab == null ||
                         assets.characters.guns == null || assets.characters.guns.Length == 0 ||
-                        !AssetDatabase.GetAssetPath(assets.characters.prefab).Replace('\\', '/').Contains("Basic Shooter Pack") ||
                         assets.ui == null || assets.ui.mainMenuBackground == null || assets.ui.worldBackground == null ||
                         assets.ui.skillTreeBackground == null || assets.ui.cityMap == null || assets.ui.inventorySheet == null ||
                         assets.ui.pbhLogo == null)

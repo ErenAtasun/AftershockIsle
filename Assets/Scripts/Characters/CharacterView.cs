@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.Animations;
 using UnityEngine.Playables;
@@ -122,22 +123,50 @@ namespace AftershockIsle.Characters
             foreach (var renderer in renderers)
                 if (renderer is SkinnedMeshRenderer skinned) skinned.updateWhenOffscreen = true;
 
-            hips = FindBone(transform, "Hips");
-            rightHand = FindBone(transform, "RightHand");
-            leftHand = FindBone(transform, "LeftHand");
+            var animator = GetComponent<Animator>();
+            if (animator != null && animator.isHuman)
+            {
+                hips = animator.GetBoneTransform(HumanBodyBones.Hips);
+                rightHand = animator.GetBoneTransform(HumanBodyBones.RightHand);
+                leftHand = animator.GetBoneTransform(HumanBodyBones.LeftHand);
+            }
+
+            if (hips == null) hips = FindBone(transform, "Hips") ?? FindBone(transform, "pelvis") ?? FindBone(transform, "Pelvis");
+            if (rightHand == null) rightHand = FindBone(transform, "RightHand") ?? FindBone(transform, "hand_r") ?? FindBone(transform, "Hand_R");
+            if (leftHand == null) leftHand = FindBone(transform, "LeftHand") ?? FindBone(transform, "hand_l") ?? FindBone(transform, "Hand_L");
+
+            if (animator != null && !animator.isHuman)
+                Debug.LogWarning($"[{name}] Animator Humanoid değil: avatar geçersiz ya da modelin Rig ayarı Humanoid değil. " +
+                                 "Modelin FBX'inde Rig > Animation Type = Humanoid, Configure ile kemik eşlemesini kontrol et (animasyonlar bozuk görünür).", this);
+
+            // Duruş klibi (nişan alma duruşu) dizleri büker: duran karakterin bacakları ve kalçası modelin düz duruşuna kilitlenir,
+            // üst gövde (nişan, silah) animasyonda kalır. Düz duruş, animasyon henüz oynamadan kaydedilir.
+            FindSpanBones(animator);
+            CaptureLegRest(animator);
+            float soleOffset = Mathf.Max(0f, LowestFoot() - WorldBounds(renderers).min.y);
 
             BuildGraph();
 
             if (hips != null) hipsRest = transform.InverseTransformPoint(hips.position);
 
-            // İlk animasyon karesi (rifle aiming idle vb.) dizleri büktüğü için ayakları tekrar zemine oturt.
-            var bounds = WorldBounds(renderers);
-            transform.position += new Vector3(0f, feet.y - bounds.min.y, 0f);
+            // Kilit tam uygulanmışken ayakları kemik konumundan zemine oturt (animasyon sonrası render sınırı güncel olmayabilir).
+            if (legBones != null)
+            {
+                idleLock = 1f;
+                ApplyIdleLock(0f);
+                transform.position += new Vector3(0f, feet.y - (LowestFoot() - soleOffset), 0f);
+            }
+            else
+            {
+                var bounds = WorldBounds(renderers);
+                transform.position += new Vector3(0f, feet.y - bounds.min.y, 0f);
+            }
 
             ApplyTint();
         }
 
         // Dosyadaki malzemeler yerine kütüphanenin malzemeleri; gövde (1001) ve ikincil/saç (1002 / body1) ayrı atanır.
+        // Modelin kendine ait dokulu PBR malzemeleri varsa (Adventure Character vb.) onları korur.
         void AssignMaterials()
         {
             hairSlots = new bool[renderers.Length][];
@@ -150,10 +179,22 @@ namespace AftershockIsle.Characters
                 {
                     string matName = original[i] != null ? original[i].name.ToLowerInvariant() : string.Empty;
                     bool secondary = matName.Contains("hair") || matName.Contains("body1") || matName.Contains("1002") ||
-                                     (i > 0 && library.hairMaterial != null);
+                                     (i > 0 && library.hairMaterial != null && !matName.Contains("cloth"));
                     hairSlots[r][i] = secondary;
-                    var material = secondary ? library.hairMaterial : library.bodyMaterial;
-                    replaced[i] = material != null ? material : original[i];
+
+                    bool hasExistingTexture = original[i] != null &&
+                        ((original[i].HasProperty("_BaseMap") && original[i].GetTexture("_BaseMap") != null) ||
+                         (original[i].HasProperty("_MainTex") && original[i].GetTexture("_MainTex") != null));
+
+                    if (hasExistingTexture)
+                    {
+                        replaced[i] = original[i];
+                    }
+                    else
+                    {
+                        var material = secondary ? library.hairMaterial : library.bodyMaterial;
+                        replaced[i] = material != null ? material : original[i];
+                    }
                 }
                 renderers[r].sharedMaterials = replaced;
             }
@@ -226,6 +267,7 @@ namespace AftershockIsle.Characters
             if (!graph.IsValid()) return;
 
             bool moving = smoothedSpeed > MovingThreshold;
+            isMoving = moving;
             float runRate = Mathf.Clamp(smoothedSpeed / Mathf.Max(0.1f, library.moveSpeedReference), 0.55f, 1.45f);
             float walkRate = Mathf.Clamp(smoothedSpeed / Mathf.Max(0.1f, library.walkSpeedReference), 0.65f, 1.45f);
 
@@ -451,6 +493,8 @@ namespace AftershockIsle.Characters
                 var local = transform.InverseTransformPoint(hips.position);
                 hips.position = transform.TransformPoint(new Vector3(hipsRest.x, local.y, hipsRest.z));
             }
+
+            if (graph.IsValid()) ApplyIdleLock(Time.deltaTime);
 
             UpdateGunPose();
             UpdateToolPose();
@@ -689,17 +733,121 @@ namespace AftershockIsle.Characters
         static Vector3 Inverse(Vector3 scale) => new Vector3(
             1f / Mathf.Max(0.0001f, scale.x), 1f / Mathf.Max(0.0001f, scale.y), 1f / Mathf.Max(0.0001f, scale.z));
 
+        Transform footLeftBone, footRightBone;
+
+        void FindSpanBones(Animator animator)
+        {
+            if (animator != null && animator.isHuman)
+            {
+                footLeftBone = animator.GetBoneTransform(HumanBodyBones.LeftFoot);
+                footRightBone = animator.GetBoneTransform(HumanBodyBones.RightFoot);
+            }
+            if (footLeftBone == null) footLeftBone = FindBone(transform, "LeftFoot") ?? FindBone(transform, "foot_l") ?? FindBone(transform, "Foot_L");
+            if (footRightBone == null) footRightBone = FindBone(transform, "RightFoot") ?? FindBone(transform, "foot_r") ?? FindBone(transform, "Foot_R");
+        }
+
+        float LowestFoot()
+        {
+            float low = float.MaxValue;
+            if (footLeftBone != null) low = Mathf.Min(low, footLeftBone.position.y);
+            if (footRightBone != null) low = Mathf.Min(low, footRightBone.position.y);
+            return low == float.MaxValue ? 0f : low;
+        }
+
+        // Bacaklar: duran karakterde modelin düz duruşuna kilitlenir; yürürken klibin diz/uyluk bükülmesi kısmen silinir.
+        // Klibin kalçası bu modelin bacak oranlarında yere gömülüyorsa, ayaklar zemin hizasına geri çıkarılır.
+        const float IdleLockBlendPerSecond = 6f;
+        enum LegRole { Thigh, Calf, Foot, Toes }
+        Transform[] legBones;
+        LegRole[] legRoles;
+        Quaternion[] legRest;
+        float hipsRestHeight;
+        float idleLock;
+        bool isMoving;
+
+        void CaptureLegRest(Animator animator)
+        {
+            var bones = new System.Collections.Generic.List<Transform>();
+            var roles = new System.Collections.Generic.List<LegRole>();
+            void Add(LegRole role, HumanBodyBones bone, params string[] names)
+            {
+                Transform found = animator != null && animator.isHuman ? animator.GetBoneTransform(bone) : null;
+                for (int i = 0; found == null && i < names.Length; i++) found = FindBone(transform, names[i]);
+                if (found == null || bones.Contains(found)) return;
+                bones.Add(found);
+                roles.Add(role);
+            }
+
+            Add(LegRole.Thigh, HumanBodyBones.LeftUpperLeg, "LeftUpLeg", "thigh_l", "Thigh_L");
+            Add(LegRole.Calf, HumanBodyBones.LeftLowerLeg, "LeftLeg", "calf_l", "Calf_L");
+            Add(LegRole.Foot, HumanBodyBones.LeftFoot, "LeftFoot", "foot_l", "Foot_L");
+            Add(LegRole.Toes, HumanBodyBones.LeftToes, "LeftToeBase", "ball_l", "Ball_L");
+            Add(LegRole.Thigh, HumanBodyBones.RightUpperLeg, "RightUpLeg", "thigh_r", "Thigh_R");
+            Add(LegRole.Calf, HumanBodyBones.RightLowerLeg, "RightLeg", "calf_r", "Calf_R");
+            Add(LegRole.Foot, HumanBodyBones.RightFoot, "RightFoot", "foot_r", "Foot_R");
+            Add(LegRole.Toes, HumanBodyBones.RightToes, "RightToeBase", "ball_r", "Ball_R");
+
+            // En az uyluk-baldır-ayak (6 kemik) yoksa kullanılmaz; eksik eşleme animasyonu bozmasın.
+            if (bones.Count < 6 || hips == null) return;
+
+            legBones = bones.ToArray();
+            legRoles = roles.ToArray();
+            legRest = new Quaternion[legBones.Length];
+            for (int i = 0; i < legBones.Length; i++) legRest[i] = legBones[i].localRotation;
+            hipsRestHeight = transform.InverseTransformPoint(hips.position).y;
+        }
+
+        /// <summary>Yalnızca duran karakterde bacak kemiklerini ve kalça yüksekliğini düz duruşa çeker; yürürken animasyona dokunmaz.</summary>
+        void ApplyIdleLock(float dt)
+        {
+            if (legBones == null) return;
+
+            float target = !isMoving && !seated ? 1f : 0f;
+            idleLock = Mathf.MoveTowards(idleLock, target, IdleLockBlendPerSecond * dt);
+            if (idleLock <= 0f) return;
+
+            for (int i = 0; i < legBones.Length; i++)
+                legBones[i].localRotation = Quaternion.Slerp(legBones[i].localRotation, legRest[i], idleLock);
+
+            if (hips != null)
+            {
+                var local = transform.InverseTransformPoint(hips.position);
+                local.y = Mathf.Lerp(local.y, hipsRestHeight, idleLock);
+                hips.position = transform.TransformPoint(local);
+            }
+        }
+
         static Bounds WorldBounds(Renderer[] renderers)
         {
-            var bounds = renderers[0].bounds;
-            for (int i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
-            return bounds;
+            Bounds b = default;
+            bool init = false;
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                var r = renderers[i];
+                if (r == null || !r.enabled || !r.gameObject.activeInHierarchy) continue;
+                if (!init) { b = r.bounds; init = true; }
+                else { b.Encapsulate(r.bounds); }
+            }
+            if (init) return b;
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                if (renderers[i] != null)
+                {
+                    if (!init) { b = renderers[i].bounds; init = true; }
+                    else { b.Encapsulate(renderers[i].bounds); }
+                }
+            }
+            return init ? b : new Bounds(Vector3.zero, Vector3.one);
         }
 
         static Transform FindBone(Transform root, string suffix)
         {
             foreach (var child in root.GetComponentsInChildren<Transform>())
-                if (child.name.EndsWith(suffix)) return child;
+            {
+                if (child.name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(child.name, suffix, StringComparison.OrdinalIgnoreCase))
+                    return child;
+            }
             return null;
         }
     }

@@ -144,7 +144,7 @@ namespace AftershockIsle.Expedition
                 $"{GameInput.Prompt(InputPrompt.Fire)}: ateş    {GameInput.Prompt(InputPrompt.SwitchWeapon)}: silah    " +
                 $"{GameInput.Prompt(InputPrompt.Crouch)}: çömel    {GameInput.Prompt(InputPrompt.Dodge)}: kaçış    " +
                 $"{GameInput.Prompt(InputPrompt.Interact)}: etkileşim    {GameInput.Prompt(InputPrompt.Heal)}: ilk yardım ({kits} kit)    " +
-                $"{GameInput.Prompt(InputPrompt.Inventory)}: çanta    " +
+                $"{GameInput.Prompt(InputPrompt.Inventory)}: çanta    {GameInput.Prompt(InputPrompt.Retreat)}: çıkışa koş    " +
                 $"{GameInput.Prompt(InputPrompt.SwitchCharacter)}: sığınağa dön";
         }
 
@@ -202,7 +202,7 @@ namespace AftershockIsle.Expedition
 
             if (NearExit)
             {
-                text = $"[{key}] Üsse dön";
+                text = exitArmed ? $"[{key}] Üsse dön  ({Mathf.Max(0f, ExitAutoSeconds - exitDwell):0.0} sn)" : $"[{key}] Üsse dön";
             }
             else
             {

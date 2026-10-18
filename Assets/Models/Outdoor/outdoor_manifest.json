@@ -1,0 +1,652 @@
+{
+ "items": [
+  {
+   "name": "Ground_A",
+   "category": "ground",
+   "zbias": 0,
+   "size": [
+    6.0,
+    12.0,
+    0.364
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Ground_B",
+   "category": "ground",
+   "zbias": 0,
+   "size": [
+    6.0,
+    12.0,
+    0.366
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Ground_C",
+   "category": "ground",
+   "zbias": 0,
+   "size": [
+    6.0,
+    12.0,
+    0.536
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Curb_Front",
+   "category": "curb",
+   "zbias": -1,
+   "size": [
+    6.0,
+    3.625,
+    1.252
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Ground_Back_A",
+   "category": "groundback",
+   "zbias": 0,
+   "size": [
+    6.279,
+    14.568,
+    0.673
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Ground_Back_B",
+   "category": "groundback",
+   "zbias": 0,
+   "size": [
+    6.158,
+    14.039,
+    0.657
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Car_Sedan_Blue",
+   "category": "car",
+   "zbias": 0,
+   "size": [
+    3.68,
+    2.007,
+    1.525
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Car_Sedan_Red",
+   "category": "car",
+   "zbias": 0,
+   "size": [
+    3.68,
+    2.007,
+    1.525
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Car_Sedan_White",
+   "category": "car",
+   "zbias": 0,
+   "size": [
+    3.68,
+    2.007,
+    1.525
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Car_Sedan_Grey",
+   "category": "car",
+   "zbias": 0,
+   "size": [
+    3.68,
+    2.007,
+    1.525
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Car_Sedan_Burnt",
+   "category": "car",
+   "zbias": 0,
+   "size": [
+    3.68,
+    2.007,
+    1.525
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Car_Van",
+   "category": "van",
+   "zbias": 0,
+   "size": [
+    4.68,
+    2.28,
+    2.279
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Car_Van_Yellow",
+   "category": "van",
+   "zbias": 0,
+   "size": [
+    4.68,
+    2.28,
+    2.279
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Car_Pickup",
+   "category": "pickup",
+   "zbias": 0,
+   "size": [
+    4.56,
+    2.18,
+    1.699
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Car_Pickup_Grey",
+   "category": "pickup",
+   "zbias": 0,
+   "size": [
+    4.56,
+    2.18,
+    1.699
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Barrier_Jersey",
+   "category": "barrier",
+   "zbias": 0,
+   "size": [
+    2.2,
+    0.64,
+    1.012
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Barrier_Jersey_Broken",
+   "category": "barrier",
+   "zbias": 0,
+   "size": [
+    2.35,
+    0.655,
+    1.012
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Sandbags",
+   "category": "sandbags",
+   "zbias": 0,
+   "size": [
+    2.624,
+    0.745,
+    0.95
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Dumpster",
+   "category": "dumpster",
+   "zbias": 0,
+   "size": [
+    2.08,
+    1.103,
+    1.796
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Dumpster_Blue",
+   "category": "dumpster",
+   "zbias": 0,
+   "size": [
+    2.08,
+    1.08,
+    1.796
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Tires",
+   "category": "debris",
+   "zbias": 0,
+   "size": [
+    1.847,
+    1.191,
+    0.6
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Cones",
+   "category": "debris",
+   "zbias": 0,
+   "size": [
+    2.2,
+    0.808,
+    0.63
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Bld_Apartment_A",
+   "category": "building",
+   "zbias": -1,
+   "size": [
+    12.613,
+    10.03,
+    17.351
+   ],
+   "facade": 3.0,
+   "note": ""
+  },
+  {
+   "name": "Bld_Shop_Brick",
+   "category": "building",
+   "zbias": -1,
+   "size": [
+    10.4,
+    7.35,
+    10.95
+   ],
+   "facade": 3.0,
+   "note": ""
+  },
+  {
+   "name": "Bld_Office_Tower",
+   "category": "building",
+   "zbias": -1,
+   "size": [
+    14.907,
+    11.1,
+    27.035
+   ],
+   "facade": 3.5,
+   "note": ""
+  },
+  {
+   "name": "Bld_Collapsed_Brick",
+   "category": "building",
+   "zbias": -1,
+   "size": [
+    12.774,
+    10.157,
+    13.946
+   ],
+   "facade": 3.0,
+   "note": ""
+  },
+  {
+   "name": "Bld_Warehouse",
+   "category": "building",
+   "zbias": -1,
+   "size": [
+    16.4,
+    9.35,
+    9.609
+   ],
+   "facade": 4.5,
+   "note": ""
+  },
+  {
+   "name": "Bld_Burnt_Block",
+   "category": "building",
+   "zbias": -1,
+   "size": [
+    10.4,
+    7.35,
+    14.921
+   ],
+   "facade": 3.0,
+   "note": ""
+  },
+  {
+   "name": "Bld_Apartment_B",
+   "category": "building",
+   "zbias": -1,
+   "size": [
+    11.4,
+    7.35,
+    21.503
+   ],
+   "facade": 3.0,
+   "note": ""
+  },
+  {
+   "name": "Bld_Row_Brick",
+   "category": "building",
+   "zbias": -1,
+   "size": [
+    14.4,
+    7.347,
+    11.408
+   ],
+   "facade": 3.0,
+   "note": ""
+  },
+  {
+   "name": "Sky_A",
+   "category": "skyline",
+   "zbias": -1,
+   "size": [
+    36.0,
+    3.966,
+    29.413
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Sky_B",
+   "category": "skyline",
+   "zbias": -1,
+   "size": [
+    34.396,
+    3.747,
+    41.573
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_Lamp",
+   "category": "prop",
+   "zbias": 0,
+   "size": [
+    1.72,
+    0.418,
+    5.334
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_Lamp_Broken",
+   "category": "prop",
+   "zbias": 0,
+   "size": [
+    1.946,
+    0.488,
+    4.133
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_TrafficLight",
+   "category": "prop",
+   "zbias": 0,
+   "size": [
+    2.538,
+    0.415,
+    4.685
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_Sign_Stop",
+   "category": "prop",
+   "zbias": 0,
+   "size": [
+    0.8,
+    0.11,
+    2.7
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_Sign_Warn",
+   "category": "prop",
+   "zbias": 0,
+   "size": [
+    0.9,
+    0.11,
+    2.8
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_Sign_Direction",
+   "category": "prop",
+   "zbias": 0,
+   "size": [
+    1.448,
+    0.11,
+    2.7
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_PowerPole",
+   "category": "prop",
+   "zbias": 0,
+   "size": [
+    6.798,
+    0.58,
+    7.6
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_Tree_Dead",
+   "category": "prop",
+   "zbias": 0,
+   "size": [
+    5.646,
+    1.037,
+    5.991
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_Tree_Dead_B",
+   "category": "prop",
+   "zbias": 0,
+   "size": [
+    3.653,
+    1.14,
+    4.582
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_Bench",
+   "category": "prop",
+   "zbias": 0,
+   "size": [
+    1.9,
+    0.56,
+    0.95
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_BusShelter",
+   "category": "prop",
+   "zbias": 0,
+   "size": [
+    3.3,
+    1.4,
+    2.58
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_Fence",
+   "category": "prop",
+   "zbias": 0,
+   "size": [
+    3.08,
+    0.122,
+    1.9
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_Fence_Intact",
+   "category": "prop",
+   "zbias": 0,
+   "size": [
+    3.08,
+    0.1,
+    1.9
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_Hydrant",
+   "category": "prop",
+   "zbias": 0,
+   "size": [
+    0.55,
+    0.38,
+    0.9
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_TrashBags",
+   "category": "debris",
+   "zbias": 0,
+   "size": [
+    1.636,
+    1.212,
+    0.72
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_Pallets",
+   "category": "debris",
+   "zbias": 0,
+   "size": [
+    1.395,
+    1.287,
+    0.737
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_Rubble_A",
+   "category": "debris",
+   "zbias": 0,
+   "size": [
+    3.633,
+    2.93,
+    1.791
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_Rubble_B",
+   "category": "debris",
+   "zbias": 0,
+   "size": [
+    3.266,
+    2.078,
+    1.72
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_Rubble_Big",
+   "category": "debris",
+   "zbias": 0,
+   "size": [
+    4.806,
+    3.658,
+    2.362
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_SlabLean",
+   "category": "debris",
+   "zbias": 0,
+   "size": [
+    3.002,
+    1.939,
+    2.023
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_Container",
+   "category": "prop",
+   "zbias": 0,
+   "size": [
+    6.12,
+    2.508,
+    2.65
+   ],
+   "facade": 0.0,
+   "note": ""
+  },
+  {
+   "name": "Prop_Container_Rust",
+   "category": "prop",
+   "zbias": 0,
+   "size": [
+    6.12,
+    2.508,
+    2.65
+   ],
+   "facade": 0.0,
+   "note": ""
+  }
+ ]
+}

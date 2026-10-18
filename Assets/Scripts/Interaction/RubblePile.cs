@@ -91,6 +91,9 @@ namespace AftershockIsle.Interaction
         public override void Complete(Survivor worker)
         {
             worker.Collect(yieldPerDig);
+            // Kazma demir donatıyı da söker.
+            if (AftershockIsle.Crafting.ToolKit.HasPickaxe && Random.value < AftershockIsle.Crafting.ToolKit.PickaxeMetalChance)
+                worker.Collect(new ResourceAmount(ResourceType.Metal, 1));
             remaining--;
 
             if (remaining <= 0)
@@ -110,6 +113,13 @@ namespace AftershockIsle.Interaction
             var position = transform.position;
             position.y = baseY + transform.lossyScale.y * 0.5f;
             transform.position = position;
+        }
+
+        /// <summary>Çalışma anında oluşturulan yığın için (pasif nesneye, Awake'ten önce).</summary>
+        public void SetupRuntime(int digs, bool blocks)
+        {
+            digCount = Mathf.Max(1, digs);
+            blocksPath = blocks;
         }
 
         public int Remaining => remaining;

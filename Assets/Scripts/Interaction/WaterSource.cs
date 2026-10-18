@@ -30,6 +30,13 @@ namespace AftershockIsle.Interaction
             ? FloodSystem.Instance != null && FloodSystem.Instance.Level >= floodPerBucket
             : charges > 0;
 
+        /// <summary>Çalışma anında oluşturulan sınırlı kaynak (bidon, yağmur toplayıcı).</summary>
+        public void SetupRuntime(int startCharges)
+        {
+            usesFloodWater = false;
+            charges = Mathf.Max(0, startCharges);
+        }
+
         void OnEnable() => all.Add(this);
         void OnDisable() => all.Remove(this);
 

@@ -180,6 +180,7 @@ namespace AftershockIsle.Characters
             if (IsDead) return;
 
             DepositLeftovers();
+            view?.SetSeated(Tasks != null && Tasks.State == TaskState.Working && Tasks.Current is AftershockIsle.Interaction.Seat);
 
             // Hız çarpanları: yük × tükenmişlik × yetenek × özellikler.
             bool sprinter = HasTrait(TraitId.Sprinter);

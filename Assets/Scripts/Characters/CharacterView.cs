@@ -419,8 +419,33 @@ namespace AftershockIsle.Characters
         }
 
         // Kök hareketli klip yerinde oynasın ve silah/alet ellerin konumuna hizalansın.
+        // Oturma: model sandalyeye doğru yumuşakça alçalır (animasyon gelene kadar basit duruş).
+        const float SeatDrop = 0.5f;
+        bool seated;
+        float seatBlend;
+        bool seatRestCaptured;
+        Vector3 seatRestPosition;
+
+        public void SetSeated(bool value) => seated = value;
+
+        void UpdateSeat()
+        {
+            if (!seatRestCaptured)
+            {
+                seatRestCaptured = true;
+                seatRestPosition = transform.localPosition;
+            }
+
+            float target = seated ? 1f : 0f;
+            if (Mathf.Approximately(seatBlend, target) && !seated) return;
+            seatBlend = Mathf.MoveTowards(seatBlend, target, Time.deltaTime * 4f);
+            transform.localPosition = seatRestPosition + Vector3.down * (SeatDrop * seatBlend);
+        }
+
         void LateUpdate()
         {
+            UpdateSeat();
+
             if (hips != null && graph.IsValid())
             {
                 var local = transform.InverseTransformPoint(hips.position);

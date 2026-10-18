@@ -4,7 +4,7 @@ using UnityEngine;
 namespace AftershockIsle.Expedition
 {
     /// <summary>Sahadaki yapının tipi; lokasyona göre seçilir.</summary>
-    public enum FieldLayout { House, Construction, Clinic, Workshop, Ruin }
+    public enum FieldLayout { House, Construction, Clinic, Workshop, Ruin, Market, Station }
 
     /// <summary>
     /// Dış sahadaki girilebilir tek katlı yapı. Duvarlar gerçek collider taşır (yürüme, mermi, görüş hattı).
@@ -53,6 +53,8 @@ namespace AftershockIsle.Expedition
         static readonly Color FurnitureColor = new Color(0.4f, 0.3f, 0.2f);
         static readonly Color ConcreteColor = new Color(0.55f, 0.55f, 0.52f);
         static readonly Color RubbleColor = new Color(0.45f, 0.42f, 0.38f);
+        static readonly Color MetalColor = new Color(0.55f, 0.6f, 0.66f);
+        static readonly Color PumpColor = new Color(0.72f, 0.2f, 0.16f);
 
         readonly List<Renderer> cutaway = new List<Renderer>();
         readonly List<SpotSlot> spotSlots = new List<SpotSlot>();
@@ -83,13 +85,18 @@ namespace AftershockIsle.Expedition
         public static float WidthFor(FieldLayout layout) => layout switch
         {
             FieldLayout.Clinic => 14f,
+            FieldLayout.Market => 14f,
+            FieldLayout.Station => 12f,
             FieldLayout.Workshop => 12f,
             FieldLayout.Construction => 12f,
             _ => 10f,
         };
 
         static bool HasRoof(FieldLayout layout) =>
-            layout == FieldLayout.House || layout == FieldLayout.Clinic || layout == FieldLayout.Workshop;
+            layout == FieldLayout.House || layout == FieldLayout.Clinic || layout == FieldLayout.Workshop || layout == FieldLayout.Market;
+
+        // Bel hizası duvarlı açık yapılar (inşaat, camları kırık istasyon marketi): çömelince siper.
+        static bool IsLowWalled(FieldLayout layout) => layout == FieldLayout.Construction || layout == FieldLayout.Station;
 
         public FieldBuilding(PrimitiveFactory make, ArtDresser dress, Vector2 min, Vector2 size, float groundY, FieldLayout layout)
         {
@@ -97,7 +104,7 @@ namespace AftershockIsle.Expedition
             this.dress = dress;
             this.groundY = groundY;
             Layout = layout;
-            wallHeight = layout == FieldLayout.Construction ? 1.1f : layout == FieldLayout.Ruin ? 2.4f : 3.2f;
+            wallHeight = IsLowWalled(layout) ? 1.1f : layout == FieldLayout.Ruin ? 2.4f : 3.2f;
             Footprint = new Rect(min, size);
             Interior = new Rect(min + Vector2.one * WallThickness, size - Vector2.one * (WallThickness * 2f));
 
@@ -109,7 +116,7 @@ namespace AftershockIsle.Expedition
             float frontGap = layout == FieldLayout.Ruin ? 3.5f : DoorWidth;
             float frontDoorX = x0 + size.x * (layout == FieldLayout.Ruin ? 0.45f : 0.35f);
             float sideDoorZ = z0 + size.y * 0.5f;
-            float lintel = layout == FieldLayout.Ruin || layout == FieldLayout.Construction ? wallHeight : DoorHeight;
+            float lintel = layout == FieldLayout.Ruin || IsLowWalled(layout) ? wallHeight : DoorHeight;
             FrontDoor = new Vector2(frontDoorX, z0 - 1.2f);
 
             var floor = make(PrimitiveType.Cube, "Bina Zemini", FloorColor, false);
@@ -138,6 +145,8 @@ namespace AftershockIsle.Expedition
                 case FieldLayout.Workshop: BuildWorkshop(inner); break;
                 case FieldLayout.Ruin: BuildRuin(inner); break;
                 case FieldLayout.Construction: BuildConstruction(inner); break;
+                case FieldLayout.Market: BuildMarket(inner); break;
+                case FieldLayout.Station: BuildStation(inner); break;
                 default: BuildHouse(inner); break;
             }
         }
@@ -219,6 +228,35 @@ namespace AftershockIsle.Expedition
             Spot(new Vector3(r.center.x + 1.5f, 0f, r.yMax - 0.6f), new Vector3(0.9f, 0.8f, 0.9f), ArtKey.Crate, 0f);
             Spot(new Vector3(r.xMin + 2.5f, 0f, r.yMin + 0.9f), new Vector3(1.2f, 0.7f, 1f), ArtKey.Rubble, 0f);
             Spot(new Vector3(r.xMax - 0.8f, 0f, r.yMin + 0.9f), new Vector3(0.9f, 0.8f, 0.9f), ArtKey.Crate, 0f);
+        }
+
+        // Market: iki uzun raf sırası koridor oluşturur (raf arkası siper, koridor boyu açık atış hattı); önde kasa.
+        void BuildMarket(Rect r)
+        {
+            Prop("Raf Sırası", ArtKey.Dresser, FaceCamera, new Vector3(r.center.x - 2.2f, 0f, r.center.y + 0.9f), new Vector3(3.2f, 1.5f, 0.6f), true, FurnitureColor);
+            Prop("Raf Sırası", ArtKey.Dresser, FaceCamera, new Vector3(r.center.x + 2.2f, 0f, r.center.y + 0.9f), new Vector3(3.2f, 1.5f, 0.6f), true, FurnitureColor);
+            Prop("Raf Sırası", ArtKey.Dresser, FaceCamera, new Vector3(r.center.x, 0f, r.center.y - 0.6f), new Vector3(3.6f, 1.5f, 0.6f), true, FurnitureColor);
+            Prop("Kasa Bankosu", ArtKey.Table, 0f, new Vector3(r.xMin + 1.4f, 0f, r.yMin + 0.8f), new Vector3(1.8f, 1.05f, 0.8f), true, FurnitureColor);
+            Prop("Devrik Araba", ArtKey.Crate, 0f, new Vector3(r.xMax - 2f, 0f, r.yMin + 0.7f), new Vector3(0.8f, 0.7f, 0.6f), false, MetalColor, false);
+
+            Spot(new Vector3(r.xMin + 0.9f, 0f, r.yMax - 0.35f), new Vector3(1.3f, 1.3f, 0.65f), ArtKey.Dresser, FaceCamera);
+            Spot(new Vector3(r.xMax - 0.9f, 0f, r.yMax - 0.35f), new Vector3(1.3f, 1.3f, 0.65f), ArtKey.Dresser, FaceCamera);
+            Spot(new Vector3(r.center.x, 0f, r.yMax - 0.5f), new Vector3(0.9f, 0.8f, 0.9f), ArtKey.Crate, 0f);
+            Spot(new Vector3(r.xMax - 0.8f, 0f, r.center.y - 0.4f), new Vector3(0.9f, 0.8f, 0.9f), ArtKey.Crate, 0f);
+        }
+
+        // Benzin istasyonu marketi: camları kırık bel hizası duvarlar, ortada pompa adası (siper), arkada depo kasaları.
+        void BuildStation(Rect r)
+        {
+            Prop("Akaryakıt Pompası", ArtKey.Crate, 0f, new Vector3(r.center.x - 1.2f, 0f, r.center.y), new Vector3(0.6f, 1.6f, 0.6f), true, PumpColor, false);
+            Prop("Akaryakıt Pompası", ArtKey.Crate, 0f, new Vector3(r.center.x + 1.2f, 0f, r.center.y), new Vector3(0.6f, 1.6f, 0.6f), true, PumpColor, false);
+            Prop("Pompa Adası", ArtKey.Crate, 0f, new Vector3(r.center.x, 0f, r.center.y), new Vector3(3.4f, 0.25f, 1f), false, ConcreteColor, false);
+            Prop("Bidon", ArtKey.Bucket, 0f, new Vector3(r.xMin + 0.6f, 0f, r.center.y - 0.8f), new Vector3(0.5f, 0.7f, 0.5f), true, PumpColor);
+            Prop("Kasa", ArtKey.Crate, 0f, new Vector3(r.xMax - 0.7f, 0f, r.yMax - 1.2f), new Vector3(0.9f, 0.85f, 0.9f), true, FurnitureColor);
+
+            Spot(new Vector3(r.xMin + 1f, 0f, r.yMax - 0.5f), new Vector3(0.9f, 0.8f, 0.9f), ArtKey.Crate, 0f);
+            Spot(new Vector3(r.center.x, 0f, r.yMax - 0.35f), new Vector3(1.3f, 1.3f, 0.65f), ArtKey.Dresser, FaceCamera);
+            Spot(new Vector3(r.xMax - 0.9f, 0f, r.yMin + 0.9f), new Vector3(0.9f, 0.8f, 0.9f), ArtKey.Crate, 0f);
         }
 
         /// <summary>Eşya: kutu (collider) + üstüne model. floorPoint.y: yığında alttaki kutunun üstü. useArt false: düz kutu.</summary>

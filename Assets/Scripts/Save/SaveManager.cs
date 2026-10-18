@@ -43,6 +43,8 @@ namespace AftershockIsle.Save
 
         public static SaveManager Instance { get; private set; }
         public static bool PendingLoad { get; set; }
+        /// <summary>Kayıt uygulanırken true: bu sırada yayınlanan gün/faz olayları yeni bir gün ya da gece değildir.</summary>
+        public static bool IsApplying { get; private set; }
 
         public static string SaveDirectory => Path.Combine(Application.persistentDataPath, "Saves");
 
@@ -209,7 +211,15 @@ namespace AftershockIsle.Save
                     return false;
                 }
 
-                ApplySaveData(data);
+                IsApplying = true;
+                try
+                {
+                    ApplySaveData(data);
+                }
+                finally
+                {
+                    IsApplying = false;
+                }
                 Debug.Log($"[SaveManager] Oyun başarıyla yüklendi (Gün {data.dayCycle.day}).");
                 EventBus.Publish(new GameLoaded(true));
                 return true;
@@ -228,7 +238,7 @@ namespace AftershockIsle.Save
             var data = new GameSaveData
             {
                 saveDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                saveVersion = 1,
+                saveVersion = 2,
             };
 
             // 1. DayCycle
@@ -483,6 +493,8 @@ namespace AftershockIsle.Save
             if (away != null && !allSurvivors.Contains(away)) allSurvivors.Add(away);
             var awayComp = ExpeditionSystem.AwayCompanion;
             if (awayComp != null && !allSurvivors.Contains(awayComp)) allSurvivors.Add(awayComp);
+            foreach (var scout in NightScavenge.AwaySurvivors())
+                if (!allSurvivors.Contains(scout)) allSurvivors.Add(scout);
 
             foreach (var s in allSurvivors)
             {
@@ -533,13 +545,44 @@ namespace AftershockIsle.Save
                 data.raiderAttention = NightDefenseSystem.Instance.Attention;
                 NightDefenseSystem.Instance.CaptureNight(out data.nightRaidPending, out data.nightRaidAt, out data.nightGuard);
             }
+            NightScavenge.Instance?.Capture(data.nightScouts, data.nightScoutSites);
+            data.eveningPlanDone = AftershockIsle.UI.EveningPlan.PlanDone;
+            data.gameMode = (int)GameMode.Current;
+            data.supplyDropDay = EvacuationSystem.NextDropDay;
 
             return data;
+        }
+
+        static void SpawnSavedRubble(RubbleSaveData rData)
+        {
+            if (rData.scale.x <= 0.01f || rData.scale.y <= 0.01f) return;
+
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.SetActive(false);
+            go.name = rData.name;
+            go.transform.position = rData.position;
+            go.transform.localScale = rData.scale;
+
+            var color = new Color(0.45f, 0.42f, 0.38f);
+            var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+            var material = new Material(shader) { color = color };
+            if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", color);
+            go.GetComponent<Renderer>().sharedMaterial = material;
+
+            var pile = go.AddComponent<RubblePile>();
+            // Kalan kazı tam yığın sayılır (kayıttaki ölçü zaten alçalmış hali).
+            pile.SetupRuntime(rData.remaining, rData.blocksPath);
+            pile.ConfigureRuntime(rData.blocksPath ? "Tavan Enkazı" : "Moloz", 4f);
+            go.SetActive(true);
         }
 
         // ---------------------------------------------------------------- Durum Uygulama
         void ApplySaveData(GameSaveData data)
         {
+            // 0. Oyun modu (diğer sistemler buna göre davranır).
+            GameMode.Current = (GameModeType)Mathf.Clamp(data.gameMode, 0, 1);
+            EvacuationSystem.NextDropDay = data.supplyDropDay;
+
             // 1. DayCycle
             var dayCycle = FindFirstObjectByType<DayCycle>();
             if (dayCycle != null && data.dayCycle.day > 0)
@@ -715,7 +758,7 @@ namespace AftershockIsle.Save
             }
 
             // 17. Furniture
-            if (data.furnitures != null && data.furnitures.Count > 0)
+            if (data.furnitures != null && (data.furnitures.Count > 0 || data.saveVersion >= 2))
             {
                 var fDict = new Dictionary<string, FurnitureSaveData>();
                 foreach (var f in data.furnitures) fDict[f.name] = f;
@@ -728,11 +771,13 @@ namespace AftershockIsle.Save
                         if (fData.isDismantled) Destroy(furn.gameObject);
                         else furn.RestoreState(fData.isSearched);
                     }
+                    // Kayıtta yoksa kaydedilmeden önce parçalanmıştı (sürüm 2'den itibaren güvenilir).
+                    else if (data.saveVersion >= 2) Destroy(furn.gameObject);
                 }
             }
 
             // 18. RubblePiles
-            if (data.rubbles != null && data.rubbles.Count > 0)
+            if (data.rubbles != null && (data.rubbles.Count > 0 || data.saveVersion >= 2))
             {
                 var rubbleDict = new Dictionary<string, RubbleSaveData>();
                 foreach (var r in data.rubbles) rubbleDict[r.name] = r;
@@ -742,6 +787,27 @@ namespace AftershockIsle.Save
                     if (rubble == null) continue;
                     if (rubbleDict.TryGetValue(rubble.gameObject.name, out var rData))
                         rubble.RestoreState(rData.isCleared ? 0 : rData.remaining);
+                    // Kayıtta yoksa kaydedilmeden önce temizlenmişti.
+                    else if (data.saveVersion >= 2) rubble.RestoreState(0);
+                }
+
+                // Oyun sırasında düşen enkaz (kırık kolon, çöken tavan) sahnede yok: kayıttaki yerinde yeniden oluşturulur.
+                var sceneNames = new Dictionary<string, int>();
+                foreach (var rubble in RubblePile.All)
+                {
+                    if (rubble == null) continue;
+                    sceneNames.TryGetValue(rubble.gameObject.name, out int n);
+                    sceneNames[rubble.gameObject.name] = n + 1;
+                }
+                foreach (var rData in data.rubbles)
+                {
+                    if (rData.isCleared || rData.remaining <= 0) continue;
+                    if (sceneNames.TryGetValue(rData.name, out int n) && n > 0)
+                    {
+                        sceneNames[rData.name] = n - 1;
+                        continue;
+                    }
+                    SpawnSavedRubble(rData);
                 }
             }
 
@@ -799,6 +865,11 @@ namespace AftershockIsle.Save
                 NightDefenseSystem.Instance.RestoreState(data.raiderAttention);
                 NightDefenseSystem.Instance.RestoreNight(data.nightRaidPending, data.nightRaidAt, data.nightGuard);
             }
+
+            // 21. Akşam planı ve gece keşfi
+            bool night = dayCycle != null && dayCycle.Phase == DayPhase.Night;
+            AftershockIsle.UI.EveningPlan.Restore(data.eveningPlanDone, night);
+            NightScavenge.Instance?.Restore(data.nightScouts, data.nightScoutSites, night, dayCycle != null ? dayCycle.Day : 1);
         }
     }
 }

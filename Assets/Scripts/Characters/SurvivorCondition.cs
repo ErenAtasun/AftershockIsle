@@ -71,7 +71,8 @@ namespace AftershockIsle.Characters
             {
                 float coldFactor = hasHeater ? 1f : WeatherSystem.ColdDarkStressMultiplier;
                 float claustroFactor = survivor.HasTrait(TraitId.Claustrophobic) ? 1.8f : 1f;
-                AddStress(darkWorkStressPerSecond * coldFactor * claustroFactor * dt);
+                float lampFactor = ToolKit.HasHeadLamp ? ToolKit.HeadLampDarkStress : 1f;
+                AddStress(darkWorkStressPerSecond * coldFactor * claustroFactor * lampFactor * dt);
             }
             else if (tasks.State == TaskState.Idle && !mover.IsMoving && isLit)
             {

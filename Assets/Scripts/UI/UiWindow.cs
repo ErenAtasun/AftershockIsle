@@ -113,6 +113,10 @@ namespace AftershockIsle.UI
                 Content.offsetMax = new Vector2(-16f, -HeaderHeight);
             }
 
+            // Her açılışta hafifçe büyüyerek belirir.
+            Root.AddComponent<CanvasGroup>();
+            Root.AddComponent<UiPop>().Target = Panel;
+
             Root.SetActive(false);
         }
 

@@ -86,8 +86,8 @@ namespace AftershockIsle.Crisis
             var next = PickWeather(evt.Day, CurrentWeather);
             SetWeather(next);
 
-            // Asit/Kül yağmuru yağdığında su bidonlarını +1 kova doldurur
-            if (next == WeatherType.AcidRain)
+            // Yağmurlu günlerde (asit yağmuru, fırtına) bidonlar ve çatıdaki yağmur toplayıcı +1 kova dolar
+            if (next == WeatherType.AcidRain || next == WeatherType.Storm)
             {
                 foreach (var ws in FindObjectsByType<WaterSource>(FindObjectsSortMode.None))
                 {
@@ -196,7 +196,7 @@ namespace AftershockIsle.Crisis
             WeatherType.Clear => "Normal görüş ve sıcaklık",
             WeatherType.DenseFog => "Sahada düşman görüşü -%35 (Gizlilik avantajı)",
             WeatherType.AcidRain => "Su kaynakları +1 dolar; çatıda maskesiz çalışmak stres verir",
-            WeatherType.Storm => "Kırık pencerelerden duman ve gaz 2x hızlı tahliye olur",
+            WeatherType.Storm => "Kırık pencerelerden duman ve gaz 2x hızlı tahliye olur; su kapları +1 dolar",
             WeatherType.ColdWave => "Elektrik/Soba olmayan katlarda üşüme stresi +%50 artar",
             _ => ""
         };

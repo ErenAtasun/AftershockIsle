@@ -43,6 +43,15 @@ namespace AftershockIsle.Save
         public bool nightRaidPending;
         public float nightRaidAt;
         public string nightGuard;
+
+        // Akşam planı: bu gecenin planı yapıldı mı (yapılmadıysa yüklenince yeniden açılır) ve gece keşfindekiler.
+        public bool eveningPlanDone = true;
+
+        // Oyun modu (0 kampanya, 1 sonsuz) ve sonsuz modda telsizin yeniden yardım çağırabileceği gün.
+        public int gameMode;
+        public int supplyDropDay;
+        public List<string> nightScouts = new List<string>();
+        public List<int> nightScoutSites = new List<int>();
     }
 
     [Serializable]

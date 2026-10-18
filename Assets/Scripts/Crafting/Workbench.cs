@@ -22,13 +22,20 @@ namespace AftershockIsle.Crafting
     public readonly struct WorkbenchMenuRequested
     {
         public readonly Survivor Worker;
-        public WorkbenchMenuRequested(Survivor worker) => Worker = worker;
+        /// <summary>True ise İnşaat Masası menüsü (eve kurulan yapılar), değilse Çalışma Tezgahı menüsü.</summary>
+        public readonly bool Build;
+
+        public WorkbenchMenuRequested(Survivor worker, bool build = false)
+        {
+            Worker = worker;
+            Build = build;
+        }
     }
 
     /// <summary>
-    /// Çalışma Tezgahı. Sağ tık üretim menüsünü açar; seçilen tarif bekleyen sipariş olur ve
-    /// karakter tezgahta çalışınca malzeme depodan düşülüp sonuç uygulanır.
-    /// Yerleştirilebilir (Grid) eşyalar üretilince kurulum envanterine eklenir.
+    /// Çalışma Tezgahı: silah, mermi, ekipman ve yükseltmeler (doğrudan etkili üretim). Sağ tık menüyü açar; seçilen tarif
+    /// bekleyen sipariş olur ve karakter tezgahta çalışınca malzeme depodan düşülüp sonuç uygulanır.
+    /// Eve kurulan (Grid) yapılar İnşaat Masası'nda (BuildTable) hazırlanır; veriler (kademe, kurulum envanteri) burada ortaktır.
     /// </summary>
     public class Workbench : Interactable
     {
@@ -142,7 +149,8 @@ namespace AftershockIsle.Crafting
         /// <summary>Siparişi verir ve işçiyi tezgaha gönderir.</summary>
         public bool Order(RecipeInfo recipe, Survivor worker, bool append)
         {
-            if (!CanOrder(recipe, out _) || worker == null) return false;
+            // Eve kurulan yapılar İnşaat Masası'nda hazırlanır.
+            if (recipe.IsPlaceable || !CanOrder(recipe, out _) || worker == null) return false;
 
             pending = recipe;
             worker.Tasks.Assign(this, append);
@@ -167,7 +175,13 @@ namespace AftershockIsle.Crafting
 
             var recipe = pending.Value;
             pending = null;
-            if (!ResourceStorage.Instance.TrySpendAll(recipe.Costs)) return;
+            Produce(recipe);
+        }
+
+        /// <summary>Malzemeyi harcar ve tarifin sonucunu uygular (iki üretim istasyonu da çağırır). Malzeme yetmezse false.</summary>
+        public bool Produce(RecipeInfo recipe)
+        {
+            if (!ResourceStorage.Instance.TrySpendAll(recipe.Costs)) return false;
 
             switch (recipe.Id)
             {
@@ -185,6 +199,7 @@ namespace AftershockIsle.Crafting
             }
 
             EventBus.Publish(new RecipeCrafted(recipe.Id));
+            return true;
         }
 
         public bool TryUseAmmo()
@@ -196,6 +211,14 @@ namespace AftershockIsle.Crafting
 
         /// <summary>Sahada düşmandan toplanan mermi.</summary>
         public void AddAmmo(int amount) => Ammo += Mathf.Max(0, amount);
+
+        /// <summary>Sefere götürülen mermiyi stoktan alır; alınabilen miktarı döner.</summary>
+        public int TakeAmmo(int amount)
+        {
+            int taken = Mathf.Clamp(amount, 0, Ammo);
+            Ammo -= taken;
+            return taken;
+        }
 
         public bool TryUseSteelBeam()
         {

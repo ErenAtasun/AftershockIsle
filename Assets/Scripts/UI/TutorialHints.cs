@@ -175,7 +175,7 @@ namespace AftershockIsle.UI
             "Bir kişi daha, gece bir Yaşam Kiti daha harcar.");
 
         void OnPlaceableReady(PlaceableItemReady evt) => Show("build", "Eşya kuruluma hazır",
-            "Üretilen eşya tezgahtan çıkmaz, önce eve kurulur. Yerleşim modu açıldı ve zaman durdu: fareyle bir hücre seç (yeşil = kurulabilir, kırmızı = olmaz), " +
+            "Eve kurulan yapılar İnşaat Masası'nda hazırlanır (silah ve ekipman ise Çalışma Tezgahı'nda) ve önce eve kurulur. Yerleşim modu açıldı ve zaman durdu: fareyle bir hücre seç (yeşil = kurulabilir, kırmızı = olmaz), " +
             "sol tık / Enter (gamepad: A) ile kur. R / Y: döndür, ok tuşları / sol çubuk: hücre, Q-E / LB-RB: kat, Tab / LT-RT: yapı seç, X: depoya kaldır, B / sağ tık: kapat. " +
             "Daha sonra B (gamepad: D-pad ↑) ile yeniden açabilirsin.");
 

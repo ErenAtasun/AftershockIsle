@@ -18,7 +18,7 @@ namespace AftershockIsle.Interaction
                 var expeditions = ExpeditionSystem.Instance;
                 if (expeditions == null) return null;
                 return expeditions.CanDepart(out string reason)
-                    ? $"Dış sefer: {expeditions.BagSlots} slotlu çanta. Sadece öğle vakti."
+                    ? $"Dış sefer: {expeditions.BagCapacity} kg çanta (ekipman da yer kaplar). Sadece öğle vakti."
                     : reason;
             }
         }

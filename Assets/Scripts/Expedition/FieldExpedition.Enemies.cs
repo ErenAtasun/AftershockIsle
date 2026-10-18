@@ -261,14 +261,14 @@ namespace AftershockIsle.Expedition
             var at = enemy.Position + Vector3.up * enemy.LabelHeight;
             Float($"{enemy.Label} düştü", at, new Color(1f, 0.85f, 0.3f));
 
-            if (enemy.Kind == FieldEnemyKind.Gunner && Workbench.Instance != null)
+            if (enemy.Kind == FieldEnemyKind.Gunner)
             {
-                Workbench.Instance.AddAmmo(3);
+                ammo += 3;
                 Float("+3 mermi", at + Vector3.up * 0.5f, new Color(1f, 0.9f, 0.5f));
             }
             else if (enemy.Kind != FieldEnemyKind.Dog && Random.value < 0.35f)
             {
-                AddLoot(new ResourceAmount(ResourceType.Supplies, 1));
+                GainLoot(new ResourceAmount(ResourceType.Supplies, 1), enemy.Position);
                 Float("+1 Yaşam Kiti", at + Vector3.up * 0.5f, ResourceType.Supplies.ToColor());
             }
         }

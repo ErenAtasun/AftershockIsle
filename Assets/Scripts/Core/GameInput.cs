@@ -133,6 +133,10 @@ namespace AftershockIsle.Core
         public static bool ViewSwitchPressed => Pad != null && Pad.selectButton.wasPressedThisFrame;
 
         public static bool FocusPressed => Keys != null && Keys.fKey.wasPressedThisFrame;
+
+        /// <summary>Sahada I / D-pad ↑: envanter (çanta) penceresi.</summary>
+        public static bool InventoryPressed =>
+            (Keys != null && Keys.iKey.wasPressedThisFrame) || (FieldControlsActive && Pad != null && Pad.dpad.up.wasPressedThisFrame);
         public static bool RestartPressed => Keys != null && Keys.rKey.wasPressedThisFrame;
         /// <summary>B / D-pad yukarı: yerleşim modunu aç-kapat (sadece sığınakta).</summary>
         public static bool BuildModeTogglePressed => BuildModeKeyPressed || BuildModePadPressed;
@@ -402,6 +406,7 @@ namespace AftershockIsle.Core
                 InputPrompt.PlaceStore => "X",
                 InputPrompt.PlaceClose => pad ? "B" : "B / Sağ tık",
                 InputPrompt.Zoom => pad ? "L3 / R3" : "Tekerlek",
+                InputPrompt.Inventory => pad ? "D-pad ↑" : "I",
                 _ => "?",
             };
         }
@@ -513,6 +518,6 @@ namespace AftershockIsle.Core
     {
         Move, Dodge, Interact, Heal, Cancel, Pause, Speed, SwitchCharacter,
         SkillTree, Help, Menu, Confirm, Back, Pump, Aim, Fire, SwitchWeapon, Crouch,
-        Build, PlaceCell, PlaceFloor, PlaceRecipe, PlaceConfirm, PlaceRotate, PlaceStore, PlaceClose, Zoom,
+        Build, PlaceCell, PlaceFloor, PlaceRecipe, PlaceConfirm, PlaceRotate, PlaceStore, PlaceClose, Zoom, Inventory,
     }
 }

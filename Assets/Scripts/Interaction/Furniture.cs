@@ -75,10 +75,21 @@ namespace AftershockIsle.Interaction
         {
             var result = salvage;
             if (result.type == ResourceType.Scrap) result.amount = SkillTree.ApplyRecycling(result.amount);
+            // Levye ile daha temiz sökülür: +1 malzeme.
+            if (AftershockIsle.Crafting.ToolKit.HasCrowbar) result.amount += 1;
             return result;
         }
 
         public bool IsSearched => searched;
+
+        /// <summary>Çalışma anında oluşturulan mobilya için (pasif nesneye, Awake'ten önce).</summary>
+        public void SetupRuntime(ResourceAmount salvageAmount, bool shelter, bool searchable, ResourceAmount loot)
+        {
+            salvage = salvageAmount;
+            providesShelter = shelter;
+            hasSearchLoot = searchable;
+            searchLoot = loot;
+        }
 
         public void RestoreState(bool isSearched)
         {

@@ -43,6 +43,9 @@ namespace AftershockIsle.Crisis
         /// <summary>Sığınağa çekilen yağmacı dikkati (0–100). Kapıdan kovulan yabancılar artırır, baskın sıfırlar.</summary>
         public int Attention => attention;
 
+        /// <summary>True ise nöbetçi akşam planında seçilir; bu sistem kendi nöbet penceresini açmaz.</summary>
+        public static bool GuardChosenByPlan { get; set; }
+
         Survivor guard;
         float nextGuardWalkTime;
         int attention;
@@ -101,7 +104,7 @@ namespace AftershockIsle.Crisis
             if (evt.Phase == DayPhase.Night)
             {
                 guard = null;
-                promptPending = evt.Day >= 2;
+                promptPending = evt.Day >= 2 && !GuardChosenByPlan;
                 raidResolved = false;
                 raidAtNormalized = Random.Range(0.35f, 0.75f);
             }
@@ -166,6 +169,10 @@ namespace AftershockIsle.Crisis
             body.Append("Gece çöktü. Kapıda nöbet tutacak birini seçin; nöbetçi uyumaz ve sabah yorgun uyanır (+10 Stres).\n\n");
             body.Append($"Silah: {WeaponSummary()}   •   Barikat: {(HasBarricade ? "Çelik Kapı var" : "yok")}\n");
             body.Append($"Tehdit: {ThreatLabel(RaidChance(day))}");
+            var storage = AftershockIsle.Economy.ResourceStorage.Instance;
+            int kits = storage != null ? storage.Get(AftershockIsle.Economy.ResourceType.Supplies) : 0;
+            int alive = Survivor.AliveCount;
+            body.Append($"\nYiyecek: {kits} Yaşam Kiti, {alive} kazazede (sabaha kadar herkes bir kit yer).");
             if (attention > 0) body.Append($"  (yağmacı dikkati %{attention})");
 
             var choices = new List<NarrativeEventSystem.ExternalChoice>();
@@ -174,8 +181,8 @@ namespace AftershockIsle.Crisis
                 var survivor = candidates[i];
                 string tags = survivor.HasTrait(TraitId.Sharpshooter) ? "  [Keskin Nişancı]" : "";
                 choices.Add(new NarrativeEventSystem.ExternalChoice(
-                    $"{survivor.DisplayName} nöbet tutsun  — savunma {Mathf.RoundToInt(DefenseScore(survivor))}{tags}",
-                    () => AssignGuard(survivor)));
+                    $"{survivor.DisplayName} nöbet tutsun  — savunma {Mathf.RoundToInt(DefenseScore(survivor))}{tags}   (Can {survivor.Health:0}, Stres {survivor.Condition.Stress:0})",
+                    () => SetGuard(survivor)));
             }
             choices.Add(new NarrativeEventSystem.ExternalChoice(
                 $"Kimse nöbet tutmasın — savunma {Mathf.RoundToInt(DefenseScore(null))}",
@@ -193,8 +200,15 @@ namespace AftershockIsle.Crisis
             return list;
         }
 
-        void AssignGuard(Survivor survivor)
+        /// <summary>Bu gecenin nöbetçisini atar (null: kimse nöbet tutmaz).</summary>
+        public void SetGuard(Survivor survivor)
         {
+            if (survivor == null || survivor.IsDead)
+            {
+                guard = null;
+                EventBus.Publish(new NarrativeNotice("Bu gece herkes uyuyor. Kapı korumasız..."));
+                return;
+            }
             guard = survivor;
             guard.Tasks.CancelAll();
             var chatter = guard.GetComponent<SurvivorChatter>();
@@ -238,9 +252,9 @@ namespace AftershockIsle.Crisis
 
         // ---------------------------------------------------------------- Güç hesapları
 
-        static bool HasBarricade => Workbench.Has(RecipeId.ReinforcedDoor);
+        public static bool HasBarricade => Workbench.Has(RecipeId.ReinforcedDoor);
 
-        static bool HasGun
+        public static bool HasGun
         {
             get
             {
@@ -249,7 +263,7 @@ namespace AftershockIsle.Crisis
             }
         }
 
-        static string WeaponSummary()
+        public static string WeaponSummary()
         {
             var best = FieldWeapons.Best();
             if (best == WeaponKind.Slingshot) return "sadece sapan";
@@ -284,7 +298,7 @@ namespace AftershockIsle.Crisis
             return score;
         }
 
-        float RaidChance(int day)
+        public float RaidChance(int day)
         {
             if (day < FirstRaidDay) return attention > 0 ? attention / 200f : 0f;
 
@@ -298,7 +312,7 @@ namespace AftershockIsle.Crisis
             return Mathf.Clamp(chance, 0f, 0.85f);
         }
 
-        static string ThreatLabel(float chance) =>
+        public static string ThreatLabel(float chance) =>
             chance <= 0.01f ? "<color=#9be37a>yok</color>"
             : chance < 0.3f ? "<color=#cfe37a>düşük</color>"
             : chance < 0.55f ? "<color=#ffd75a>orta</color>"

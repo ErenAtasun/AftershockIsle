@@ -31,6 +31,10 @@ namespace AftershockIsle.Effects
         AudioSource thunderSource;
         AudioClip thunderClip;
 
+        // Damlaların düşeceği yükseklik (m): ömürleri buna göre kısıtlanır, böylece çatıdan binanın içine sızmazlar.
+        float backFallHeight = 28f;
+        float roofFallHeight = 7f;
+
         WeatherType applied = (WeatherType)(-1);
         float nextLightning;
         float flashTime = -10f;
@@ -68,6 +72,8 @@ namespace AftershockIsle.Effects
             float centerX = building.transform.position.x;
             float groundY = building.FloorY(1);
             float topY = building.TopY + 14f;
+            backFallHeight = Mathf.Max(4f, topY - groundY);
+            roofFallHeight = 7f;
 
             // Binanın arkası: arka duvar ile uzak şehir arasında geniş bir yağış perdesi.
             backFall = CreateSystem("Yağış (Arka)", material, new Vector3(centerX, topY, backZ + 6f), new Vector3(90f, 0.2f, 10f), out backRenderer);
@@ -146,16 +152,16 @@ namespace AftershockIsle.Effects
             switch (weather)
             {
                 case WeatherType.AcidRain:
-                    ConfigureFall(backFall, backRenderer, 900f, new Color(0.72f, 0.78f, 0.5f, 0.5f), 14f, 1.2f, false);
-                    ConfigureFall(roofFall, roofRenderer, 160f, new Color(0.72f, 0.78f, 0.5f, 0.45f), 14f, 1.2f, false);
+                    ConfigureFall(backFall, backRenderer, 900f, new Color(0.72f, 0.78f, 0.5f, 0.5f), 14f, 1.2f, false, backFallHeight);
+                    ConfigureFall(roofFall, roofRenderer, 160f, new Color(0.72f, 0.78f, 0.5f, 0.45f), 14f, 1.2f, false, roofFallHeight);
                     break;
                 case WeatherType.Storm:
-                    ConfigureFall(backFall, backRenderer, 1600f, new Color(0.75f, 0.8f, 0.9f, 0.55f), 20f, 6f, false);
-                    ConfigureFall(roofFall, roofRenderer, 280f, new Color(0.75f, 0.8f, 0.9f, 0.5f), 20f, 6f, false);
+                    ConfigureFall(backFall, backRenderer, 1600f, new Color(0.75f, 0.8f, 0.9f, 0.55f), 20f, 6f, false, backFallHeight);
+                    ConfigureFall(roofFall, roofRenderer, 280f, new Color(0.75f, 0.8f, 0.9f, 0.5f), 20f, 6f, false, roofFallHeight);
                     break;
                 case WeatherType.ColdWave:
-                    ConfigureFall(backFall, backRenderer, 420f, new Color(0.95f, 0.97f, 1f, 0.8f), 1.6f, 0.8f, true);
-                    ConfigureFall(roofFall, roofRenderer, 70f, new Color(0.95f, 0.97f, 1f, 0.75f), 1.6f, 0.8f, true);
+                    ConfigureFall(backFall, backRenderer, 420f, new Color(0.95f, 0.97f, 1f, 0.8f), 1.6f, 0.8f, true, backFallHeight);
+                    ConfigureFall(roofFall, roofRenderer, 70f, new Color(0.95f, 0.97f, 1f, 0.75f), 1.6f, 0.8f, true, roofFallHeight);
                     break;
                 default:
                     Stop(backFall);
@@ -176,12 +182,13 @@ namespace AftershockIsle.Effects
             nextLightning = Time.time + Random.Range(4f, 9f);
         }
 
-        static void ConfigureFall(ParticleSystem system, ParticleSystemRenderer renderer, float rate, Color color, float speed, float wind, bool snow)
+        static void ConfigureFall(ParticleSystem system, ParticleSystemRenderer renderer, float rate, Color color, float speed, float wind, bool snow, float fallHeight)
         {
             var main = system.main;
             main.startColor = color;
             main.startSize = snow ? new ParticleSystem.MinMaxCurve(0.07f, 0.16f) : new ParticleSystem.MinMaxCurve(0.025f, 0.04f);
-            main.startLifetime = snow ? new ParticleSystem.MinMaxCurve(9f, 13f) : new ParticleSystem.MinMaxCurve(1.6f, 2.2f);
+            // Ömür = düşüş yüksekliği / hız: damla zemine (ya da çatıya) varınca kaybolur.
+            main.startLifetime = new ParticleSystem.MinMaxCurve(fallHeight / (speed * 1.1f), fallHeight / (speed * 0.9f));
 
             var velocity = system.velocityOverLifetime;
             velocity.enabled = true;

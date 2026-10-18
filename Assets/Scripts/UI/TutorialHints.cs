@@ -338,6 +338,27 @@ namespace AftershockIsle.UI
             Row("Gez / seç / kapat", "oklar / Enter / Backspace", "D-pad / A / B");
             Row("Duraklatma menüsü", "Esc", "Start");
 
+            Section("EKRANDAKİ İŞARETLER", "", "");
+            Note("Nesne üstündeki etiketler: KIRMIZI yanıp sönen = acil (yangın, gaz, patlak boru, yıkık kolon, su baskını). AMBER = önerilen iş " +
+                 "(yolu kapatan moloz, güçlendirilecek kolon). GRİ = isteğe bağlı iş (seçili karakterin katında). SOLUK LACİVERT = istasyon (tezgah, sandık, telsiz, çıkış).");
+            Note("Bir nesnenin üstüne gelince (ya da yanına gidince) bilgi kartı açılır: ne işe yaradığı, süre (alet etkisiyle), kazancı ve şu an yapılamıyorsa nedeni.");
+            Note("Karakterin başındaki etiketler: AÇ, GERGİN, YARALI, PANİK ve yaptığı iş. Binanın solundaki kat adlarının yanında o kattaki tehlike yazar.");
+            Note("Sağ alttaki HEDEF kutusu sıradaki adımı ve eksik malzemenin nereden bulunacağını söyler. Üst sağdaki kaynak rozetlerinin, açlık ve stres " +
+                 "göstergelerinin ve bütünlük çubuğunun üstüne gelince ayrıntı çıkar.");
+
+            Section("KAYNAKLAR", "", "");
+            Note("Kalas & Hurda: moloz kazarak ve mobilya parçalayarak; hemen her tarifin temeli. Metal: radyatör, buzdolabı, kilitli kasa, seferler; yükseltme, silah ve çelik kiriş için. " +
+                 "Elektronik: bilgisayar, kitaplık, Atölye ve Klinik; Kademe 3, telsiz ve pompa için. Yaşam Kiti: dolap ara, Klinik ve Market, gece keşfi; her gece kişi başı 1 kit yenir.");
+
+            Section("GÜN VE GECE", "", "");
+            Note("Sabah üretim ve onarım, öğle dış sefer, akşam Akşam Planı: her kazazede için sığınakta kal (dinlenir), kapıda nöbet tut (baskına karşı) ya da gece keşfine çık " +
+                 "(sabah ganimetle ya da yaralı döner) seç; kimin yiyeceğini de sen belirlersin. Sabah gün kartı geçen günün özetini verir.");
+
+            Section("ALETLER VE SEFER", "", "");
+            Note("Tezgahta üretilen aletler herkese yarar: Kürek ve Kazma kazıyı, Levye aramayı ve parçalamayı, Alet Takımı tamiri, Yangın Battaniyesi söndürmeyi hızlandırır; Kafa Lambası karanlık stresini azaltır.");
+            Note("Seferde çanta kilo ile ölçülür. Sefer hazırlığında silah, mermi, kit ve alet seçersin; ağır ekipman ganimete yer bırakmaz. Kilitli kasa Levye, gömülü sandık Kazma ister. " +
+                 "Sahada I tuşuyla çantayı açıp eşya bırakabilirsin.");
+
             Section("HEDEF", "", "");
             Note("Tezgahı Kademe 3'e çıkar, telsizi tamir et, çatı molozunu temizle, çatı kolonlarını çelikle güçlendir, " +
                  "şalteri açık tut ve telsiz başında kesintisiz 60 sn sinyal gönder. Bütünlük %0 olursa ya da herkes ölürse kaybedersin.");

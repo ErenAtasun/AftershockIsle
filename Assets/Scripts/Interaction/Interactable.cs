@@ -83,6 +83,12 @@ namespace AftershockIsle.Interaction
         /// <summary>Kat içinde serbest yürürken bu nesnenin içinden geçilemez mi (mobilya, tezgah, kolon...).</summary>
         public virtual bool BlocksMovement => true;
 
+        /// <summary>
+        /// False ise nesne şu an etkileşilecek bir şey değildir (ör. yanmayan yangın odağı): fareyle seçilmez, bilgi kartı ve
+        /// "[F]" istemi göstermez. Collider'ı yerinde kalsa da hayalet yazı çıkmasın diye.
+        /// </summary>
+        public virtual bool IsInteractive => true;
+
         const float WorkStandOff = 0.55f;
 
         /// <summary>Nesnenin etkin collider'larının dünya sınırı (model giydirilmişse modelin collider'ı).</summary>

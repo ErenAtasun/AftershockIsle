@@ -99,6 +99,9 @@ namespace AftershockIsle.Crisis
             RefreshVisuals();
         }
 
+        // Yanmayan odak (yalnızca duman kalmış olsa bile) fareyle seçilemez; kalan duman uyarıları HUD'dadır.
+        public override bool IsInteractive => IsBurning;
+
         public override string ActionLabel => "Söndür";
         public override WorkCategory Category => WorkCategory.Firefight;
         public override bool RepeatAfterComplete => IsBurning;

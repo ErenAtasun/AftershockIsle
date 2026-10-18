@@ -18,6 +18,8 @@ namespace AftershockIsle.UI
         Camera cam;
         GUIStyle statusStyle;
         GUIStyle bubbleStyle;
+        GUIStyle tagStyle;
+        readonly System.Collections.Generic.List<(string text, Color color)> tags = new System.Collections.Generic.List<(string text, Color color)>();
 
         void Awake()
         {
@@ -35,7 +37,6 @@ namespace AftershockIsle.UI
             statusStyle ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
 
             DrawSurvivors();
-            DrawHover();
         }
 
         void DrawSurvivors()
@@ -70,17 +71,8 @@ namespace AftershockIsle.UI
                 float progress = survivor.Tasks.Progress01;
                 if (progress > 0f) DrawBar(new Rect(x, y, 48f, 5f), progress, Color.white);
 
-                string status = survivor.IsTrapped ? $"ENKAZ ALTINDA {Mathf.CeilToInt(survivor.TrappedRemaining)} sn"
-                    : condition.IsPanicking ? $"PANİK {Mathf.CeilToInt(condition.PanicRemaining)} sn"
-                    : condition.IsExhausted ? "Tükenmiş"
-                    : null;
-
                 float topY = at.y - 22f;
-                if (status != null)
-                {
-                    GUI.Label(new Rect(at.x - 70f, topY, 140f, 20f), status, statusStyle);
-                    topY -= 18f;
-                }
+                topY = DrawTags(survivor, at.x, topY);
 
                 bool isGuard = NightDefenseSystem.Guard == survivor;
                 if (isGuard)
@@ -95,6 +87,48 @@ namespace AftershockIsle.UI
                     DrawSpeechBubble(at.x, topY, chatter);
                 }
             }
+        }
+
+        // Durum etiketleri: aç, gergin, yaralı, panik, enkaz altında ve yapılan iş; tek satırda küçük renkli plakalar.
+        float DrawTags(Survivor survivor, float centerX, float y)
+        {
+            tags.Clear();
+            var condition = survivor.Condition;
+            if (survivor.IsTrapped) tags.Add(($"ENKAZ ALTINDA {Mathf.CeilToInt(survivor.TrappedRemaining)} sn", new Color(1f, 0.45f, 0.35f)));
+            else if (condition.IsPanicking) tags.Add(($"PANİK {Mathf.CeilToInt(condition.PanicRemaining)} sn", new Color(1f, 0.45f, 0.35f)));
+            else
+            {
+                if (condition.Hunger > 0) tags.Add(($"AÇ {condition.Hunger}/{SurvivorCondition.MaxHunger}", new Color(1f, 0.7f, 0.3f)));
+                if (condition.Stress >= 60f) tags.Add(("GERGİN", new Color(0.8f, 0.55f, 1f)));
+                if (survivor.Health < survivor.MaxHealth * 0.5f) tags.Add(("YARALI", new Color(1f, 0.5f, 0.45f)));
+                if (survivor.Tasks.State == TaskState.Working && survivor.Tasks.Current != null)
+                    tags.Add((survivor.Tasks.Current.ActionLabel, new Color(0.7f, 0.85f, 1f)));
+            }
+            if (tags.Count == 0) return y;
+
+            tagStyle ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, fontSize = 11 };
+            float total = 0f;
+            var widths = new float[tags.Count];
+            for (int i = 0; i < tags.Count; i++)
+            {
+                widths[i] = tagStyle.CalcSize(new GUIContent(tags[i].text)).x + 12f;
+                total += widths[i] + 3f;
+            }
+
+            float x = centerX - (total - 3f) * 0.5f;
+            var previous = GUI.color;
+            for (int i = 0; i < tags.Count; i++)
+            {
+                var rect = new Rect(x, y, widths[i], 17f);
+                GUI.color = new Color(0.07f, 0.08f, 0.11f, 0.9f);
+                GUI.DrawTexture(rect, Texture2D.whiteTexture);
+                GUI.color = tags[i].color;
+                GUI.DrawTexture(new Rect(rect.x, rect.yMax - 1.5f, rect.width, 1.5f), Texture2D.whiteTexture);
+                GUI.Label(rect, tags[i].text, tagStyle);
+                x += widths[i] + 3f;
+            }
+            GUI.color = previous;
+            return y - 19f;
         }
 
         void DrawGuardBadge(float centerX, float y)

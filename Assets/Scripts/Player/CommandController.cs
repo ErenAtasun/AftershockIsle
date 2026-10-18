@@ -255,7 +255,7 @@ namespace AftershockIsle.Player
 
             foreach (var candidate in interactables)
             {
-                if (candidate == null || !candidate.isActiveAndEnabled || candidate.Floor != floor) continue;
+                if (candidate == null || !candidate.isActiveAndEnabled || candidate.Floor != floor || !candidate.IsInteractive) continue;
 
                 float distance = FootprintDistance(candidate, here);
                 if (distance >= bestDistance) continue;
@@ -349,6 +349,8 @@ namespace AftershockIsle.Player
             {
                 var candidate = hits[i].collider.GetComponentInParent<T>();
                 if (candidate == null || hits[i].distance >= closestDistance) continue;
+                // Şu an etkileşilecek bir şey olmayan nesneler (yanmayan yangın odağı gibi) hayalet gibi seçilmesin.
+                if (candidate is Interactable thing && !thing.IsInteractive) continue;
 
                 closest = candidate;
                 closestDistance = hits[i].distance;
@@ -384,13 +386,7 @@ namespace AftershockIsle.Player
             float width = Mathf.Max(160f, promptStyle.CalcSize(new GUIContent(text)).x + 16f);
             GUI.Box(new Rect(x - width * 0.5f, y - 28f, width, 26f), text, promptStyle);
 
-            string status = Nearby.StatusText;
-            if (string.IsNullOrEmpty(status)) return;
-            var previous = GUI.color;
-            GUI.color = new Color(0f, 0f, 0f, 0.6f);
-            GUI.DrawTexture(new Rect(x - 130f, y, 260f, 34f), Texture2D.whiteTexture);
-            GUI.color = previous;
-            GUI.Label(new Rect(x - 128f, y + 1f, 256f, 34f), status, statusStyle);
+            // Ayrıntılar (neden, getiri, süre, engel) bilgi kartında (InfoCard) gösterilir.
         }
 
         void DrawLadderPrompt()

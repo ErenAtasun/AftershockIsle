@@ -74,7 +74,7 @@ namespace AftershockIsle.Endgame
                 yield return Fly(target + new Vector3(-12f, approachHeight, 0f), target, approachDuration);
             }
 
-            int saved = Survivor.AliveCount;
+            int saved = Survivor.AliveCount + AftershockIsle.Expedition.ExpeditionSystem.AwayCount;
             if (StructuralIntegrity.Instance != null && StructuralIntegrity.Instance.IsCollapsed) yield break;
             if (session != null) session.End(GameOutcome.Victory, $"Tahliye helikopteri çatıya indi. {saved} kazazede kurtarıldı!");
         }

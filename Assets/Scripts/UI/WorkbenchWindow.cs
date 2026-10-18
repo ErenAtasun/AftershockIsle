@@ -136,6 +136,7 @@ namespace AftershockIsle.UI
             var entry = new RecipeRow { Recipe = recipe };
 
             entry.Title = UiFactory.Label(row, "", 18, UiFactory.Text, TextAnchor.UpperLeft);
+            entry.Title.horizontalOverflow = HorizontalWrapMode.Overflow;
             UiFactory.Place(entry.Title.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -8f), new Vector2(700f, 24f));
 
             var description = UiFactory.Label(row, recipe.Description, 14, new Color(0.78f, 0.78f, 0.74f), TextAnchor.UpperLeft, FontStyle.Normal, false);
@@ -187,10 +188,11 @@ namespace AftershockIsle.UI
                     : recipe.Id == RecipeId.AmmoPack ? $"  <color=#cfcfc8>(stok {bench.Ammo})</color>"
                     : "";
                 string grid = recipe.IsPlaceable ? $"   <size=13><color=#9fb4c8>{recipe.GridWidth}x{recipe.GridDepth} · {recipe.AllowedFloorsText()}</color></size>" : "";
-                row.Title.text = recipe.Name + suffix + grid;
+                row.Title.text = recipe.Name + suffix + grid + "   " + RecipeTags(recipe);
 
+                // Eksik malzeme kırmızı (elde/gereken), yeterli olanlar yeşil.
                 string blocked = canOrder || done ? "" : $"   <color=#ff9a80>→ {reason}</color>";
-                row.Status.text = $"Maliyet: {ResourceStorage.FormatCosts(recipe.Costs)}   ·   Süre: {recipe.Duration:0} sn{blocked}";
+                row.Status.text = $"Maliyet: {CostText(recipe.Costs)}   ·   Süre: {recipe.Duration:0} sn{blocked}";
 
                 row.Order.interactable = canOrder && !grace;
                 row.Order.gameObject.SetActive(!(done && !recipe.Repeatable));
@@ -199,6 +201,63 @@ namespace AftershockIsle.UI
 
             var pending = buildMode ? (BuildTable.Instance != null ? BuildTable.Instance.PendingOrder : null) : bench.PendingOrder;
             pendingLabel.text = pending.HasValue ? $"Bekleyen sipariş: {pending.Value.Name}" : "";
+        }
+
+        static string CostText(ResourceAmount[] costs)
+        {
+            var storage = ResourceStorage.Instance;
+            var text = new System.Text.StringBuilder();
+            foreach (var cost in costs)
+            {
+                int have = storage != null ? storage.Get(cost.type) : 0;
+                if (text.Length > 0) text.Append(", ");
+                text.Append(have >= cost.amount
+                    ? $"<color=#9be37a>{cost.amount} {cost.type.ToDisplayName()}</color>"
+                    : $"<color=#ff8f7a>{cost.type.ToDisplayName()} {have}/{cost.amount}</color>");
+            }
+            return text.ToString();
+        }
+
+        /// <summary>Tarifin ne için olduğunu söyleyen renkli etiket (ne işe yaradığı bir bakışta anlaşılsın).</summary>
+        static string RecipeTags(RecipeInfo recipe)
+        {
+            string tag;
+            string color;
+            switch (recipe.Id)
+            {
+                case RecipeId.UpgradeTier2:
+                case RecipeId.UpgradeTier3:
+                case RecipeId.RadioModule:
+                case RecipeId.SteelBeam:
+                    tag = "TAHLİYE İÇİN"; color = "#ffd75a"; break;
+                case RecipeId.ElectricPump:
+                case RecipeId.BypassValve:
+                case RecipeId.LightningRod:
+                case RecipeId.FireSuppressor:
+                case RecipeId.GasMask:
+                    tag = "FELAKETE KARŞI"; color = "#ff9a80"; break;
+                case RecipeId.ReinforcedDoor:
+                    tag = "GECE SAVUNMASI"; color = "#c9a0ff"; break;
+                case RecipeId.ComfortCorner:
+                case RecipeId.ShelterHeater:
+                case RecipeId.MedStation:
+                case RecipeId.WaterPurifier:
+                case RecipeId.StorageRack:
+                case RecipeId.BackupGenerator:
+                    tag = "KONFOR / ALTYAPI"; color = "#9be37a"; break;
+                case RecipeId.AmmoPack:
+                case RecipeId.Pistol:
+                case RecipeId.Shotgun:
+                case RecipeId.Smg:
+                case RecipeId.AssaultRifle:
+                case RecipeId.SniperRifle:
+                case RecipeId.ArmorVest:
+                    tag = "SEFER"; color = "#8fc7ff"; break;
+                default:
+                    if (recipe.IsTool) { tag = "ALET"; color = "#cfe3a0"; break; }
+                    return "";
+            }
+            return $"<size=13><color={color}>[{tag}]</color></size>";
         }
 
         void OrderRecipe(RecipeInfo recipe)

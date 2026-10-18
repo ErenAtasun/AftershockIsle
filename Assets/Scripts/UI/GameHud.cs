@@ -50,6 +50,8 @@ namespace AftershockIsle.UI
             var go = new GameObject("[Arayüz]");
             go.AddComponent<GameHud>();
             go.AddComponent<WorldOverlays>();
+            go.AddComponent<WorldMarkers>();
+            go.AddComponent<InfoCard>();
         }
 
         // ---------------------------------------------------------------- Durum
@@ -243,6 +245,8 @@ namespace AftershockIsle.UI
             integrityFill = UiFactory.Bar(parent, "Bütünlük", new Vector2(420f, 28f), UiFactory.Good, out integrityLabel, 15);
             UiFactory.Place((RectTransform)integrityFill.transform.parent, new Vector2(0.5f, 1f), new Vector2(0f, -Margin), new Vector2(420f, 28f));
 
+            UiTooltip.Attach(integrityFill.transform.parent.gameObject, IntegrityTip);
+
             warnings = UiFactory.Label(parent, "", 19, UiFactory.Text, TextAnchor.UpperCenter);
             UiFactory.Place(warnings.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -52f), new Vector2(900f, 200f));
 
@@ -306,6 +310,7 @@ namespace AftershockIsle.UI
                 var count = UiFactory.Label(holder, "0", 24, UiFactory.Text);
                 UiFactory.Place(count.rectTransform, new Vector2(0f, 0.5f), new Vector2(width * 0.42f, 1f), new Vector2(width * 0.52f, height));
                 resourceCounts[type] = count;
+                UiTooltip.Attach(holder.gameObject, () => ResourceTip(type));
             }
 
             var chip = UiFactory.Panel(parent, "Elektrik Kesik", new Color(0.55f, 0.16f, 0.12f, 0.95f));
@@ -347,6 +352,8 @@ namespace AftershockIsle.UI
 
             hungerGauge = Gauge(panel.transform, skin != null ? skin.hungerFrames : null, new Vector2(-70f, -8f), "Açlık");
             stressGauge = Gauge(panel.transform, skin != null ? skin.stressFrames : null, new Vector2(-12f, -8f), "Stres");
+            UiTooltip.Attach(hungerGauge.gameObject, HungerTip);
+            UiTooltip.Attach(stressGauge.gameObject, StressTip);
 
             var chip = UiFactory.Panel(parent, "Seçim İpucu", UiFactory.Slate);
             UiFactory.Place(chip.rectTransform, new Vector2(0f, 0f), new Vector2(Margin, 34f), new Vector2(300f, 34f));
@@ -369,13 +376,13 @@ namespace AftershockIsle.UI
         void BuildEvacuation(Transform parent)
         {
             var chip = UiFactory.Panel(parent, "Tahliye Özeti", UiFactory.Slate);
-            UiFactory.Place(chip.rectTransform, new Vector2(1f, 0f), new Vector2(-Margin, 34f), new Vector2(270f, 34f));
-            evacChipLabel = UiFactory.Label(chip.transform, "", 15, UiFactory.Text, TextAnchor.MiddleCenter, FontStyle.Normal, false);
-            UiFactory.Stretch(evacChipLabel.rectTransform);
+            UiFactory.Place(chip.rectTransform, new Vector2(1f, 0f), new Vector2(-Margin, 34f), new Vector2(480f, 86f));
+            evacChipLabel = UiFactory.Label(chip.transform, "", 17, UiFactory.Text, TextAnchor.UpperLeft, FontStyle.Normal, false);
+            UiFactory.Stretch(evacChipLabel.rectTransform, 10f);
             evacChip = chip.gameObject;
 
             var panel = UiFactory.Panel(parent, "Tahliye", UiFactory.Slate);
-            UiFactory.Place(panel.rectTransform, new Vector2(1f, 0f), new Vector2(-Margin, 34f), new Vector2(340f, 176f));
+            UiFactory.Place(panel.rectTransform, new Vector2(1f, 0f), new Vector2(-Margin, 128f), new Vector2(340f, 176f));
             evacHeading = UiFactory.Label(panel.transform, "TAHLİYE ŞARTLARI", 17, UiFactory.Accent, TextAnchor.UpperLeft);
             UiFactory.Place(evacHeading.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -8f), new Vector2(312f, 24f));
             checklist = UiFactory.Label(panel.transform, "", 15, UiFactory.Text, TextAnchor.UpperLeft, FontStyle.Normal, false);
@@ -628,8 +635,10 @@ namespace AftershockIsle.UI
         void UpdateEvacuation()
         {
             var radio = RadioStation.Instance;
-            evacChip.SetActive(radio != null && !Planning);
+            var goal = GoalAdvisor.Current(building);
+            evacChip.SetActive(true);
             evacPanel.SetActive(radio != null && Planning);
+            evacChipLabel.text = GoalLabel(goal, null);
             if (radio == null) return;
 
             var conditions = EvacuationConditions.Evaluate(building, radio);
@@ -641,7 +650,7 @@ namespace AftershockIsle.UI
 
             string signal = radio.SignalComplete ? "ulaştı" : $"%{radio.Signal01 * 100f:0}";
             if (GameMode.IsEndless && radio.SignalComplete) signal = $"Gün {EvacuationSystem.NextDropDay}'de";
-            evacChipLabel.text = $"{(GameMode.IsEndless ? "Yardım" : "Tahliye")} {count}/{done.Length}  ·  Sinyal {signal}";
+            evacChipLabel.text = GoalLabel(goal, $"{(GameMode.IsEndless ? "Yardım" : "Tahliye")} {count}/{done.Length}  ·  Sinyal {signal}");
             if (evacHeading != null) evacHeading.text = GameMode.IsEndless ? "ERZAK YARDIMI ŞARTLARI" : "TAHLİYE ŞARTLARI";
 
             if (!Planning) return;
@@ -653,6 +662,58 @@ namespace AftershockIsle.UI
             text.Append($"{Check(done[4])} Ana şalter açık\n");
             text.Append($"Kesintisiz sinyal: {signal}");
             checklist.text = text.ToString();
+        }
+
+        static string GoalLabel(GoalAdvisor.Goal goal, string progress)
+        {
+            string color = goal.Urgent ? "#ff8f7a" : "#ffd75a";
+            string head = goal.Urgent ? "ACİL" : "HEDEF";
+            string tail = string.IsNullOrEmpty(progress) ? "" : $"   <color=#a8a8a0>{progress}</color>";
+            return $"<color={color}><b>{head}: {goal.Title}</b></color>{tail}\n<size=14><color=#d9d9d2>{goal.Detail}</color></size>";
+        }
+
+        // ---------------------------------------------------------------- İpucu balonları
+
+        static string ResourceTip(ResourceType type)
+        {
+            var storage = ResourceStorage.Instance;
+            int have = storage != null ? storage.Get(type) : 0;
+            var tip = new StringBuilder($"<b><size=19><color=#ffcc33>{type.ToDisplayName()}</color></size></b>   depoda <b>{have}</b>");
+            tip.Append($"\n{GoalAdvisor.UseHint(type)}");
+            tip.Append($"\n<color=#cfe3a0>Nereden: {GoalAdvisor.SourceHint(type)}</color>");
+            if (type == ResourceType.Supplies)
+            {
+                int need = Survivor.AliveCount + ExpeditionSystem.AwayCount;
+                tip.Append($"\n<color={(have >= need ? "#9be37a" : "#ff8f7a")}>Bu gece {need} kit gerekir.</color>");
+            }
+            return tip.ToString();
+        }
+
+        string HungerTip()
+        {
+            var selected = commands != null ? commands.Selected : null;
+            int level = selected != null ? selected.Condition.Hunger : 0;
+            return "<b><size=19><color=#ffcc33>Açlık</color></size></b>\n" +
+                   "Her gece kişi başı 1 Yaşam Kiti yenir. Yiyemeyen acıkır (0–3): aç karakter yarı hızda yürür ve çalışır, son kademede bir gece daha aç kalan can kaybeder.\n" +
+                   $"<color=#cfe3a0>Şu an: {(level == 0 ? "tok" : $"{level}/{SurvivorCondition.MaxHunger} aç")}. Akşam Planı'nda kimin yiyeceğini sen seçersin.</color>";
+        }
+
+        string StressTip()
+        {
+            var selected = commands != null ? commands.Selected : null;
+            string now = selected != null ? $"Şu an: %{selected.Condition.Stress / selected.Condition.MaxStress * 100f:0}" : "";
+            return "<b><size=19><color=#ffcc33>Stres</color></size></b>\n" +
+                   "Karanlıkta çalışmak, felaketler, açlık ve baskınlar stresi artırır. %100 olunca karakter 15 sn panikler ve emir dinlemez.\n" +
+                   $"<color=#cfe3a0>Azaltmak: ışıkta boş bekle, sandalyede otur, yemek ye, Dinlenme Köşesi kur. {now}</color>";
+        }
+
+        static string IntegrityTip()
+        {
+            var integrity = StructuralIntegrity.Instance;
+            string drain = integrity != null && integrity.TotalDrainPerSecond > 0f ? $"\n<color=#ff8f7a>Şu an her saniye -%{integrity.TotalDrainPerSecond:0.0} eriyor.</color>" : "";
+            return "<b><size=19><color=#ffcc33>Bina Bütünlüğü</color></size></b>\n" +
+                   "Sarsıntı, su baskını, yangın ve gaz binayı zayıflatır; %0 olursa bina çöker (yenilgi).\n" +
+                   "<color=#cfe3a0>Koru: kolonları çelikle güçlendir, suyu pompala, yangını söndür, gaz kaçağını kapat.</color>" + drain;
         }
 
         static string Check(bool done) => done ? "<color=#9be37a>●</color>" : "<color=#6f6f6f>○</color>";

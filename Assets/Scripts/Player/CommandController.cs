@@ -53,6 +53,8 @@ namespace AftershockIsle.Player
             public bool Valid;
             public int TargetFloor;
             public float X;
+            // Merdivenin bu kattaki ucu (basamaklı merdivende alt uç önde, üst uç arkada).
+            public float Z;
         }
 
         void Awake()
@@ -271,11 +273,12 @@ namespace AftershockIsle.Player
                 else continue;
 
                 float x = building.transform.position.x + ladder.x;
-                float distance = Vector2.Distance(here, new Vector2(x, building.LadderZ));
+                float z = building.LadderStandZ(ladder, floor);
+                float distance = Vector2.Distance(here, new Vector2(x, z));
                 if (distance >= bestDistance) continue;
 
                 Nearby = null;
-                nearbyLadder = new LadderTarget { Valid = true, TargetFloor = target, X = x };
+                nearbyLadder = new LadderTarget { Valid = true, TargetFloor = target, X = x, Z = z };
                 bestDistance = distance;
             }
         }
@@ -391,7 +394,7 @@ namespace AftershockIsle.Player
 
         void DrawLadderPrompt()
         {
-            var anchor = new Vector3(nearbyLadder.X, Selected.transform.position.y + 2.2f, building.LadderZ);
+            var anchor = new Vector3(nearbyLadder.X, Selected.transform.position.y + 2.2f, nearbyLadder.Z);
             var screen = cam.WorldToScreenPoint(anchor);
             if (screen.z < 0f) return;
 

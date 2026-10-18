@@ -10,12 +10,24 @@ namespace AftershockIsle.Building
         [Tooltip("Merdivenin bağladığı alt kat (üst kat = lowerFloor + 1)")]
         public int lowerFloor;
         public float x;
+        [Tooltip("Basamaklı (eğimli) merdiven: alt ucundan çıkılıp eğim boyunca üst ucuna yürünür. Kapalıysa dikey el merdiveni.")]
+        public bool stair;
+        [Tooltip("Alt katta merdivene binilen nokta (bina merkezine göre Z)")]
+        public float bottomZ;
+        [Tooltip("Üst katta merdivenden inilen nokta (bina merkezine göre Z)")]
+        public float topZ;
 
-        public LadderDef(int lowerFloor, float x)
+        public LadderDef(int lowerFloor, float x, bool stair, float bottomZ, float topZ)
         {
             this.lowerFloor = lowerFloor;
             this.x = x;
+            this.stair = stair;
+            this.bottomZ = bottomZ;
+            this.topZ = topZ;
         }
+
+        /// <summary>Eski sahnelerde eğim bilgisi yoksa (hepsi 0) tanımlı değil sayılır.</summary>
+        public bool HasProfile => stair || bottomZ != 0f || topZ != 0f;
     }
 
     public struct Waypoint
@@ -24,18 +36,24 @@ namespace AftershockIsle.Building
         public bool IsClimb;
         /// <summary>Karakterin bu noktaya ulaştığında bulunduğu kat.</summary>
         public int Floor;
+        /// <summary>Z'si merdivene göre sabitlenmiş nokta (merdiven başı / sonu): yol derinliği onu değiştirmez.</summary>
+        public bool FixedDepth;
+        /// <summary>Basamaklı merdivende eğim boyunca yürüyüş (dikey tırmanış değil).</summary>
+        public bool IsStair;
 
         public Waypoint(Vector3 position, bool isClimb, int floor)
         {
             Position = position;
             IsClimb = isClimb;
             Floor = floor;
+            FixedDepth = false;
+            IsStair = false;
         }
     }
 
     /// <summary>
     /// Binanın kesit ölçüleri ve kat/merdiven grafiği. Yol bulma X (kat içi) ve Y (merdiven) üzerindedir;
-    /// karakterler kat içinde Z'de (odanın içine / dışına) da serbestçe yürüyebilir. Merdivenler LadderZ çizgisindedir.
+    /// karakterler kat içinde Z'de (odanın içine / dışına) da serbestçe yürüyebilir. Basamaklı merdivenlerde alt uç önde, üst uç arkadadır; karakter eğim boyunca yürür.
     /// Kat 0 bodrumdur.
     /// Yol kapatan moloz gibi engeller kat çizgisinin bir aralığını geçilmez yapar.
     /// </summary>
@@ -68,14 +86,19 @@ namespace AftershockIsle.Building
         // Blender binasıyla aynı: bodrum + 3 kat + çatı.
         [SerializeField] string[] floorNames = { "Bodrum", "Giriş Katı", "Yaşam / Tezgah", "3. Kat", "Çatı" };
 
-        // Blender'daki merdivenler -6, +6, -6; 3. kattan çatıya duvar merdiveni +5'te.
+        // Blender'daki merdivenler -6, +6, -6: basamaklı, odanın önünden (Z -0.35) arkasına (Z 1.26) yükselir.
+        // 3. kattan çatıya arka duvara dayalı dikey el merdiveni +5'te.
         [SerializeField] LadderDef[] ladders =
         {
-            new LadderDef(0, -6f),
-            new LadderDef(1, 6f),
-            new LadderDef(2, -6f),
-            new LadderDef(3, 5f),
+            new LadderDef(0, -6f, true, StairBottomZ, StairTopZ),
+            new LadderDef(1, 6f, true, StairBottomZ, StairTopZ),
+            new LadderDef(2, -6f, true, StairBottomZ, StairTopZ),
+            new LadderDef(3, 5f, false, WallLadderZ, WallLadderZ),
         };
+
+        const float StairBottomZ = -0.5f;
+        const float StairTopZ = 1.3f;
+        const float WallLadderZ = 1.5f;
 
         readonly List<NavBlocker> blockers = new List<NavBlocker>();
         readonly List<Waypoint> scratchPath = new List<Waypoint>();
@@ -137,10 +160,15 @@ namespace AftershockIsle.Building
                 int step = toFloor > floor ? 1 : -1;
                 int lowerFloor = step > 0 ? floor : floor - 1;
 
-                if (!TryFindNearestLadder(lowerFloor, floor, x, out float ladderX)) break;
+                if (!TryFindNearestLadder(lowerFloor, floor, x, out float ladderX, out var ladder)) break;
 
-                result.Add(new Waypoint(Point(floor, ladderX), false, floor));
-                result.Add(new Waypoint(Point(floor + step, ladderX), true, floor + step));
+                // Merdiven başına yürü, sonra eğim boyunca (basamaklıysa çaprazlama, el merdiveniyse dikey) diğer kata geç.
+                var start = new Waypoint(Point(floor, ladderX), false, floor) { FixedDepth = true };
+                start.Position.z = LadderStandZ(ladder, floor);
+                var climb = new Waypoint(Point(floor + step, ladderX), true, floor + step) { FixedDepth = true, IsStair = ladder.stair };
+                climb.Position.z = LadderStandZ(ladder, floor + step);
+                result.Add(start);
+                result.Add(climb);
                 floor += step;
                 x = ladderX;
             }
@@ -232,9 +260,10 @@ namespace AftershockIsle.Building
             return found;
         }
 
-        bool TryFindNearestLadder(int lowerFloor, int currentFloor, float nearX, out float ladderX)
+        bool TryFindNearestLadder(int lowerFloor, int currentFloor, float nearX, out float ladderX, out LadderDef found)
         {
             ladderX = 0f;
+            found = default;
             float bestDistance = float.MaxValue;
 
             foreach (var ladder in ladders)
@@ -247,9 +276,39 @@ namespace AftershockIsle.Building
 
                 bestDistance = distance;
                 ladderX = worldX;
+                found = ladder;
             }
 
             return bestDistance < float.MaxValue;
+        }
+
+        /// <summary>
+        /// Merdivenin verilen kattaki kullanım noktasının dünya Z'si: alt katta merdivenin alt ucu, üst katta üst ucu.
+        /// El merdiveninde ikisi aynıdır (dikey tırmanış).
+        /// </summary>
+        public float LadderStandZ(LadderDef ladder, int floor)
+        {
+            ladder = WithProfile(ladder);
+            float local = floor <= ladder.lowerFloor ? ladder.bottomZ : ladder.topZ;
+            return ClampZ(transform.position.z + local);
+        }
+
+        /// <summary>Eğim bilgisi kaydedilmemiş (eski sahne) merdivene Blender binasındaki ölçüleri verir.</summary>
+        LadderDef WithProfile(LadderDef ladder)
+        {
+            if (ladder.HasProfile) return ladder;
+            bool wallLadder = ladder.lowerFloor >= FloorCount - 2;
+            ladder.stair = !wallLadder;
+            ladder.bottomZ = wallLadder ? WallLadderZ : StairBottomZ;
+            ladder.topZ = wallLadder ? WallLadderZ : StairTopZ;
+            return ladder;
+        }
+
+        void OnValidate()
+        {
+            // Eski sahnede kayıtlı merdivenler eğim bilgisini alsın (Inspector'da görünür ve düzenlenebilir).
+            if (ladders == null) return;
+            for (int i = 0; i < ladders.Length; i++) ladders[i] = WithProfile(ladders[i]);
         }
 
         void OnDrawGizmos()

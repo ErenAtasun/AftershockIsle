@@ -65,6 +65,10 @@ namespace AftershockIsle.Building
         [SerializeField] ColumnState state = ColumnState.Cracked;
         [SerializeField] ResourceAmount rebuildCost = new ResourceAmount(ResourceType.Scrap, 4);
         [SerializeField] float reinforceDuration = 6f;
+        [Tooltip("Kırık kolonu yeniden dikince bina bütünlüğüne eklenen puan")]
+        [SerializeField] float rebuildIntegrity = 10f;
+        [Tooltip("Çatlak kolonu çelikle güçlendirince bina bütünlüğüne eklenen puan")]
+        [SerializeField] float reinforceIntegrity = 6f;
         [SerializeField] Renderer body;
 
         MaterialPropertyBlock block;
@@ -139,7 +143,11 @@ namespace AftershockIsle.Building
         {
             if (state == ColumnState.Cracked)
             {
-                if (Workbench.Instance != null && Workbench.Instance.TryUseSteelBeam()) SetState(ColumnState.Reinforced);
+                if (Workbench.Instance != null && Workbench.Instance.TryUseSteelBeam())
+                {
+                    SetState(ColumnState.Reinforced);
+                    StructuralIntegrity.Instance?.Repair(reinforceIntegrity);
+                }
                 return;
             }
 
@@ -147,6 +155,8 @@ namespace AftershockIsle.Building
             if (state != ColumnState.Broken || !ResourceStorage.Instance.TrySpend(rebuildCost)) return;
             supportHitsRemaining = SkillTree.SupportDurability;
             SetState(ColumnState.Cracked);
+            // Yeniden dikilen kolon binanın yükünü tekrar taşır: bütünlük barı yükselir.
+            StructuralIntegrity.Instance?.Repair(rebuildIntegrity);
         }
 
         /// <summary>

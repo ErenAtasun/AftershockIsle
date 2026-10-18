@@ -93,6 +93,17 @@ namespace AftershockIsle.Building
             EventBus.Publish(new BuildingCollapsed(source));
         }
 
+        /// <summary>Onarım (ör. kırık kolonu yeniden dikmek, çelikle güçlendirmek) bütünlüğü geri kazandırır; en fazla Max.</summary>
+        public void Repair(float amount, DamageSource source = DamageSource.Aftershock)
+        {
+            if (IsCollapsed || amount <= 0f) return;
+
+            float previous = Current;
+            Current = Mathf.Min(maxIntegrity, Current + amount);
+            if (!Mathf.Approximately(previous, Current))
+                EventBus.Publish(new IntegrityChanged(Current, Current - previous, source));
+        }
+
         /// <summary>Barın değerinden bağımsız anında çöküş (ör. temelin su baskınıyla kayması).</summary>
         public void ForceCollapse(DamageSource source)
         {

@@ -126,6 +126,10 @@ namespace AftershockIsle.Building
         {
             Instance = this;
             if (building == null) building = FindFirstObjectByType<BuildingLayout>();
+#if UNITY_EDITOR
+            // Sahne açılınca, kod derlenince ve Play'den dönünce her şey editörde de kurulsun (Play gerekmez).
+            if (!Application.isPlaying) ScheduleEditorRefresh();
+#endif
         }
 
         [ContextMenu("Modelleri Şimdi Güncelle")]
@@ -135,24 +139,39 @@ namespace AftershockIsle.Building
             if (building == null) return;
 
             runtimeMaterials.Clear();
-            AssignDefaultModelsInEditor();
-            ApplyBuilding();
-            ApplyWalkBlockers();
-            ApplyWorldBackdrop();
+            // Her adım ayrı korunur: biri hata verirse (eksik model, silinmiş obje) sonrakiler yine kurulur,
+            // hata Console'da adımın adıyla görünür.
+            Step(nameof(AssignDefaultModelsInEditor), AssignDefaultModelsInEditor);
+            Step(nameof(ApplyBuilding), ApplyBuilding);
+            Step(nameof(ApplyWalkBlockers), ApplyWalkBlockers);
+            Step(nameof(ApplyWorldBackdrop), ApplyWorldBackdrop);
             // Ek ampuller bina modelinin altına asılır; model kurulduktan sonra.
-            ApplyLightingTheme();
+            Step(nameof(ApplyLightingTheme), ApplyLightingTheme);
             // Önce eski greybox eşyaları elenir: tezgah/tulumba giydirmesi sahneye konan asıl eşyayı bulsun.
-            ApplyGreyboxPropsVisibility();
-            ApplyFloorPlanks();
-            ApplyWorkbench();
-            ApplyWaterTank();
-            ApplyPropModels();
-            ApplySketchPropMaterials();
-            ApplyColumns();
+            Step(nameof(ApplyGreyboxPropsVisibility), ApplyGreyboxPropsVisibility);
+            Step(nameof(ApplyFloorPlanks), ApplyFloorPlanks);
+            Step(nameof(ApplyWorkbench), ApplyWorkbench);
+            Step(nameof(ApplyWaterTank), ApplyWaterTank);
+            Step(nameof(ApplyPropModels), ApplyPropModels);
+            Step(nameof(ApplySketchPropMaterials), ApplySketchPropMaterials);
+            Step(nameof(ApplyColumns), ApplyColumns);
 #if UNITY_EDITOR
             // Bina malzeme dosyalarını yenilemede bir kez güncelle; oyun sırasında asset yazma.
-            if (!Application.isPlaying) UpgradeExtractedBuildingMaterialsInEditor();
+            if (!Application.isPlaying) Step(nameof(UpgradeExtractedBuildingMaterialsInEditor), UpgradeExtractedBuildingMaterialsInEditor);
 #endif
+        }
+
+        void Step(string name, System.Action action)
+        {
+            try
+            {
+                action();
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[ModelManager] {name} adımı hata verdi, diğer adımlar devam ediyor: {e.Message}", this);
+                Debug.LogException(e, this);
+            }
         }
 
         /// <summary>Boş bırakılmış model alanlarına projedeki bilinen modeli atar (sahne kaydedilince kalıcı olur).</summary>
@@ -210,16 +229,28 @@ namespace AftershockIsle.Building
 #if UNITY_EDITOR
         bool editorRefreshQueued;
 
-        // Inspector'da bir model değişince ya da kod derlenince eşya modelleri editörde de sahneye yerleşir (Play gerekmez).
+        // Inspector'da bir değer (model, ışık, renk) değişince sahne editörde hemen güncellenir.
         void OnValidate()
         {
-            if (Application.isPlaying || editorRefreshQueued) return;
+            if (!Application.isPlaying) ScheduleEditorRefresh();
+        }
+
+        /// <summary>
+        /// Editörde bir sonraki boş anda her şeyi kurar (bina, eşya modelleri, lambalar, pencere ışıkları); aynı karede gelen
+        /// istekler tek seferde birleşir. Play'e geçilirken çalışmaz (oyun kendi Awake'inde kurar).
+        /// </summary>
+        void ScheduleEditorRefresh()
+        {
+            if (editorRefreshQueued) return;
             editorRefreshQueued = true;
             UnityEditor.EditorApplication.delayCall += () =>
             {
                 editorRefreshQueued = false;
-                if (this == null || Application.isPlaying || UnityEditor.EditorApplication.isPlayingOrWillChangePlaymode) return;
-                RefreshPropModelsInEditor();
+                if (this == null || !isActiveAndEnabled || Application.isPlaying ||
+                    UnityEditor.EditorApplication.isPlayingOrWillChangePlaymode || UnityEditor.EditorApplication.isCompiling) return;
+                RefreshAll();
+                // Kurulan modeller sahneyle kaydedilsin.
+                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
             };
         }
 

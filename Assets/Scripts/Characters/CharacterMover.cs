@@ -6,7 +6,7 @@ namespace AftershockIsle.Characters
 {
     /// <summary>
     /// Karakteri bina grafiği üzerinde yürütür ve merdivenlerde tırmandırır. İki hareket biçimi:
-    /// Yol (iş ve fare emirleri): MoveTo hedefe yol çıkarır; merdivenlere LadderZ çizgisinde yaklaşılır,
+    /// Yol (iş ve fare emirleri): MoveTo hedefe yol çıkarır; basamaklı merdivenlere alt/üst ucundan girilip eğim boyunca yürünür,
     /// son nokta hedef Z'sidir (nesnenin önü). Kat içi her yürüyüş mobilyaların etrafından dolaşır (FloorObstacles.Route). Doğrudan (klavye/gamepad): Steer ile kat içinde X-Z'de serbest yürür,
     /// mobilyaların etrafından kayar, yol kapatan engellerde durur.
     /// </summary>
@@ -17,6 +17,7 @@ namespace AftershockIsle.Characters
         // Derinlikte hareket perspektif yüzünden ekranda hızlı görünür; biraz yavaşlatılır.
         const float DepthSpeedFactor = 0.85f;
         const float BodyRadius = 0.3f;
+        const float StairSpeedFactor = 0.65f;
         // Aynı kattaki iki kazazede birbirinin içinden geçmesin: bu mesafenin altına girince yumuşakça ayrılırlar.
         const float MinSeparation = 0.62f;
         const float SeparationSpeed = 6f;
@@ -104,22 +105,22 @@ namespace AftershockIsle.Characters
             return MoveTo(floor, worldPos.x, worldPos.z);
         }
 
-        // Yol bulma X-Y'dedir; Z burada atanır: merdiven öncesi ve tırmanış LadderZ, son nokta hedef derinlik.
+        // Yol bulma X-Y'dedir; Z burada atanır. Merdiven başı ve sonu noktalarının Z'si merdivenden gelir (basamaklı
+        // merdivende alt uç önde, üst uç arkada); son nokta hedef derinliktir, verilmemişse merdivenden inilen derinlik.
         void ApplyDepth(float? targetZ, int targetFloor)
         {
-            bool changesFloor = false;
+            float? arrivalZ = null;
             foreach (var waypoint in path)
-                if (waypoint.IsClimb) changesFloor = true;
+                if (waypoint.IsClimb) arrivalZ = waypoint.Position.z;
 
             float finalZ = targetZ.HasValue ? building.ClampZ(targetZ.Value)
-                : changesFloor ? building.LadderZ
-                : building.ClampZ(transform.position.z);
+                : arrivalZ ?? building.ClampZ(transform.position.z);
 
             for (int i = 0; i < path.Count; i++)
             {
                 var waypoint = path[i];
-                bool ladder = waypoint.IsClimb || (i + 1 < path.Count && path[i + 1].IsClimb);
-                waypoint.Position.z = ladder ? building.LadderZ : finalZ;
+                if (waypoint.FixedDepth) continue;
+                waypoint.Position.z = finalZ;
                 path[i] = waypoint;
             }
         }
@@ -205,9 +206,11 @@ namespace AftershockIsle.Characters
             // Yol, kapalı kapıların aralığından geçer; karakter yaklaşınca kapıyı açar.
             if (!waypoint.IsClimb) BuildingDoor.OpenNear(transform.position, BodyRadius + 0.5f);
 
-            float speed = (waypoint.IsClimb ? climbSpeed : walkSpeed) * SpeedMultiplier;
+            // Basamaklı merdivende eğim boyunca yürünür (normal yürüyüşten biraz yavaş), el merdiveninde dikey tırmanılır.
+            float speed = (waypoint.IsStair ? walkSpeed * StairSpeedFactor : waypoint.IsClimb ? climbSpeed : walkSpeed) * SpeedMultiplier;
 
-            Vector3 facing = waypoint.IsClimb ? Vector3.forward : waypoint.Position - transform.position;
+            // El merdiveninde duvara bakar; basamaklı merdivende ve yürürken gittiği yöne.
+            Vector3 facing = waypoint.IsClimb && !waypoint.IsStair ? Vector3.forward : waypoint.Position - transform.position;
             Face(facing, dt);
 
             transform.position = Vector3.MoveTowards(transform.position, waypoint.Position, speed * dt);

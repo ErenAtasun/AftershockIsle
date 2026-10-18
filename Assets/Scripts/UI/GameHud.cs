@@ -62,6 +62,7 @@ namespace AftershockIsle.UI
 
         TimeManager timeManager;
         DayCycle dayCycle;
+        Text evacHeading;
         CommandController commands;
         BuildingLayout building;
         GameSession session;
@@ -375,8 +376,8 @@ namespace AftershockIsle.UI
 
             var panel = UiFactory.Panel(parent, "Tahliye", UiFactory.Slate);
             UiFactory.Place(panel.rectTransform, new Vector2(1f, 0f), new Vector2(-Margin, 34f), new Vector2(340f, 176f));
-            var heading = UiFactory.Label(panel.transform, "TAHLİYE ŞARTLARI", 17, UiFactory.Accent, TextAnchor.UpperLeft);
-            UiFactory.Place(heading.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -8f), new Vector2(312f, 24f));
+            evacHeading = UiFactory.Label(panel.transform, "TAHLİYE ŞARTLARI", 17, UiFactory.Accent, TextAnchor.UpperLeft);
+            UiFactory.Place(evacHeading.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -8f), new Vector2(312f, 24f));
             checklist = UiFactory.Label(panel.transform, "", 15, UiFactory.Text, TextAnchor.UpperLeft, FontStyle.Normal, false);
             UiFactory.Place(checklist.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -34f), new Vector2(316f, 140f));
             evacPanel = panel.gameObject;
@@ -509,7 +510,7 @@ namespace AftershockIsle.UI
                 var field = expeditions.Field;
                 string site = expeditions.CurrentSite != null ? expeditions.CurrentSite.name : "";
                 string state = explorer != null && field != null
-                    ? $"Can {explorer.Health:0}  ·  Çanta {field.UsedSlots}/{field.BagSlots}  ·  {Mathf.CeilToInt(expeditions.Remaining)} sn"
+                    ? $"Can {explorer.Health:0}  ·  Yük {field.LoadKg}/{field.CapacityKg} kg  ·  {Mathf.CeilToInt(expeditions.Remaining)} sn"
                     : "";
                 expeditionLabel.text = $"<b>SEFERDE:</b> {(explorer != null ? explorer.DisplayName : "")} → {site}\n" +
                                        $"<size=13>{state}   <color=#cfcfc8>{GameInput.Prompt(InputPrompt.SwitchCharacter)}: sahaya geç</color></size>";
@@ -520,6 +521,7 @@ namespace AftershockIsle.UI
         void UpdateWarnings()
         {
             text.Clear();
+            var storage = ResourceStorage.Instance;
 
             var quake = AftershockSystem.Instance;
             if (quake != null && quake.Phase == QuakePhase.Warning)
@@ -559,6 +561,15 @@ namespace AftershockIsle.UI
                 break;
             }
 
+            // Akşam yemeği: gün içinde kit eksikse önceden uyar (gece akşam planında kimin yiyeceği seçilir).
+            if (dayCycle != null && dayCycle.Phase != DayPhase.Night && storage != null)
+            {
+                int need = Survivor.AliveCount + ExpeditionSystem.AwayCount;
+                int kits = storage.Get(ResourceType.Supplies);
+                if (kits < need)
+                    Line($"<size=17><color=#ffb070>Akşam yemeği: {kits}/{need} Yaşam Kiti — {need - kits} kişi aç kalacak. Kit bul (sefer, arama, enkaz).</color></size>");
+            }
+
             warnings.text = text.ToString();
         }
 
@@ -583,7 +594,8 @@ namespace AftershockIsle.UI
             var condition = selected.Condition;
             cardName.text = selected.DisplayName;
             cardName.color = BranchColor(selected.Branch);
-            cardInfo.text = $"{selected.Branch.ToDisplayName()} · {building.GetFloorName(selected.Mover.CurrentFloor)}";
+            cardInfo.text = $"{selected.Branch.ToDisplayName()} · {building.GetFloorName(selected.Mover.CurrentFloor)}" +
+                            (condition.IsExhausted ? $" · <color=#ff8f7a>Aç ({condition.Hunger}/{SurvivorCondition.MaxHunger}): yarı hız</color>" : "");
 
             float health = selected.Health / selected.MaxHealth;
             healthFill.fillAmount = health;
@@ -628,7 +640,9 @@ namespace AftershockIsle.UI
             foreach (bool d in done) if (d) count++;
 
             string signal = radio.SignalComplete ? "ulaştı" : $"%{radio.Signal01 * 100f:0}";
-            evacChipLabel.text = $"Tahliye {count}/{done.Length}  ·  Sinyal {signal}";
+            if (GameMode.IsEndless && radio.SignalComplete) signal = $"Gün {EvacuationSystem.NextDropDay}'de";
+            evacChipLabel.text = $"{(GameMode.IsEndless ? "Yardım" : "Tahliye")} {count}/{done.Length}  ·  Sinyal {signal}";
+            if (evacHeading != null) evacHeading.text = GameMode.IsEndless ? "ERZAK YARDIMI ŞARTLARI" : "TAHLİYE ŞARTLARI";
 
             if (!Planning) return;
             text.Clear();

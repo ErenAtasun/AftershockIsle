@@ -50,7 +50,6 @@ namespace AftershockIsle.Expedition
     public class ExpeditionSystem : MonoBehaviour
     {
         [SerializeField] DayCycle dayCycle;
-        [SerializeField] int baseBagSlots = 3;
         [SerializeField] float rescueExtraction = 8f;
         [SerializeField] float timeUpStress = 20f;
         [SerializeField] ExpeditionSite[] sites = ExpeditionSite.Defaults();
@@ -85,10 +84,14 @@ namespace AftershockIsle.Expedition
         public float Remaining => field != null ? field.Remaining : 0f;
         public bool IsRescuing => field != null && field.RescueSecured;
         public FieldExpedition Field => field;
-        public int BagSlots => baseBagSlots + (SkillTree.Has(SkillId.WideBag) ? 1 : 0);
+        /// <summary>Çanta kapasitesi (kg), yoldaşsız.</summary>
+        public int BagCapacity => ExpeditionLoadout.Capacity(false);
 
-        /// <summary>Binanın dışında olan (sahnede pasif) kazazede sayısı.</summary>
-        public static int AwayCount => (AwayExplorer != null ? 1 : 0) + (AwayCompanion != null ? 1 : 0);
+        /// <summary>Sefer hazırlığında seçilen ekipman (yola çıkınca sahaya verilir).</summary>
+        public ExpeditionLoadout Loadout { get; private set; } = new ExpeditionLoadout();
+
+        /// <summary>Binanın dışında olan (sahnede pasif) kazazede sayısı (gece keşfindekiler dahil).</summary>
+        public static int AwayCount => (AwayExplorer != null ? 1 : 0) + (AwayCompanion != null ? 1 : 0) + NightScavenge.AwayCount;
 
         /// <summary>Seferdeki yoldaş (Survivor.All'da görünmez); ölürse null.</summary>
         public static Survivor AwayCompanion =>
@@ -124,6 +127,7 @@ namespace AftershockIsle.Expedition
 
             // Eski sahnelerde serileştirilmiş saha verisi olmayabilir.
             if (sites == null || sites.Length == 0 || sites[0].lootSpots <= 0) sites = ExpeditionSite.Defaults();
+            else sites = MergeNewSites(sites);
             // Otomatik güncellenen kayıt öncelikli: yeni model eklenince sahneyi yeniden kurmak gerekmez.
             if (GameAssets.FieldArt != null) fieldArt = GameAssets.FieldArt;
             if (GameAssets.Characters != null) characterLibrary = GameAssets.Characters;
@@ -136,6 +140,17 @@ namespace AftershockIsle.Expedition
         {
             if (Instance == this) Instance = null;
         }
+
+        // Sahnede kayıtlı eski site listesine sonradan eklenen lokasyonlar da gelsin (sahneyi yeniden kurmadan).
+        static ExpeditionSite[] MergeNewSites(ExpeditionSite[] current)
+        {
+            var list = new List<ExpeditionSite>(current);
+            foreach (var site in ExpeditionSite.Defaults())
+                if (list.Find(s => s.name == site.name) == null) list.Add(site);
+            return list.ToArray();
+        }
+
+        public int Day => dayCycle != null ? dayCycle.Day : 1;
 
         public bool CanDepart(out string reason)
         {
@@ -184,12 +199,16 @@ namespace AftershockIsle.Expedition
             return result;
         }
 
-        public void Depart(ExpeditionSite site)
+        public void Depart(ExpeditionSite site, ExpeditionLoadout loadout = null)
         {
             if (Stage != ExpeditionStage.ChoosingSite || Explorer == null || Explorer.IsDead) return;
+            if (site == null || !site.IsUnlocked(dayCycle.Day)) return;
 
             CurrentSite = site;
             lastExpeditionDay = dayCycle.Day;
+            // Mermi ve kit sığınaktan alınır; dönüşte kalanı geri konur.
+            Loadout = loadout ?? ExpeditionLoadout.Default();
+            Loadout.TakeFromShelter();
 
             if (Companion != null && (Companion.IsDead || Companion.IsTrapped || !Companion.isActiveAndEnabled)) Companion = null;
 
@@ -215,7 +234,7 @@ namespace AftershockIsle.Expedition
             explorer.gameObject.SetActive(false);
             if (Companion != null) Companion.gameObject.SetActive(false);
             Stage = ExpeditionStage.Away;
-            field.Begin(explorer, CurrentSite, building, BagSlots + (Companion != null ? 1 : 0), ExtractionTime,
+            field.Begin(explorer, CurrentSite, building, Loadout, ExpeditionLoadout.Capacity(Companion != null), ExtractionTime,
                         RescueVictimAvailable, dayCycle.Day, fieldArt, Companion);
         }
 
@@ -307,6 +326,8 @@ namespace AftershockIsle.Expedition
 
             var loot = new List<ResourceAmount>(field.Bag);
             bool rescuing = field.RescueSecured;
+            // Kullanılmayan mermi ve kitler sığınağa geri döner.
+            ExpeditionLoadout.ReturnToShelter(field.AmmoLeft, field.KitsLeft);
             field.End();
             BringCompanionHome();
 

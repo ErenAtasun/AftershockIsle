@@ -48,22 +48,27 @@ namespace AftershockIsle.Building
         void Update()
         {
             float step = BlendSpeed * Time.unscaledDeltaTime;
-            amount = Mathf.MoveTowards(amount, WeatherSystem.BackdropFogAmount, step);
+            float target = WeatherSystem.BackdropFogAmount;
+            amount = Mathf.MoveTowards(amount, target, step);
             color = Color.Lerp(color, TargetColor, step * 2f);
+            if (Mathf.Abs(color.r - TargetColor.r) + Mathf.Abs(color.g - TargetColor.g) + Mathf.Abs(color.b - TargetColor.b) < 0.003f) color = TargetColor;
             Apply();
         }
 
         void Apply()
         {
+            // Fırtınada şimşek çakınca gökyüzü (sis perdesi) bir an aydınlanır.
+            float flash = AftershockIsle.Effects.WeatherVisuals.Flash01;
             if (haze != null)
             {
-                haze.color = new Color(color.r, color.g, color.b, Mathf.Lerp(clearAlpha, MaxHazeAlpha, amount));
+                var lit = Color.Lerp(color, new Color(0.92f, 0.94f, 1f), flash * 0.7f);
+                haze.color = new Color(lit.r, lit.g, lit.b, Mathf.Lerp(clearAlpha, MaxHazeAlpha, amount));
                 var scale = haze.transform.localScale;
                 haze.transform.localScale = new Vector3(scale.x, baseHeight * Mathf.Lerp(1f, MaxHeightBoost, amount), scale.z);
             }
 
             float tint = Mathf.Lerp(clearTint, MaxPanelTint, amount);
-            var panelColor = Color.Lerp(Color.white, color, tint);
+            var panelColor = Color.Lerp(Color.Lerp(Color.white, color, tint), Color.white, flash);
             foreach (var panel in panels)
                 if (panel != null) panel.color = panelColor;
         }

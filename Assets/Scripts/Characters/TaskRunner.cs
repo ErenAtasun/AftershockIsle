@@ -228,10 +228,12 @@ namespace AftershockIsle.Characters
 
             Vector3 toTarget = Current.transform.position - transform.position;
             toTarget.y = 0f;
-            mover.FaceDirection(toTarget.sqrMagnitude > 0.09f ? toTarget : Vector3.forward);
+            if (Current is Seat seat) mover.FaceDirection(seat.FaceDirection);
+            else mover.FaceDirection(toTarget.sqrMagnitude > 0.09f ? toTarget : Vector3.forward);
 
             float traitSpeed = TraitCatalog.GetWorkSpeedMultiplier(survivor, Current.Category);
-            progress += Time.deltaTime * WorkSpeedMultiplier * SkillTree.WorkSpeedBonus(Current.Category) * traitSpeed;
+            progress += Time.deltaTime * WorkSpeedMultiplier * SkillTree.WorkSpeedBonus(Current.Category) * traitSpeed *
+                        AftershockIsle.Crafting.ToolKit.WorkSpeed(Current.Category);
             if (progress < Current.WorkDuration) return;
 
             var done = Current;

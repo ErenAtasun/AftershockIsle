@@ -49,6 +49,29 @@ namespace AftershockIsle.Expedition
         public bool isRescueSite;
         [Tooltip("Harita penceresindeki düğüm konumu (0–1)")]
         public Vector2 mapPosition;
+        [Tooltip("Bu günden önce gidilemez (haritada kilitli görünür). 0/1: baştan açık.")]
+        public int unlockDay = 1;
+
+        public bool IsUnlocked(int day) => day >= unlockDay;
+
+        /// <summary>Sahadaki ek kilitli kasa (Levye ister) ve gömülü sandık (Kazma ister) sayısı; yapı tipine göre.</summary>
+        public int LockedCrates => layout switch
+        {
+            FieldLayout.Workshop => 2,
+            FieldLayout.Station => 2,
+            FieldLayout.Clinic => 1,
+            FieldLayout.Market => 1,
+            FieldLayout.House => 1,
+            _ => 0,
+        };
+
+        public int BuriedCaches => layout switch
+        {
+            FieldLayout.Construction => 2,
+            FieldLayout.Ruin => 2,
+            FieldLayout.Market => 1,
+            _ => 0,
+        };
 
         public static ExpeditionSite[] Defaults() => new[]
         {
@@ -103,6 +126,36 @@ namespace AftershockIsle.Expedition
                 hazard = ExpeditionHazard.Collapse, hazardChance = 0.1f, hazardDamage = 15f,
                 isRescueSite = true,
                 mapPosition = new Vector2(0.8f, 0.75f),
+            },
+            new ExpeditionSite
+            {
+                name = "Market Harabesi",
+                description = "Raflarda konserve ve su kalmış olabilir (Yaşam Kiti). Yağmacılar da biliyor: raf koridorlarında çatışma.",
+                duration = 105f, lootSpots = 4, dogs = 1, raiders = 2, layout = FieldLayout.Market,
+                loot = new[]
+                {
+                    new LootEntry(ResourceType.Supplies, 1, 2, 60f),
+                    new LootEntry(ResourceType.Scrap, 1, 2, 25f),
+                    new LootEntry(ResourceType.Electronics, 1, 1, 15f),
+                },
+                hazard = ExpeditionHazard.Collapse, hazardChance = 0.15f, hazardDamage = 15f,
+                mapPosition = new Vector2(0.5f, 0.12f),
+                unlockDay = 3,
+            },
+            new ExpeditionSite
+            {
+                name = "Benzin İstasyonu",
+                description = "Metal, akü ve elektronik dolu market deposu. Sızan yakıt yüzünden yangın riski yüksek; iri yağmacılar burayı tutuyor.",
+                duration = 110f, lootSpots = 3, dogs = 0, raiders = 1, brutes = 1, throwers = 1, layout = FieldLayout.Station,
+                loot = new[]
+                {
+                    new LootEntry(ResourceType.Metal, 1, 2, 45f),
+                    new LootEntry(ResourceType.Electronics, 1, 1, 35f),
+                    new LootEntry(ResourceType.Scrap, 2, 3, 20f),
+                },
+                hazard = ExpeditionHazard.Fire, hazardChance = 0.25f, hazardDamage = 25f,
+                mapPosition = new Vector2(0.5f, 0.88f),
+                unlockDay = 5,
             },
         };
     }

@@ -63,6 +63,21 @@ namespace AftershockIsle.Core
         {
             if (Outcome != GameOutcome.None) return;
 
+            // Mod rekoru: kampanyada en hızlı tahliye, sonsuz modda en uzun hayatta kalma.
+            var cycle = FindFirstObjectByType<DayCycle>();
+            int day = cycle != null ? Mathf.Max(1, cycle.Day) : 1;
+            if (GameMode.IsEndless)
+            {
+                bool record = GameMode.RecordEndlessDay(day);
+                reason += $"\n{day}. güne kadar dayandın" + (record ? " — YENİ REKOR!" : $" (rekor: {GameMode.EndlessBest}. gün)");
+            }
+            else if (outcome == GameOutcome.Victory)
+            {
+                bool record = GameMode.RecordCampaignWin(day);
+                string target = day <= GameMode.CampaignTargetDay ? "hedef süre içinde" : $"hedef {GameMode.CampaignTargetDay}. gündü";
+                reason += $"\n{day}. günde tahliye ({target})" + (record ? " — YENİ REKOR!" : $" · rekor: {GameMode.CampaignBest}. gün");
+            }
+
             Outcome = outcome;
             EndReason = reason;
             TimeManager.Hold(this);

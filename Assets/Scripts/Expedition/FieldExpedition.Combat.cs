@@ -143,11 +143,12 @@ namespace AftershockIsle.Expedition
 
         void SwitchWeapon()
         {
-            var next = FieldWeapons.Next(weapon);
+            // Yanında yalnızca sefer hazırlığında seçilen silah ve sapan var.
+            var next = weapon == WeaponKind.Slingshot ? loadout.Weapon : WeaponKind.Slingshot;
             if (next == weapon)
             {
                 AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.EmptyClick, 0.65f);
-                Say("Başka silah yok: tezgahta tabanca, pompalı veya tüfek üret.");
+                Say("Yanında başka silah yok (sefer hazırlığında silah seçilir).");
                 return;
             }
             weapon = next;
@@ -169,14 +170,15 @@ namespace AftershockIsle.Expedition
 
             if (info.UsesAmmo)
             {
-                bool freeShot = sharpshooter && Workbench.Instance != null && Workbench.Instance.Ammo > 0 && Random.value < 0.25f;
-                if (!freeShot && (Workbench.Instance == null || !Workbench.Instance.TryUseAmmo()))
+                bool freeShot = sharpshooter && ammo > 0 && Random.value < 0.25f;
+                if (!freeShot && ammo <= 0)
                 {
                     AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.EmptyClick, 0.85f);
-                    Say("Mermi yok! Tezgahta Mermi Paketi üret ya da sapana geç.");
+                    Say($"Mermi bitti! Sapana geç ({GameInput.Prompt(InputPrompt.SwitchWeapon)}). Yanına daha çok mermi al.");
                     fireCooldown = 0.3f;
                     return;
                 }
+                if (!freeShot) ammo--;
             }
 
             fireCooldown = info.Interval;

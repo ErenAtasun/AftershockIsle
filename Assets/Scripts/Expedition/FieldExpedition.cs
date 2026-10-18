@@ -102,8 +102,11 @@ namespace AftershockIsle.Expedition
 
         Survivor explorer;
         ExpeditionSite site;
-        int bagSlots;
-        int usedSlots;
+        // Kilo bazlı çanta: kapasiteden ekipman (silah, mermi, kit, alet) ve ganimet düşülür.
+        int capacityKg;
+        int ammo;
+        int kits;
+        ExpeditionLoadout loadout = new ExpeditionLoadout();
         float extractionDuration;
         bool rescueAvailable;
         int extraRaiders;
@@ -162,8 +165,14 @@ namespace AftershockIsle.Expedition
         public bool RescueSecured { get; private set; }
         public IReadOnlyList<ResourceAmount> Bag => bag;
         public string Report => reportText.Length > 0 ? reportText.ToString() : null;
-        public int UsedSlots => usedSlots;
-        public int BagSlots => bagSlots;
+        public int LootKg => ExpeditionLoadout.Weight(bag);
+        public int GearKg => loadout.GearWeight(ammo, kits);
+        public int LoadKg => LootKg + GearKg;
+        public int CapacityKg => capacityKg;
+        public int FreeKg => Mathf.Max(0, capacityKg - LoadKg);
+        public int AmmoLeft => ammo;
+        public int KitsLeft => kits;
+        public ExpeditionLoadout Loadout => loadout;
         public bool AvatarIsDead => explorer == null || explorer.IsDead;
         public bool IsDodging => dodgeTimer > 0f;
 
@@ -181,7 +190,7 @@ namespace AftershockIsle.Expedition
 
         // ---------------------------------------------------------------- Kurulum / bitiş
 
-        public void Begin(Survivor who, ExpeditionSite expeditionSite, BuildingLayout building, int slots, float extraction,
+        public void Begin(Survivor who, ExpeditionSite expeditionSite, BuildingLayout building, ExpeditionLoadout kit, int capacity, float extraction,
                           bool canRescue, int day, FieldArtLibrary artLibrary, Survivor companionSurvivor = null)
         {
             art = artLibrary;
@@ -189,13 +198,15 @@ namespace AftershockIsle.Expedition
             companion = null;
             explorer = who;
             site = expeditionSite;
-            bagSlots = slots;
+            loadout = kit ?? ExpeditionLoadout.Default();
+            capacityKg = capacity;
+            ammo = loadout.Ammo;
+            kits = loadout.Kits;
             extractionDuration = extraction;
             rescueAvailable = canRescue;
             Outcome = FieldOutcome.Active;
             Remaining = site.duration;
             RescueSecured = false;
-            usedSlots = 0;
             bag.Clear();
             reportText.Clear();
             spots.Clear();
@@ -208,8 +219,10 @@ namespace AftershockIsle.Expedition
             tracers.Clear();
             coverPoints.Clear();
             claimedCover.Clear();
-            extraRaiders = Mathf.Clamp((day - 1) / 4, 0, 2);
-            weapon = FieldWeapons.Best();
+            // Sonsuz modda sahalar daha da kalabalıklaşır.
+            extraRaiders = Mathf.Clamp((day - 1) / 4, 0, AftershockIsle.Core.GameMode.IsEndless ? 4 : 2);
+            weapon = loadout.Weapon;
+            inventoryOpen = false;
             fireCooldown = 0f;
             crouched = false;
             riseTimer = 0f;
@@ -234,12 +247,13 @@ namespace AftershockIsle.Expedition
             BuildField();
             SideViewCamera.SetFieldFocus(avatar);
             Say($"{GameInput.Prompt(InputPrompt.Move)}: yürü.  {GameInput.Prompt(InputPrompt.Interact)}: ara.  " +
-                "Çanta dolunca soldaki yeşil çıkışa dön.");
+                $"{GameInput.Prompt(InputPrompt.Inventory)}: çanta.  Çanta dolunca soldaki yeşil çıkışa dön.");
         }
 
         /// <summary>Sahayı temizler ve kamerayı sığınağa döndürür.</summary>
         public void End()
         {
+            CloseInventory();
             SideViewCamera.SetFieldFocus(null);
             if (root != null) Destroy(root);
             root = null;
@@ -255,6 +269,7 @@ namespace AftershockIsle.Expedition
         void Update()
         {
             RefreshHud();
+            UpdateInventory();
             if (!IsActive) return;
 
             float dt = Time.deltaTime;

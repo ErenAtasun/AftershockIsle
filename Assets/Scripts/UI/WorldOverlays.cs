@@ -168,6 +168,9 @@ namespace AftershockIsle.UI
             Vector2 mouse = UiTheme.ToGui(Core.GameInput.PointerPosition);
             string text = $"{hovered.DisplayName} — Sağ tık: {hovered.ActionLabel}";
             if (!string.IsNullOrEmpty(hovered.StatusText)) text += $"\n{hovered.StatusText}";
+            // Hangi aletin bu işi hızlandırdığı (varsa kullanılan alet).
+            string tool = AftershockIsle.Crafting.ToolKit.Hint(hovered.Category);
+            if (!string.IsNullOrEmpty(tool)) text += $"\n<color=#cfe3a0>Alet: {tool}</color>";
 
             var size = GUI.skin.box.CalcSize(new GUIContent(text));
             GUI.Box(new Rect(mouse.x + 16f, mouse.y + 8f, size.x + 8f, size.y + 4f), text);

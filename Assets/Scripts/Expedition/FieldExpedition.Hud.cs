@@ -100,7 +100,7 @@ namespace AftershockIsle.Expedition
 
         void RefreshHud()
         {
-            bool show = IsActive && SideViewCamera.ViewingField && !ModalMenu.IsOpen && !PauseMenu.IsOpen;
+            bool show = IsActive && SideViewCamera.ViewingField && !inventoryOpen && !ModalMenu.IsOpen && !PauseMenu.IsOpen;
             if (hudRoot == null)
             {
                 if (!show) return;
@@ -126,25 +126,25 @@ namespace AftershockIsle.Expedition
             hudHealth.color = Color.Lerp(UiFactory.Danger, UiFactory.Good, health);
 
             var info = CurrentWeapon;
-            string ammo = info.UsesAmmo ? $"   Mermi: {(Workbench.Instance != null ? Workbench.Instance.Ammo : 0)}" : "   (sessiz, sınırsız)";
+            string ammoText = info.UsesAmmo ? $"   Mermi: {ammo}" : "   (sessiz, sınırsız)";
             string stance = leanSide != 0 ? "Köşeden ateş" : CrouchedLow ? "Çömelik" : crouched ? "Doğruldu (açıkta)" : "Ayakta";
             var text = new StringBuilder();
-            text.Append($"Can {explorer.Health:0}/{explorer.MaxHealth:0}   Çanta {usedSlots}/{bagSlots}: {BagText()}");
+            string loadColor = FreeKg <= 0 ? "#ff8f7a" : FreeKg <= 2 ? "#ffd75a" : "#9be37a";
+            text.Append($"Can {explorer.Health:0}/{explorer.MaxHealth:0}   <color={loadColor}>Yük {LoadKg}/{CapacityKg} kg</color>   Çanta: {BagText()}");
             if (RescueSecured) text.Append("   [Kazazede kurtarıldı]");
-            text.Append($"\nSilah: {info.Name}{ammo}   Duruş: {stance}{(inCover ? "  [SİPERDE]" : "")}");
+            text.Append($"\nSilah: {info.Name}{ammoText}   Kit: {kits}{ToolsText()}   Duruş: {stance}{(inCover ? "  [SİPERDE]" : "")}");
             if (companion != null)
                 text.Append(companion.IsDead ? $"\nYoldaş: {companion.Survivor.DisplayName} öldü"
                     : $"\nYoldaş: {companion.Survivor.DisplayName}   Can {companion.Survivor.Health:0}/{companion.Survivor.MaxHealth:0}");
             if (messageTimer > 0f && message != null) text.Append($"\n<color=#ffd75a>{message}</color>");
             hudInfo.text = text.ToString();
 
-            var storage = ResourceStorage.Instance;
-            int kits = storage != null ? storage.Get(ResourceType.Supplies) : 0;
             hudControls.text =
                 $"{GameInput.Prompt(InputPrompt.Move)}: yürü    {GameInput.Prompt(InputPrompt.Aim)}: nişan    " +
                 $"{GameInput.Prompt(InputPrompt.Fire)}: ateş    {GameInput.Prompt(InputPrompt.SwitchWeapon)}: silah    " +
                 $"{GameInput.Prompt(InputPrompt.Crouch)}: çömel    {GameInput.Prompt(InputPrompt.Dodge)}: kaçış    " +
                 $"{GameInput.Prompt(InputPrompt.Interact)}: etkileşim    {GameInput.Prompt(InputPrompt.Heal)}: ilk yardım ({kits} kit)    " +
+                $"{GameInput.Prompt(InputPrompt.Inventory)}: çanta    " +
                 $"{GameInput.Prompt(InputPrompt.SwitchCharacter)}: sığınağa dön";
         }
 
@@ -163,8 +163,17 @@ namespace AftershockIsle.Expedition
 
             foreach (var spot in spots)
             {
-                string label = spot.Done ? "(boş)" : spot.Kind == FieldSpotKind.Rescue ? "MAHSUR KALAN" : "Ara";
-                DrawLabel(spot.Position + Vector3.up * 0.9f, label, spot.Done ? Color.gray : Color.white);
+                string label = spot.Done ? "(boş)"
+                    : spot.Kind == FieldSpotKind.Rescue ? "MAHSUR KALAN"
+                    : spot.HasPending ? $"{spot.Pending} ({ExpeditionLoadout.Weight(spot.Pending)} kg)"
+                    : spot.Lock == FieldSpotLock.Locked ? (loadout.Crowbar ? "Kilitli kasa (Levye)" : "Kilitli kasa — Levye gerek")
+                    : spot.Lock == FieldSpotLock.Buried ? (loadout.Pickaxe ? "Gömülü sandık (Kazma)" : "Gömülü sandık — Kazma gerek")
+                    : "Ara";
+                var labelColor = spot.Done ? Color.gray
+                    : spot.HasPending ? new Color(1f, 0.9f, 0.45f)
+                    : spot.Lock != FieldSpotLock.None ? new Color(0.75f, 0.85f, 1f)
+                    : Color.white;
+                DrawLabel(spot.Position + Vector3.up * 0.9f, label, labelColor);
                 if (searchTarget == spot) DrawBar(spot.Position + Vector3.up * 1.3f, searchProgress / spot.Duration, Color.white, 54);
             }
 
@@ -201,14 +210,19 @@ namespace AftershockIsle.Expedition
                 if (spot == null) return;
                 anchor = spot.Position;
                 text = spot.Kind == FieldSpotKind.Rescue ? $"[{key}] Kurtar"
-                    : usedSlots >= bagSlots ? "Çanta dolu"
+                    : spot.HasPending ? (FreeKg >= ExpeditionLoadout.ResourceWeight(spot.Pending.type) ? $"[{key}] Al" : "Çanta dolu")
+                    : spot.Lock == FieldSpotLock.Locked && !loadout.Crowbar ? "Levye gerek"
+                    : spot.Lock == FieldSpotLock.Buried && !loadout.Pickaxe ? "Kazma gerek"
+                    : FreeKg <= 0 ? "Çanta dolu"
+                    : spot.Lock == FieldSpotLock.Locked ? $"[{key}] Levyeyle aç"
+                    : spot.Lock == FieldSpotLock.Buried ? $"[{key}] Kazmayla kaz"
                     : $"[{key}] Ara";
             }
 
             var screen = cam.WorldToScreenPoint(anchor + Vector3.up * 1.7f);
             if (screen.z < 0f) return;
             var at = UiTheme.ToGui(screen);
-            GUI.Box(new Rect(at.x - 60f, at.y - 13f, 120f, 26f), text, prompt);
+            GUI.Box(new Rect(at.x - 80f, at.y - 13f, 160f, 26f), text, prompt);
         }
 
         void DrawLabel(Vector3 world, string text, Color color)
@@ -239,6 +253,14 @@ namespace AftershockIsle.Expedition
             GUI.color = color;
             GUI.DrawTexture(new Rect(rect.x + 1, rect.y + 1, (rect.width - 2) * Mathf.Clamp01(fraction), rect.height - 2), Texture2D.whiteTexture);
             GUI.color = previous;
+        }
+
+        string ToolsText()
+        {
+            if (loadout.Pickaxe && loadout.Crowbar) return "   Alet: Kazma, Levye";
+            if (loadout.Pickaxe) return "   Alet: Kazma";
+            if (loadout.Crowbar) return "   Alet: Levye";
+            return "";
         }
 
         string BagText()

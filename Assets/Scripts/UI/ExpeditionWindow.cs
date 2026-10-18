@@ -37,15 +37,32 @@ namespace AftershockIsle.UI
         Text partnerLabel;
         ExpeditionSite selectedSite;
         float openedAt;
+        // Haritadan sonra sefer hazırlığı sayfası (silah, mermi, kit, alet). Seçim bir sonraki sefer için hatırlanır.
+        LoadoutPanel loadoutPanel;
+        ExpeditionLoadout lastLoadout;
+        bool loadoutPage;
 
         void Update()
         {
             var expeditions = ExpeditionSystem.Instance;
             bool choosing = expeditions != null && expeditions.Stage == ExpeditionStage.ChoosingSite;
 
-            if (choosing && (window == null || !window.IsOpen)) Open(expeditions);
-            else if (!choosing && window != null && window.IsOpen) window.Show(false);
-            if (!choosing) return;
+            if (!choosing)
+            {
+                if (window != null && window.IsOpen) window.Show(false);
+                if (loadoutPanel != null && loadoutPanel.IsOpen) loadoutPanel.Close();
+                loadoutPage = false;
+                return;
+            }
+
+            if (loadoutPage)
+            {
+                loadoutPanel.Tick();
+                if (GameInput.MenuBackPressed) BackToMap();
+                return;
+            }
+
+            if (window == null || !window.IsOpen) Open(expeditions);
 
             window.Tick(nodes.Count > 0 ? nodes[0].Button.gameObject : null);
             if (GameInput.MenuBackPressed)
@@ -98,8 +115,34 @@ namespace AftershockIsle.UI
             partnerLabel = partner.GetComponentInChildren<Text>();
             var spacer = UiFactory.Rect("Boşluk", window.Footer);
             spacer.sizeDelta = new Vector2(170f, 10f);
-            depart = window.FooterButton("Yola Çık", () => ExpeditionSystem.Instance.Depart(selectedSite), UiFactory.Good, 190f);
+            depart = window.FooterButton("Hazırlık", OpenLoadout, UiFactory.Good, 190f);
             cancel = window.FooterButton($"Vazgeç ({GameInput.Prompt(InputPrompt.Back)})", CancelMap, null, 190f);
+        }
+
+        void OpenLoadout()
+        {
+            if (selectedSite == null || InGracePeriod) return;
+            loadoutPanel ??= new LoadoutPanel(BackToMap, Depart);
+            loadoutPage = true;
+            window.Show(false);
+            loadoutPanel.Open(selectedSite, lastLoadout);
+        }
+
+        void BackToMap()
+        {
+            loadoutPage = false;
+            loadoutPanel?.Close();
+            openedAt = Time.unscaledTime;
+            window.Show(true);
+            if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(depart.gameObject);
+        }
+
+        void Depart(ExpeditionLoadout loadout)
+        {
+            lastLoadout = loadout;
+            loadoutPage = false;
+            loadoutPanel?.Close();
+            ExpeditionSystem.Instance.Depart(selectedSite, loadout);
         }
 
         static void CancelMap()
@@ -125,6 +168,12 @@ namespace AftershockIsle.UI
         void SelectSite(ExpeditionSite site)
         {
             if (InGracePeriod) return;
+            var expeditions = ExpeditionSystem.Instance;
+            if (expeditions != null && !site.IsUnlocked(expeditions.Day))
+            {
+                AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.EmptyClick, 0.6f);
+                return;
+            }
             selectedSite = site;
             if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(depart.gameObject);
         }
@@ -139,14 +188,17 @@ namespace AftershockIsle.UI
             var focused = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
             foreach (var node in nodes)
             {
-                node.Plate.color = node.Site == selectedSite ? UiFactory.Accent : UiFactory.SlateLight;
-                node.Button.GetComponentInChildren<Text>().color = node.Site == selectedSite ? UiFactory.Ink : UiFactory.Text;
+                bool locked = !node.Site.IsUnlocked(expeditions.Day);
+                node.Plate.color = node.Site == selectedSite ? UiFactory.Accent : locked ? new Color(0.18f, 0.18f, 0.2f, 0.95f) : UiFactory.SlateLight;
+                var label = node.Button.GetComponentInChildren<Text>();
+                label.color = node.Site == selectedSite ? UiFactory.Ink : locked ? new Color(0.6f, 0.6f, 0.58f) : UiFactory.Text;
+                label.text = locked ? $"{node.Site.name}\n<size=14>Gün {node.Site.unlockDay}'te açılır</size>" : $"{node.Site.name}\n<size=14>{node.Site.duration:0} sn</size>";
                 if (shown == null && focused == node.Button.gameObject) shown = node.Site;
             }
 
             if (shown == null)
                 info.text = "Bir lokasyon seç. Oyun bu ekranda duraklatıldı.\n" +
-                            $"Sefer çantası: {expeditions.BagSlots} slot (yoldaşla +1). Sahada kâşifi sen yönetirsin; yoldaş seni takip edip ateş eder " +
+                            $"Sefer çantası: {expeditions.BagCapacity} kg (yoldaşla +3); silah, mermi, kit ve aletler de yer kaplar. Sahada kâşifi sen yönetirsin; yoldaş seni takip edip ateş eder " +
                             "ama o gün sığınakta çalışamaz.";
             else
                 info.text = $"<b><size=19>{shown.name}</size></b>{(shown == selectedSite ? "" : $"   <color=#cfcfc8>({GameInput.Prompt(InputPrompt.Confirm)}: seç)</color>")}\n{Details(shown)}";
@@ -172,8 +224,15 @@ namespace AftershockIsle.UI
                 text.Append(site.loot[i].type.ToDisplayName());
             }
 
+            if (site.LockedCrates + site.BuriedCaches > 0)
+                text.Append($"\nÖzel noktalar: {site.LockedCrates} kilitli kasa (Levye), {site.BuriedCaches} gömülü sandık (Kazma)");
+
             if (site.hazard != ExpeditionHazard.None)
                 text.Append($"\nArama tuzağı: %{site.hazardChance * 100f:0} ihtimalle -{site.hazardDamage * 0.7f:0} HP");
+
+            var expeditions = ExpeditionSystem.Instance;
+            if (expeditions != null && !site.IsUnlocked(expeditions.Day))
+                text.Append($"\n<color=#ff9a80>Yol henüz açık değil: Gün {site.unlockDay}'te gidilebilir.</color>");
 
             if (site.isRescueSite && !ExpeditionSystem.RescueVictimAvailable)
                 text.Append("\n<color=#ff9a80>Kurtarılacak kimse yok ya da sığınak dolu.</color>");

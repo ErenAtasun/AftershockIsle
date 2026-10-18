@@ -37,7 +37,7 @@ namespace AftershockIsle.Skills
             new SkillInfo(SkillId.LifeTriangleArchitect, SkillBranch.Construction, 3, "Yaşam Üçgeni Mimarı", "Kazazedeler sarsıntılarda hiç hasar almaz."),
 
             new SkillInfo(SkillId.NimbleStep, SkillBranch.Exploration, 1, "Çevik Adım", "Yürüme ve tırmanma hızı +%25."),
-            new SkillInfo(SkillId.WideBag, SkillBranch.Exploration, 2, "Geniş Çanta", "Dış seferde +1 ganimet slotu. (Aşama 5)"),
+            new SkillInfo(SkillId.WideBag, SkillBranch.Exploration, 2, "Geniş Çanta", "Dış sefer çantası +2 kg. (Aşama 5)"),
             new SkillInfo(SkillId.LifeSaver, SkillBranch.Exploration, 3, "Hayat Kurtaran", "Kazazede çıkarma süresi yarıya iner. (Aşama 5)"),
 
             new SkillInfo(SkillId.Recycling, SkillBranch.Engineering, 1, "Geri Dönüşüm", "Mobilya parçalamadan +%50 hurda."),

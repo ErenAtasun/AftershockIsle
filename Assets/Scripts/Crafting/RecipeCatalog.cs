@@ -26,7 +26,15 @@ namespace AftershockIsle.Crafting
         Smg = 19,
         AssaultRifle = 20,
         SniperRifle = 21,
-        ReinforcedDoor = 22
+        ReinforcedDoor = 22,
+        // Aletler (alet dolabı: herkes kullanır)
+        Shovel = 23,
+        Pickaxe = 24,
+        Crowbar = 25,
+        Toolbox = 26,
+        HeadLamp = 27,
+        FireBlanket = 28,
+        Backpack = 29
     }
 
     public readonly struct RecipeInfo
@@ -71,6 +79,9 @@ namespace AftershockIsle.Crafting
         }
 
         public bool IsUpgrade => Id == RecipeId.UpgradeTier2 || Id == RecipeId.UpgradeTier3;
+
+        /// <summary>Alet dolabına giren aletler (tezgah penceresinde ayrı bölümde).</summary>
+        public bool IsTool => Id >= RecipeId.Shovel && Id <= RecipeId.Backpack;
 
         public bool AllowsFloor(int floor) => (AllowedFloorMask & (1 << floor)) != 0;
 
@@ -191,6 +202,35 @@ namespace AftershockIsle.Crafting
             // 22: ReinforcedDoor (Bina güçlendirmesi)
             new RecipeInfo(RecipeId.ReinforcedDoor, 2, "Çelik Kapı Barikatı", "Giriş kapısını çelik levhalarla güçlendirir: gece yağmacı baskınlarında savunmaya +40 ekler; nöbetçi olmasa bile kapı çoğu zorlamaya dayanır.",
                 new[] { R(ResourceType.Metal, 3), R(ResourceType.Scrap, 2) }, 10f),
+
+            // ---- Aletler (sıra RecipeId ile aynı olmalı: Get dizinle okur)
+            // 23: Shovel
+            new RecipeInfo(RecipeId.Shovel, 1, "Kürek", "Alet: moloz ve enkaz kazısı 1.5x hızlı. Herkes kullanır.",
+                new[] { R(ResourceType.Scrap, 2), R(ResourceType.Metal, 1) }, 5f),
+
+            // 24: Pickaxe
+            new RecipeInfo(RecipeId.Pickaxe, 2, "Kazma", "Alet: kazı 2x hızlı (küreğin yerine geçer); her kazıda %25 ihtimalle demir donatıdan +1 Metal.",
+                new[] { R(ResourceType.Metal, 2), R(ResourceType.Scrap, 1) }, 7f),
+
+            // 25: Crowbar
+            new RecipeInfo(RecipeId.Crowbar, 1, "Levye", "Alet: dolap arama ve mobilya parçalama 1.6x hızlı; parçalanan mobilyadan +1 malzeme.",
+                new[] { R(ResourceType.Metal, 1), R(ResourceType.Scrap, 1) }, 5f),
+
+            // 26: Toolbox
+            new RecipeInfo(RecipeId.Toolbox, 2, "Alet Takımı", "Alet: kolon, telsiz, boru ve pompa tamiri ile tezgah işleri 1.4x hızlı.",
+                new[] { R(ResourceType.Metal, 2), R(ResourceType.Scrap, 2) }, 7f),
+
+            // 27: HeadLamp
+            new RecipeInfo(RecipeId.HeadLamp, 1, "Kafa Lambası", "Alet: elektrik kesikken karanlıkta çalışmanın verdiği stres %60 azalır.",
+                new[] { R(ResourceType.Electronics, 1), R(ResourceType.Scrap, 1) }, 5f),
+
+            // 28: FireBlanket
+            new RecipeInfo(RecipeId.FireBlanket, 1, "Yangın Battaniyesi", "Alet: yangın söndürme 1.5x hızlı.",
+                new[] { R(ResourceType.Scrap, 2) }, 4f),
+
+            // 29: Backpack
+            new RecipeInfo(RecipeId.Backpack, 2, "Büyük Sırt Çantası", "Alet: dış sefer çantası +3 kg (daha çok ganimet ve ekipman taşınır).",
+                new[] { R(ResourceType.Scrap, 3), R(ResourceType.Metal, 1) }, 6f),
         };
 
         public static RecipeInfo Get(RecipeId id) => All[(int)id];

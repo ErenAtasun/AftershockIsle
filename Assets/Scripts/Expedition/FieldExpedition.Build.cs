@@ -165,6 +165,10 @@ namespace AftershockIsle.Expedition
                 }
             }
 
+            // Alet isteyen ek noktalar: kilitli kasa (Levye) ve moloz altında sandık (Kazma). Bol ganimet verir.
+            PlaceToolSpots(site.LockedCrates, FieldSpotLock.Locked, start, span);
+            PlaceToolSpots(site.BuriedCaches, FieldSpotLock.Buried, start, span);
+
             if (!site.isRescueSite) return;
 
             // Mahsur kalan binanın içinde (yoksa sahanın sonunda).
@@ -178,13 +182,32 @@ namespace AftershockIsle.Expedition
             spots.Add(new FieldSpot(victim, FieldSpotKind.Rescue, extractionDuration > 0f ? extractionDuration : RescueDuration, "Mahsur kalan"));
         }
 
-        void AddLootSpot(Vector3 groundPoint, Vector3 size, ArtKey artKey, float yaw)
+        void PlaceToolSpots(int count, FieldSpotLock lockType, float start, float span)
+        {
+            var size = lockType == FieldSpotLock.Locked ? new Vector3(0.8f, 0.9f, 0.7f) : new Vector3(1.2f, 0.7f, 1f);
+            for (int i = 0; i < count; i++)
+            {
+                for (int attempt = 0; attempt < 30; attempt++)
+                {
+                    var center = new Vector2(start + Random.Range(0f, span), Random.Range(minZ + 0.9f, maxZ - 0.9f));
+                    if (!IsFree(center, new Vector2(size.x, size.z) * 0.5f + Vector2.one * 0.1f, 0.8f)) continue;
+
+                    AddLootSpot(new Vector3(center.x, groundY, center.y), size,
+                        lockType == FieldSpotLock.Locked ? ArtKey.Crate : ArtKey.Rubble, 0f, lockType);
+                    break;
+                }
+            }
+        }
+
+        void AddLootSpot(Vector3 groundPoint, Vector3 size, ArtKey artKey, float yaw, FieldSpotLock lockType = FieldSpotLock.None)
         {
             var visual = Make(PrimitiveType.Cube, "Aranacak Nokta", new Color(0.55f, 0.38f, 0.2f), root.transform, true);
             visual.position = groundPoint + Vector3.up * (size.y * 0.5f);
             visual.localScale = size;
 
-            var spot = new FieldSpot(visual, FieldSpotKind.Loot, SearchDuration, "Aranacak yer");
+            float duration = lockType == FieldSpotLock.Locked ? 3.5f : lockType == FieldSpotLock.Buried ? 4.5f : SearchDuration;
+            string label = lockType == FieldSpotLock.Locked ? "Kilitli kasa" : lockType == FieldSpotLock.Buried ? "Gömülü sandık" : "Aranacak yer";
+            var spot = new FieldSpot(visual, FieldSpotKind.Loot, duration, label, lockType);
             // Dışarıdaki kasalar rastgele dönük; kutu eksenle hizalı kalır, model içinde döner.
             spot.UseModel(Dress(visual, artKey, artKey == ArtKey.Crate ? Mathf.Round(yaw / 90f) * 90f : yaw));
             spots.Add(spot);

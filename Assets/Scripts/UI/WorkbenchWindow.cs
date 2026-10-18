@@ -30,6 +30,8 @@ namespace AftershockIsle.UI
 
         UiWindow window;
         Survivor worker;
+        // True: İnşaat Masası (eve kurulan yapılar), false: Çalışma Tezgahı (silah, ekipman, yükseltme).
+        bool buildMode;
         Button placeAll;
         Text placeAllLabel;
         Text pendingLabel;
@@ -42,8 +44,9 @@ namespace AftershockIsle.UI
 
         void OnMenuRequested(WorkbenchMenuRequested evt)
         {
-            if (Workbench.Instance == null) return;
+            if (Workbench.Instance == null || (evt.Build && BuildTable.Instance == null)) return;
             worker = evt.Worker;
+            buildMode = evt.Build;
             Build();
             window.Show(true);
             openedAt = Time.unscaledTime;
@@ -85,23 +88,45 @@ namespace AftershockIsle.UI
             window.ClearFooter();
             rows.Clear();
 
-            placeAll = UiFactory.TextButton(window.Content, "", new Vector2(0f, 48f), () => OpenPlacement(null), UiFactory.Good, 18);
-            placeAll.gameObject.AddComponent<LayoutElement>().preferredHeight = 48f;
-            placeAllLabel = placeAll.GetComponentInChildren<Text>();
+            placeAll = null;
+            placeAllLabel = null;
+            if (buildMode)
+            {
+                placeAll = UiFactory.TextButton(window.Content, "", new Vector2(0f, 48f), () => OpenPlacement(null), UiFactory.Good, 18);
+                placeAll.gameObject.AddComponent<LayoutElement>().preferredHeight = 48f;
+                placeAllLabel = placeAll.GetComponentInChildren<Text>();
+            }
+
+            // Tezgahta önce alet dolabı: aletler işleri hızlandırır, herkes kullanır.
+            if (!buildMode)
+            {
+                window.Heading("Aletler — üretilince herkes kullanır, işler hızlanır");
+                foreach (var recipe in RecipeCatalog.All)
+                    if (recipe.IsTool) rows.Add(BuildRow(recipe));
+            }
 
             for (int tier = 1; tier <= 3; tier++)
             {
-                window.Heading(tier == 1 ? "Kademe 1 — İlkel Afet Hazırlığı & Ev Konforu"
-                    : tier == 2 ? "Kademe 2 — Mekanik, Revir & Altyapı"
-                    : "Kademe 3 — İletişim, Jeneratör & Kurtarma");
+                bool any = false;
+                foreach (var recipe in RecipeCatalog.All)
+                    if (recipe.RequiredTier == tier && recipe.IsPlaceable == buildMode && !recipe.IsTool) any = true;
+                if (!any) continue;
+
+                window.Heading(buildMode
+                    ? (tier == 1 ? "Kademe 1 — Ev Konforu & Güvenlik"
+                        : tier == 2 ? "Kademe 2 — Altyapı, Revir & Su"
+                        : "Kademe 3 — Enerji & Koruma")
+                    : (tier == 1 ? "Kademe 1 — Temel Ekipman & Mermi"
+                        : tier == 2 ? "Kademe 2 — Silah, Zırh & Yükseltme"
+                        : "Kademe 3 — İletişim, Ağır Silah & Kurtarma"));
 
                 foreach (var recipe in RecipeCatalog.All)
-                    if (recipe.RequiredTier == tier) rows.Add(BuildRow(recipe));
+                    if (recipe.RequiredTier == tier && recipe.IsPlaceable == buildMode && !recipe.IsTool) rows.Add(BuildRow(recipe));
             }
 
             pendingLabel = UiFactory.Label(window.Footer, "", 15, new Color(0.8f, 0.8f, 0.75f), TextAnchor.MiddleLeft, FontStyle.Normal, false);
             pendingLabel.rectTransform.sizeDelta = new Vector2(470f, 46f);
-            window.FooterButton($"Yerleşim Modu ({GameInput.Prompt(InputPrompt.Build)})", () => OpenPlacement(null));
+            if (buildMode) window.FooterButton($"Yerleşim Modu ({GameInput.Prompt(InputPrompt.Build)})", () => OpenPlacement(null));
             window.FooterButton($"Kapat ({GameInput.Prompt(InputPrompt.Back)})", Close, null, 180f);
         }
 
@@ -139,11 +164,15 @@ namespace AftershockIsle.UI
             var bench = Workbench.Instance;
             bool grace = Time.unscaledTime - openedAt < 0.3f;
 
-            window.Title.text = $"ÇALIŞMA TEZGAHI — KADEME {bench.Tier}   <size=16><color=#cfcfc8>üretecek: {worker.DisplayName}</color></size>";
+            string station = buildMode ? "İNŞAAT MASASI" : "ÇALIŞMA TEZGAHI";
+            window.Title.text = $"{station} — KADEME {bench.Tier}   <size=16><color=#cfcfc8>çalışacak: {worker.DisplayName}</color></size>";
 
             int unplaced = bench.TotalUnplacedCount;
-            placeAll.gameObject.SetActive(unplaced > 0);
-            placeAllLabel.text = $"Kuruluma hazır {unplaced} yapıyı yerleştir ({GameInput.Prompt(InputPrompt.Build)})";
+            if (placeAll != null)
+            {
+                placeAll.gameObject.SetActive(unplaced > 0);
+                placeAllLabel.text = $"Kuruluma hazır {unplaced} yapıyı yerleştir ({GameInput.Prompt(InputPrompt.Build)})";
+            }
 
             foreach (var row in rows)
             {
@@ -168,12 +197,14 @@ namespace AftershockIsle.UI
                 if (row.Place != null) row.Place.gameObject.SetActive(ready > 0);
             }
 
-            pendingLabel.text = bench.PendingOrder.HasValue ? $"Bekleyen sipariş: {bench.PendingOrder.Value.Name}" : "";
+            var pending = buildMode ? (BuildTable.Instance != null ? BuildTable.Instance.PendingOrder : null) : bench.PendingOrder;
+            pendingLabel.text = pending.HasValue ? $"Bekleyen sipariş: {pending.Value.Name}" : "";
         }
 
         void OrderRecipe(RecipeInfo recipe)
         {
-            Workbench.Instance.Order(recipe, worker, GameInput.QueueModifierHeld);
+            if (buildMode) BuildTable.Instance?.Order(recipe, worker, GameInput.QueueModifierHeld);
+            else Workbench.Instance.Order(recipe, worker, GameInput.QueueModifierHeld);
             Close();
         }
 

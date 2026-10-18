@@ -366,7 +366,7 @@ namespace AftershockIsle.EditorTools
             Configure(cabinet, ("hasSearchLoot", true), ("searchLoot.type", (int)ResourceType.Supplies), ("searchLoot.amount", 2));
             ModelSkins.Skin(cabinet.gameObject, ModelKey.Dresser, SkinFit.Width, 1.2f, ModelSkins.FrontToCamera);
             // Odanın ön yarısı boş kalmasın: bazı eşyalar ortada / önde, yürüyen karakter etrafından dolaşır.
-            Rubble("Moloz", props, new Vector3(-4.2f, 0 * h, -1.5f), new Vector3(1.1f, 0.6f, 1f), p.Rubble, 3, false);
+            Rubble("Moloz (Bodrum)", props, new Vector3(-4.2f, 0 * h, -1.5f), new Vector3(1.1f, 0.6f, 1f), p.Rubble, 3, false);
 
             // Kat 1: Giriş katı. Dış kapının önü yıkıntıyla kapalı.
             var breaker = Box("Ana Şalter Panosu", props, new Vector3(-4.5f, 1 * h + 1.4f, backZ - 0.2f), new Vector3(0.8f, 1.2f, 0.3f), p.Electric);
@@ -385,7 +385,8 @@ namespace AftershockIsle.EditorTools
             ModelSkins.Skin(table.gameObject, ModelKey.Table, SkinFit.Height, 1.05f);
 
             // Süs: masanın yanında sandalye ve yangın odağının yanında yangın tüpü (etkileşimsiz).
-            ModelSkins.Decorate(props, "Sandalye", ModelKey.Chair, new Vector3(0.95f, 1 * h, -0.3f), ChairHeight, 90f);
+            CreateSeat(props, "Sandalye", new Vector3(0.95f, 1 * h, -0.3f), 90f, p);
+            CreateSeat(props, "Sandalye (Masa)", new Vector3(-0.95f, 1 * h, -0.3f), -90f, p);
             ModelSkins.Decorate(props, "Yangın Tüpü", ModelKey.Extinguisher, new Vector3(-3.5f, 1 * h, backZ - 0.5f), 0.9f);
             Rubble("Yıkıntı (Kapı Önü)", props, new Vector3(7.7f, 1 * h, 0f), new Vector3(1.4f, 1.1f, 1.8f), p.Rubble, 5, true);
 
@@ -396,7 +397,7 @@ namespace AftershockIsle.EditorTools
             var chest = Box("Ortak Sandık", props, new Vector3(1.45f, 2 * h + 0.4f, backZ - 0.5f), new Vector3(1.2f, 0.8f, 0.8f), p.Storage);
             Configure(chest.AddComponent<StorageChest>(), ("displayName", "Ortak Sandık"), ("workDuration", 0.5f));
             ModelSkins.Skin(chest, ModelKey.Crate, SkinFit.Width, 1.2f);
-            ModelSkins.Decorate(props, "Sandalye (Tezgah)", ModelKey.Chair, new Vector3(0.4f, 2 * h, backZ - 0.6f), ChairHeight, -90f);
+            CreateSeat(props, "Sandalye (Tezgah)", new Vector3(0.4f, 2 * h, backZ - 0.6f), -90f, p);
             ModelSkins.Decorate(props, "Yangın Tüpü", ModelKey.Extinguisher, new Vector3(3.2f, 2 * h, backZ - 0.5f), 0.9f);
             ModelSkins.Decorate(props, "Kalas Yığını", ModelKey.Planks, new Vector3(-2.6f, 0 * h + 0.02f, -0.8f), 0.12f, 180f);
             // İkinci Elektronik kaynağı: sefere çıkmadan da Kademe 3 yolu açık kalsın.
@@ -406,7 +407,7 @@ namespace AftershockIsle.EditorTools
 
             var beds = FurnitureProp("Yataklar", props, new Vector3(4.9f, 2 * h + 0.25f, backZ - 0.6f), new Vector3(2.4f, 0.5f, 1.2f), p.Furniture);
             ModelSkins.Skin(beds.gameObject, ModelKey.Bed, SkinFit.Width, 2.4f, 90f);
-            Rubble("Moloz", props, new Vector3(-4.2f, 2 * h, -1.5f), new Vector3(1f, 0.5f, 1f), p.Rubble, 2, false);
+            Rubble("Moloz (Yaşam)", props, new Vector3(-4.2f, 2 * h, -1.5f), new Vector3(1f, 0.5f, 1f), p.Rubble, 2, false);
 
             var bucketSpot = Box("Kova (Bodrum Suyu)", props, new Vector3(4.3f, 0 * h + 0.25f, backZ - 0.9f), new Vector3(0.45f, 0.5f, 0.45f), p.Metal);
             Configure(bucketSpot.AddComponent<WaterSource>(), ("displayName", "Kova (Bodrum Suyu)"), ("workDuration", 2f), ("usesFloodWater", true));
@@ -434,6 +435,7 @@ namespace AftershockIsle.EditorTools
             Configure(radioComponent, ("displayName", "Telsiz İstasyonu"));
             SetRef(radioComponent, "statusLight", radioLight.GetComponent<Renderer>());
 
+            CreateSeat(props, "Sandalye (Telsiz)", new Vector3(-2.1f, roof * h, backZ - 0.6f), -90f, p);
             Prop("Helikopter Tahliye Alanı", props, new Vector3(4.5f, roof * h + 0.03f, 0f), new Vector3(5f, 0.05f, 3f), p.Helipad);
             var landing = new GameObject("İniş Noktası").transform;
             landing.SetParent(props, false);
@@ -452,7 +454,31 @@ namespace AftershockIsle.EditorTools
             Object.DestroyImmediate(rod.GetComponent<Collider>());
             Configure(rod.AddComponent<InstallableVisual>(), ("recipe", (int)RecipeId.LightningRod));
             Rubble("Çatı Yıkıntısı", props, new Vector3(1.2f, roof * h, 0f), new Vector3(1.4f, 1f, 1.8f), p.Rubble, 4, true);
-            Rubble("Moloz", props, new Vector3(5f, roof * h, 0.6f), new Vector3(1.2f, 0.6f, 1.2f), p.Rubble, 3, false);
+            Rubble("Moloz (Çatı)", props, new Vector3(5f, roof * h, 0.6f), new Vector3(1.2f, 0.6f, 1.2f), p.Rubble, 3, false);
+
+            CreateFloorContent(root, layout, p);
+        }
+
+        /// <summary>Boş katların içeriği (FloorContent listesi): 3. kat daireleri, çatı ve bodrum eklentileri, modelleriyle.</summary>
+        static void CreateFloorContent(Transform root, BuildingLayout layout, Palette p)
+        {
+            var parent = new GameObject("Kat İçeriği").transform;
+            parent.SetParent(root, false);
+            foreach (var def in FloorContent.All)
+            {
+                var material = def.Palette switch
+                {
+                    "Metal" => p.Metal,
+                    "Rubble" => p.Rubble,
+                    "Water" => p.Water,
+                    _ => p.Furniture,
+                };
+                var go = FloorContent.Create(layout, parent, def, material);
+                if (string.IsNullOrEmpty(def.Model) || !System.Enum.TryParse(def.Model, out ModelKey key)) continue;
+
+                if (def.Kind == FloorContent.Kind.Rubble) ModelSkins.Skin(go, key, SkinFit.Stretch);
+                else ModelSkins.Skin(go, key, SkinFit.Height, def.Size.y, def.ModelYaw);
+            }
         }
 
         const string BuildingModelPath = "Assets/Models/Buildings/Building.fbx";
@@ -584,6 +610,14 @@ namespace AftershockIsle.EditorTools
             var prefab = PrefabUtility.SaveAsPrefabAsset(go, $"{PrefabFolder}/CollapsedCeiling.prefab");
             Object.DestroyImmediate(go);
             return prefab.GetComponent<RubblePile>();
+        }
+
+        /// <summary>Oturulabilir sandalye: karakter oturup dinlenir (Seat). Model kutuya giydirilir, kutu mantığı taşır.</summary>
+        static void CreateSeat(Transform parent, string name, Vector3 bottomCenter, float yaw, Palette p)
+        {
+            var box = Box(name, parent, bottomCenter + Vector3.up * (ChairHeight * 0.5f), new Vector3(0.7f, ChairHeight, 0.7f), p.Furniture);
+            Configure(box.AddComponent<Seat>(), ("displayName", "Sandalye"), ("workDuration", 7f));
+            ModelSkins.Skin(box, ModelKey.Chair, SkinFit.Height, ChairHeight, yaw);
         }
 
         static Furniture FurnitureProp(string name, Transform parent, Vector3 center, Vector3 size, Material material)
@@ -895,8 +929,7 @@ namespace AftershockIsle.EditorTools
             SaveInteractivePrefab($"{PropsPrefabFolder}/Sandalye.prefab", () =>
             {
                 var go = Box("Sandalye", null, Vector3.zero, new Vector3(0.8f, ChairHeight, 0.8f), p.Furniture);
-                Configure(go.AddComponent<Furniture>(), ("displayName", "Sandalye"), ("workDuration", 3f),
-                    ("providesShelter", false), ("salvage.type", (int)ResourceType.Scrap), ("salvage.amount", 1));
+                Configure(go.AddComponent<Seat>(), ("displayName", "Sandalye"), ("workDuration", 7f));
                 ModelSkins.Skin(go, ModelKey.Chair, SkinFit.Height, ChairHeight, 90f);
                 return go;
             });

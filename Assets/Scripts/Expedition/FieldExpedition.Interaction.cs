@@ -1,5 +1,6 @@
 using AftershockIsle.CameraControl;
 using AftershockIsle.Core;
+using AftershockIsle.Crafting;
 using AftershockIsle.Economy;
 using AftershockIsle.Skills;
 using UnityEngine;
@@ -44,9 +45,27 @@ namespace AftershockIsle.Expedition
             var spot = NearestSpot();
             if (spot == null) return;
 
-            if (spot.Kind == FieldSpotKind.Loot && usedSlots >= bagSlots)
+            // Aranmış noktada bekleyen (çantaya sığmamış ya da yere bırakılmış) ganimet anında alınır.
+            if (spot.Searched && spot.HasPending)
             {
-                Say("Çanta dolu! Soldaki yeşil çıkışa dön.");
+                TakePending(spot);
+                return;
+            }
+            if (spot.Lock == FieldSpotLock.Locked && !loadout.Crowbar)
+            {
+                Say(ToolKit.HasCrowbar ? "Kilitli kasa: Levye ile açılır. Sefer hazırlığında Levye'yi yanına al."
+                    : "Kilitli kasa: Levye ile açılır. Tezgahta Levye üret, sefere yanında getir.");
+                return;
+            }
+            if (spot.Lock == FieldSpotLock.Buried && !loadout.Pickaxe)
+            {
+                Say(ToolKit.HasPickaxe ? "Moloz altında sandık: Kazma ile kazılır. Sefer hazırlığında Kazma'yı yanına al."
+                    : "Moloz altında sandık: Kazma ile kazılır. Tezgahta Kazma üret (Kademe 2), sefere yanında getir.");
+                return;
+            }
+            if (spot.Kind == FieldSpotKind.Loot && FreeKg <= 0)
+            {
+                Say($"Çanta dolu! {GameInput.Prompt(InputPrompt.Inventory)} ile çantayı aç ve bir şey bırak, ya da çıkışa dön.");
                 return;
             }
             if (spot.Kind == FieldSpotKind.Rescue && !rescueAvailable)
@@ -114,12 +133,11 @@ namespace AftershockIsle.Expedition
                 return;
             }
 
-            usedSlots++;
             var found = RollLoot();
-            AddLoot(found);
-            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.Pickup, 0.8f);
-            Float($"+{found.amount} {found.type.ToDisplayName()}", spot.Position + Vector3.up * 1.4f, found.type.ToColor());
-            if (usedSlots >= bagSlots) Say("Çanta doldu. Soldaki yeşil çıkışa dön.");
+            // Kilitli kasa ve gömülü sandık bol çıkar: alet taşımanın karşılığı.
+            if (spot.Lock != FieldSpotLock.None) found.amount = found.amount * 2 + 1;
+            spot.Reveal(found);
+            TakePending(spot);
 
             if (site.hazard != ExpeditionHazard.None && Random.value < site.hazardChance)
             {
@@ -148,6 +166,73 @@ namespace AftershockIsle.Expedition
             return new ResourceAmount(last.type, last.min);
         }
 
+        /// <summary>Noktadaki ganimetin çantaya sığan kısmını alır; sığmayan noktada bekler.</summary>
+        void TakePending(FieldSpot spot)
+        {
+            var item = spot.Pending;
+            if (item.amount <= 0) return;
+
+            int unit = ExpeditionLoadout.ResourceWeight(item.type);
+            int fit = Mathf.Min(item.amount, FreeKg / unit);
+            if (fit <= 0)
+            {
+                Say($"Çanta dolu: {item} ({ExpeditionLoadout.Weight(item)} kg) sığmıyor. {GameInput.Prompt(InputPrompt.Inventory)} ile bir şey bırak.");
+                Float($"{item} — sığmadı", spot.Position + Vector3.up * 1.4f, new Color(1f, 0.6f, 0.4f));
+                return;
+            }
+
+            AddLoot(new ResourceAmount(item.type, fit));
+            spot.SetPending(new ResourceAmount(item.type, item.amount - fit));
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.Pickup, 0.8f);
+            Float($"+{fit} {item.type.ToDisplayName()}", spot.Position + Vector3.up * 1.4f, item.type.ToColor());
+
+            if (spot.HasPending) Say($"{spot.Pending} sığmadı, orada bekliyor. Çantadan bir şey bırakıp tekrar al.");
+            else if (FreeKg <= 0) Say("Çanta doldu. Soldaki yeşil çıkışa dön.");
+        }
+
+        /// <summary>Düşmandan düşen ganimet: sığan çantaya, sığmayan yere bırakılır.</summary>
+        void GainLoot(ResourceAmount item, Vector3 at)
+        {
+            int fit = Mathf.Min(item.amount, FreeKg / ExpeditionLoadout.ResourceWeight(item.type));
+            if (fit > 0) AddLoot(new ResourceAmount(item.type, fit));
+            if (item.amount - fit > 0) DropToGround(new ResourceAmount(item.type, item.amount - fit), at);
+        }
+
+        /// <summary>Çantadan eşya bırakır: yere aranmış bir nokta olarak konur (sonra geri alınabilir).</summary>
+        public void DropFromBag(ResourceType type, int amount)
+        {
+            for (int i = 0; i < bag.Count; i++)
+            {
+                if (bag[i].type != type) continue;
+                int dropped = Mathf.Min(amount, bag[i].amount);
+                if (dropped <= 0) return;
+                int left = bag[i].amount - dropped;
+                if (left > 0) bag[i] = new ResourceAmount(type, left);
+                else bag.RemoveAt(i);
+                DropToGround(new ResourceAmount(type, dropped), avatarRoot.position + avatarRoot.forward * 0.7f);
+                return;
+            }
+        }
+
+        void DropToGround(ResourceAmount item, Vector3 at)
+        {
+            // Aynı yere bırakılan aynı tür birikir.
+            foreach (var existing in spots)
+            {
+                if (existing.Kind != FieldSpotKind.Loot || !existing.Searched || !existing.HasPending || existing.Pending.type != item.type) continue;
+                if (Vector2.Distance(Flat(existing.Position), Flat(at)) > 1f) continue;
+                existing.SetPending(new ResourceAmount(item.type, existing.Pending.amount + item.amount));
+                return;
+            }
+
+            var visual = Make(PrimitiveType.Cube, "Bırakılan Eşya", item.type.ToColor(), root.transform);
+            visual.position = new Vector3(at.x, groundY + 0.15f, Mathf.Clamp(at.z, minZ + 0.3f, maxZ - 0.3f));
+            visual.localScale = new Vector3(0.45f, 0.3f, 0.45f);
+            var spot = new FieldSpot(visual, FieldSpotKind.Loot, 0.5f, "Bırakılan eşya");
+            spot.Reveal(item);
+            spots.Add(spot);
+        }
+
         void AddLoot(ResourceAmount item)
         {
             for (int i = 0; i < bag.Count; i++)
@@ -172,13 +257,14 @@ namespace AftershockIsle.Expedition
 
         void UseMedkit()
         {
-            var storage = ResourceStorage.Instance;
             if (healCooldown > 0f || explorer.Health >= explorer.MaxHealth) return;
-            if (storage == null || !storage.TrySpend(new ResourceAmount(ResourceType.Supplies, 1)))
+            // Yalnızca yanına alınan kitler kullanılabilir (sefer hazırlığında seçilir).
+            if (kits <= 0)
             {
-                Say("Sığınakta Yaşam Kiti kalmadı.");
+                Say("Yanında Yaşam Kiti yok. Bir dahaki sefere hazırlıkta kit al.");
                 return;
             }
+            kits--;
 
             float amount = explorer.Branch == SkillBranch.Engineering ? HealAmount * 1.5f : HealAmount;
             explorer.Heal(amount);

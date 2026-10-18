@@ -715,7 +715,7 @@ namespace AftershockIsle.Building
                 var existing = FindPlacedAt(hoverFloor, hoverCellX, hoverCellZ);
                 statusLine = existing != null
                     ? $"Seçili Hücredeki Yapı: {existing.Info.Name} (Sol Tık: Taşı | [X]: Depoya Kaldır)"
-                    : "İpucu: Kurulu bir eşyayı taşımak için üzerine tıkla; yeni eşya üretmek için Çalışma Tezgahını kullan.";
+                    : "İpucu: Kurulu bir eşyayı taşımak için üzerine tıkla; yeni yapı hazırlamak için İnşaat Masası'nı kullan.";
             }
             panelStatus.text = statusLine + "\n<color=#b8b8b0>" +
                 $"{GameInput.Prompt(InputPrompt.PlaceCell)}: hücre   ·   {GameInput.Prompt(InputPrompt.PlaceFloor)}: kat   ·   " +
@@ -762,7 +762,7 @@ namespace AftershockIsle.Building
             }
             else
             {
-                RowLabel("Kuruluma hazır yeni yapı yok (Çalışma Tezgahında üretebilirsin). Kurulu bir yapıya Sol Tıklayarak yerini değiştirebilirsin.", 1180f);
+                RowLabel("Kuruluma hazır yeni yapı yok (İnşaat Masası'nda hazırlayabilirsin). Kurulu bir yapıya Sol Tıklayarak yerini değiştirebilirsin.", 1180f);
             }
         }
 

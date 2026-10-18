@@ -54,6 +54,9 @@ namespace AftershockIsle.Crisis
                 new Entry(day, DayPhase.Night, 10f, DisasterType.Aftershock),
             };
             if (day % 3 == 0) entries.Add(new Entry(day, DayPhase.Night, 25f, DisasterType.GasLeak));
+            // Uzayan oyunda baskı artar: 10. günden sonra öğlen de sarsıntı, 14. günden sonra su ve yangın aynı sabah.
+            if (day >= 10) entries.Add(new Entry(day, DayPhase.Noon, 40f, DisasterType.Aftershock));
+            if (day >= 14) entries.Add(new Entry(day, DayPhase.Morning, 50f, day % 2 == 0 ? DisasterType.Fire : DisasterType.PipeBurst));
             return entries.ToArray();
         }
 

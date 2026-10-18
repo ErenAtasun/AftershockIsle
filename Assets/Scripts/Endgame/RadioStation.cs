@@ -84,7 +84,9 @@ namespace AftershockIsle.Endgame
 
         public override bool CanStart(Survivor worker, out string reason)
         {
-            if (SignalComplete) reason = "Sinyal ulaştı, helikopter yolda.";
+            if (SignalComplete) reason = GameMode.IsEndless
+                ? $"Yardım çağrıldı. Yeni sinyal Gün {EvacuationSystem.NextDropDay}'de gönderilebilir."
+                : "Sinyal ulaştı, helikopter yolda.";
             else if (!IsRepaired) reason = Workbench.Has(RecipeId.RadioModule) ? null : "Tamir için tezgahta Telsiz Modülü üret (Kademe 3).";
             else reason = Conditions.BlockingReason;
             return reason == null;

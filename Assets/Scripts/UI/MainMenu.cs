@@ -96,6 +96,19 @@ namespace AftershockIsle.UI
             }
             if (firstButton == null) firstButton = start.gameObject;
 
+            // Başla = kampanya (tahliye hedefi). Yanında sonsuz mod: tahliye yok, olabildiğince uzun hayatta kal.
+            int endlessBest = GameMode.EndlessBest;
+            string endlessCaption = endlessBest > 0 ? $"SONSUZ MOD\n<size=16>Rekor: {endlessBest}. gün</size>" : "SONSUZ MOD\n<size=16>Tahliye yok, dayanabildiğin kadar</size>";
+            var endless = UiFactory.TextButton(column, endlessCaption, new Vector2(300f, 84f), NewEndlessGame, new Color(0.35f, 0.2f, 0.18f, 0.95f), 26);
+            UiFactory.Place((RectTransform)endless.transform, new Vector2(0.5f, 0.5f), new Vector2(390f, y - 40f), new Vector2(300f, 84f));
+
+            int campaignBest = GameMode.CampaignBest;
+            var campaignHint = UiFactory.Label(column,
+                campaignBest > 0 ? $"Kampanya: {GameMode.CampaignTargetDay}. günden önce tahliye ol · rekor {campaignBest}. gün"
+                    : $"Kampanya: {GameMode.CampaignTargetDay}. günden önce çatıdan tahliye ol",
+                18, new Color(0.85f, 0.85f, 0.8f), outline: true);
+            UiFactory.Place(campaignHint.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(-390f, y - 40f), new Vector2(320f, 84f));
+
             var help = UiFactory.SpriteButton(column, "Nasıl Oynanır", skin != null ? skin.howToButton : null, new Vector2(400f, 208f), ShowHowTo, "Nasıl Oynanır");
             UiFactory.Place((RectTransform)help.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, y - 280f), new Vector2(400f, 208f));
 
@@ -128,7 +141,9 @@ namespace AftershockIsle.UI
                 "güçlendir ve telsiz başında kesintisiz 60 saniye sinyal gönder. Helikopter gelir, tahliye olursun.\n\n" +
                 "<b>Tehditler:</b> Artçı sarsıntı, su baskını, yangın ve gaz kaçağı binanın Yapısal Bütünlük barını eritir. " +
                 "Kolonları destekle, sarsıntıda yeşil Yaşam Üçgenlerine kaç, şalteri yönet, suyu pompala, yangını söndür.\n\n" +
-                "<b>Gün:</b> Sabah üretim ve tamir, öğle dış sefer (yoldaş alabilirsin), gece tüketim. Her gece kişi başı 1 Yaşam Kiti.\n\n" +
+                "<b>Gün:</b> Sabah üretim ve tamir, öğle dış sefer (yoldaş alabilirsin). Akşam Planı'nda kim kalacak, kim nöbet tutacak, " +
+                "kim gece keşfine çıkacak ve kim yiyecek seçersin (kişi başı 1 Yaşam Kiti).\n" +
+                "<b>Modlar:</b> Kampanya'da 10. günden önce tahliye ol. Sonsuz Mod'da tahliye yok, dayanabildiğin kadar dayan.\n\n" +
                 "<b>Klavye:</b> WASD yürü (W/S merdiven), F etkileş, X dur, Tab karakter, Space zamanı durdur, 1/2 hız, K yetenekler, " +
                 "B yerleşim, H rehber, Esc menü. Fare: sol tık seç, sağ tık iş ver.\n" +
                 "<b>Gamepad:</b> Sol çubuk yürü, A etkileş, B dur, LB/RB karakter, Y duraklat, X hız, sağ çubuk kamera, Start menü.",
@@ -163,6 +178,14 @@ namespace AftershockIsle.UI
 
         static void NewGame()
         {
+            GameMode.Current = GameModeType.Campaign;
+            SaveManager.PendingLoad = false;
+            SceneManager.LoadScene(GameScene);
+        }
+
+        static void NewEndlessGame()
+        {
+            GameMode.Current = GameModeType.Endless;
             SaveManager.PendingLoad = false;
             SceneManager.LoadScene(GameScene);
         }

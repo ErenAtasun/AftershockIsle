@@ -62,7 +62,8 @@ namespace AftershockIsle.UI
             var rect = UiFactory.Panel(canvas.transform, "Rehber", UiFactory.Slate);
             rect.raycastTarget = false;
             panel = rect.gameObject;
-            UiFactory.Place(rect.rectTransform, new Vector2(1f, 1f), new Vector2(-18f, -190f), new Vector2(440f, 0f));
+            // Sağ üst sütun: kaynaklar, ÇANTA/HARİTA düğmeleri, elektrik ve sefer çipleri; rehber bunların altında.
+            UiFactory.Place(rect.rectTransform, new Vector2(1f, 1f), new Vector2(-14f, -240f), new Vector2(440f, 0f));
 
             var layout = panel.AddComponent<VerticalLayoutGroup>();
             layout.padding = new RectOffset(18, 18, 14, 16);
@@ -179,7 +180,8 @@ namespace AftershockIsle.UI
             }
             if (!show) return;
 
-            // İlk yapılmayan adım ayrıntısıyla gösterilir, gerisi tek satır.
+            // Zaman akarken yalnızca sıradaki adım ve ayrıntısı görünür (ekran kalabalık olmasın); tam liste zaman durunca açılır.
+            bool full = Time.timeScale <= 0f;
             Step next = steps.Find(step => !step.Done);
             for (int i = 0; i < steps.Count; i++)
             {
@@ -187,6 +189,8 @@ namespace AftershockIsle.UI
                 var label = stepLabels[i];
                 label.text = $"{(step.Done ? "[x]" : "[  ]")} {step.Title}";
                 label.color = step.Done ? new Color(0.55f, 0.9f, 0.5f) : step == next ? UiFactory.Text : new Color(1f, 1f, 1f, 0.6f);
+                bool visible = full || step == next;
+                if (label.gameObject.activeSelf != visible) label.gameObject.SetActive(visible);
             }
             detailLabel.text = next != null ? next.Detail() : "";
         }

@@ -101,7 +101,8 @@ namespace AftershockIsle.UI
                 if (condition.Hunger > 0) tags.Add(($"AÇ {condition.Hunger}/{SurvivorCondition.MaxHunger}", new Color(1f, 0.7f, 0.3f)));
                 if (condition.Stress >= 60f) tags.Add(("GERGİN", new Color(0.8f, 0.55f, 1f)));
                 if (survivor.Health < survivor.MaxHealth * 0.5f) tags.Add(("YARALI", new Color(1f, 0.5f, 0.45f)));
-                if (survivor.Tasks.State == TaskState.Working && survivor.Tasks.Current != null)
+                // Yapılan iş etiketi yalnızca seçili karakterde (herkesin başında olursa ekran kalabalıklaşır).
+                if (survivor == commands?.Selected && survivor.Tasks.State == TaskState.Working && survivor.Tasks.Current != null)
                     tags.Add((survivor.Tasks.Current.ActionLabel, new Color(0.7f, 0.85f, 1f)));
             }
             if (tags.Count == 0) return y;
@@ -141,7 +142,7 @@ namespace AftershockIsle.UI
             GUI.DrawTexture(rect, Texture2D.whiteTexture);
             GUI.color = new Color(0.95f, 0.75f, 0.25f, 0.95f);
             GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, 1.5f), Texture2D.whiteTexture);
-            GUI.Label(rect, "🛡️ NÖBETTE", statusStyle);
+            GUI.Label(rect, "NÖBETTE", statusStyle);
             GUI.color = prev;
         }
 

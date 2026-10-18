@@ -21,6 +21,7 @@ namespace AftershockIsle.UI
     {
         const float RefreshSeconds = 0.2f;
         const float NearbyVisibleSeconds = 4f;
+        const float NearbyCardSeconds = 3.5f;
         const float Width = 420f;
 
         CommandController commands;
@@ -30,6 +31,8 @@ namespace AftershockIsle.UI
 
         Interactable shown;
         bool shownHovered;
+        Interactable lastNearby;
+        float nearbyShownAt;
         float refreshAt;
         float lastActivity = -100f;
         readonly StringBuilder text = new StringBuilder();
@@ -79,6 +82,20 @@ namespace AftershockIsle.UI
                 {
                     subject = commands.Nearby;
                 }
+            }
+
+            // Yakındaki nesnenin kartı kısa süre gösterilir, sonra kendiliğinden kapanır (ekranda sürekli açık kalmasın).
+            // Gamepad'de ve fareyle üstüne gelindiğinde süre sınırı yoktur.
+            var nearbyNow = commands != null ? commands.Nearby : null;
+            if (nearbyNow == null) lastNearby = null;
+            if (subject != null && !hovered && !GameInput.UsingGamepad)
+            {
+                if (subject != lastNearby)
+                {
+                    lastNearby = subject;
+                    nearbyShownAt = Time.unscaledTime;
+                }
+                else if (Time.unscaledTime - nearbyShownAt > NearbyCardSeconds) subject = null;
             }
 
             if (subject == null)

@@ -137,6 +137,11 @@ namespace AftershockIsle.Core
         /// <summary>Sahada I / D-pad ↑: envanter (çanta) penceresi.</summary>
         public static bool InventoryPressed =>
             (Keys != null && Keys.iKey.wasPressedThisFrame) || (FieldControlsActive && Pad != null && Pad.dpad.up.wasPressedThisFrame);
+        /// <summary>Alt basılıyken tüm dünya işaretleri ve kat adları gösterilir (zaman duruyorsa zaten gösterilir).</summary>
+        public static bool ShowAllMarkersHeld => Keys != null && (Keys.leftAltKey.isPressed || Keys.rightAltKey.isPressed);
+
+        /// <summary>M tuşu: Şehir haritası inceleme penceresi.</summary>
+        public static bool MapPressed => (Keys != null && Keys.mKey.wasPressedThisFrame);
         public static bool RestartPressed => Keys != null && Keys.rKey.wasPressedThisFrame;
         /// <summary>B / D-pad yukarı: yerleşim modunu aç-kapat (sadece sığınakta).</summary>
         public static bool BuildModeTogglePressed => BuildModeKeyPressed || BuildModePadPressed;

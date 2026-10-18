@@ -48,7 +48,8 @@ namespace AftershockIsle.EditorTools
                         assets.characters.guns == null || assets.characters.guns.Length == 0 ||
                         !AssetDatabase.GetAssetPath(assets.characters.prefab).Replace('\\', '/').Contains("Basic Shooter Pack") ||
                         assets.ui == null || assets.ui.mainMenuBackground == null || assets.ui.worldBackground == null ||
-                        assets.ui.skillTreeBackground == null)
+                        assets.ui.skillTreeBackground == null || assets.ui.cityMap == null || assets.ui.inventorySheet == null ||
+                        assets.ui.pbhLogo == null)
                     {
                         Schedule();
                     }
@@ -143,23 +144,41 @@ namespace AftershockIsle.EditorTools
                 string file = Path.GetFileNameWithoutExtension(path);
                 string lowerFile = file.ToLowerInvariant();
 
-                if (path.Contains("/UI/") || lowerFile.Contains("anabanner") || lowerFile.Contains("anasayfa") ||
-                    lowerFile.Contains("mainmenu") || lowerFile.Contains("arkaplan") || lowerFile.Contains("background") ||
-                    lowerFile.Contains("skill") || lowerFile.Contains("yetenek"))
+                // Pencere görselleri ve stüdyo logosu (dosya adıyla eşleşir).
+                Sprite named = null;
+                switch (lowerFile)
                 {
-                    bool readable = lowerFile.Contains("skill") || lowerFile.Contains("yetenek");
-                    EnsureSpriteImport(path, readable);
+                    case "city_map": named = LoadUiSprite(path); if (named != null) skin.cityMap = named; break;
+                    case "inventory_sheet": named = LoadUiSprite(path); if (named != null) skin.inventorySheet = named; break;
+                    case "pbh_logo": named = LoadUiSprite(path); if (named != null) skin.pbhLogo = named; break;
+                    case "pbh_logo_transparent": named = LoadUiSprite(path); if (named != null) skin.pbhLogoTransparent = named; break;
+                }
+                if (lowerFile == "city_map" || lowerFile == "inventory_sheet" || lowerFile == "pbh_logo" || lowerFile == "pbh_logo_transparent") continue;
+
+                if (lowerFile.Contains("anabanner") || lowerFile.Contains("anasayfa") || lowerFile.Contains("mainmenu"))
+                {
+                    EnsureSpriteImport(path, false);
                     var bannerSprite = AssetDatabase.LoadAssetAtPath<Sprite>(path)
                                        ?? AssetDatabase.LoadAllAssetsAtPath(path).OfType<Sprite>().FirstOrDefault();
-                    if (bannerSprite != null)
-                    {
-                        if (readable)
-                            skin.skillTreeBackground = bannerSprite;
-                        else if (lowerFile.Contains("arkaplan") || lowerFile.Contains("background") || lowerFile.Contains("backdrop"))
-                            skin.worldBackground = bannerSprite;
-                        else
-                            skin.mainMenuBackground = bannerSprite;
-                    }
+                    if (bannerSprite != null) skin.mainMenuBackground = bannerSprite;
+                    continue;
+                }
+
+                if (lowerFile.Contains("arkaplan") || lowerFile.Contains("background") || lowerFile.Contains("backdrop"))
+                {
+                    EnsureSpriteImport(path, false);
+                    var bannerSprite = AssetDatabase.LoadAssetAtPath<Sprite>(path)
+                                       ?? AssetDatabase.LoadAllAssetsAtPath(path).OfType<Sprite>().FirstOrDefault();
+                    if (bannerSprite != null) skin.worldBackground = bannerSprite;
+                    continue;
+                }
+
+                if (lowerFile.Contains("skill") || lowerFile.Contains("yetenek"))
+                {
+                    EnsureSpriteImport(path, true);
+                    var bannerSprite = AssetDatabase.LoadAssetAtPath<Sprite>(path)
+                                       ?? AssetDatabase.LoadAllAssetsAtPath(path).OfType<Sprite>().FirstOrDefault();
+                    if (bannerSprite != null) skin.skillTreeBackground = bannerSprite;
                     continue;
                 }
 
@@ -187,6 +206,13 @@ namespace AftershockIsle.EditorTools
 
             EditorUtility.SetDirty(skin);
             return skin;
+        }
+
+        static Sprite LoadUiSprite(string path)
+        {
+            EnsureSpriteImport(path, false);
+            return AssetDatabase.LoadAssetAtPath<Sprite>(path)
+                   ?? AssetDatabase.LoadAllAssetsAtPath(path).OfType<Sprite>().FirstOrDefault();
         }
 
         // Arayüz görselleri sprite olmalı ve mipmap'siz olmalı (bulanıklaşmasın). Dilimlenmiş (çoklu) sprite'lara dokunulmaz.

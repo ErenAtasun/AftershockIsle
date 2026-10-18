@@ -32,6 +32,8 @@ namespace AftershockIsle.Building
         [SerializeField, HideInInspector] bool runtimeContentMoved;
         [Tooltip("Bina modelindeki döşeme delikleri sahneye kalasla kapatılabilir delik olarak bir kez konuldu mu")]
         [SerializeField, HideInInspector] bool plankPatchesAdded;
+        [Tooltip("Bina modelindeki duvar delikleri sahneye kalasla kapatılabilir gedik olarak bir kez konuldu mu")]
+        [SerializeField, HideInInspector] bool wallBreachesAdded;
 
         [Header("1. Bina Modeli")]
         [Tooltip("İşaretliyken eski gri kutu binayı gizler ve yeni bina modelini gösterir")]
@@ -228,7 +230,7 @@ namespace AftershockIsle.Building
             {
                 Step(nameof(UpgradeExtractedBuildingMaterialsInEditor), UpgradeExtractedBuildingMaterialsInEditor);
                 Step(nameof(MoveRuntimeContentIntoScene), MoveRuntimeContentIntoScene);
-                Step(nameof(ConvertFloorHolesToPlankPatches), ConvertFloorHolesToPlankPatches);
+                Step(nameof(ConvertFloorHolesToPlankPatches), ConvertFloorHolesToPlankPatches); Step(nameof(ConvertWallHolesToPlankPatches), ConvertWallHolesToPlankPatches);
                 sceneBuilt = true;
                 UnityEditor.EditorUtility.SetDirty(this);
                 UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
@@ -348,7 +350,7 @@ namespace AftershockIsle.Building
                 else
                 {
                     // Kurulmuş sahneye sonradan gelen tek seferlik eklemeler (kendi bayraklarıyla, bir daha çalışmaz).
-                    Step(nameof(ConvertFloorHolesToPlankPatches), ConvertFloorHolesToPlankPatches);
+                    Step(nameof(ConvertFloorHolesToPlankPatches), ConvertFloorHolesToPlankPatches); Step(nameof(ConvertWallHolesToPlankPatches), ConvertWallHolesToPlankPatches);
                     if (enableDarkTheme)
                     {
                         ApplyPostProcessing(Camera.main);
@@ -463,6 +465,71 @@ namespace AftershockIsle.Building
             }
 
             plankPatchesAdded = true;
+            UnityEditor.EditorUtility.SetDirty(this);
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
+        }
+
+        // Çatlak çıkartması delikten büyüktür (çatlaklar dışa yayılır): deliğin ölçüsü çıkartmanın bu oranı.
+        const float BreachToCrackRatio = 0.6f;
+
+        /// <summary>
+        /// Bina modelindeki duvar delikleri ("DMG_Delik_F3_Arka_Catlak" gibi; arka ve yan duvarlar) bir kez sahneye kalasla
+        /// kapatılabilir duvar gediği olarak tam yerine konur. Bölme duvarı çatlakları (Bolme) delik sayılmaz.
+        /// </summary>
+        void ConvertWallHolesToPlankPatches()
+        {
+            if (wallBreachesAdded || !useCustomBuilding || buildingPrefab == null) return;
+            var holder = building.transform.Find(BuildingHolderName);
+            if (holder == null) return;
+
+            var groups = new Dictionary<string, Bounds>();
+            foreach (var renderer in holder.GetComponentsInChildren<Renderer>(true))
+            {
+                string n = renderer.name;
+                if (!n.StartsWith("DMG_Delik_") || !n.Contains("_Catlak") || n.Contains("_Bolme_")) continue;
+                string key = n.Substring(0, n.IndexOf("_Catlak", System.StringComparison.Ordinal));
+                if (groups.TryGetValue(key, out var b)) { b.Encapsulate(renderer.bounds); groups[key] = b; }
+                else groups[key] = renderer.bounds;
+            }
+            if (groups.Count == 0) return;
+
+            Transform parent = null;
+            foreach (var go in gameObject.scene.GetRootGameObjects())
+                if (go.name == PlankPatchRootName) parent = go.transform;
+            if (parent == null)
+            {
+                parent = new GameObject(PlankPatchRootName).transform;
+                UnityEditor.SceneManagement.EditorSceneManager.MoveGameObjectToScene(parent.gameObject, gameObject.scene);
+            }
+
+            float centerX = building.transform.position.x;
+            foreach (var pair in groups)
+            {
+                var bounds = pair.Value;
+                // "DMG_Delik_F2_SolYan" → kat 2, yan duvar.
+                var match = System.Text.RegularExpressions.Regex.Match(pair.Key, @"_F(\d+)_");
+                int floor = match.Success ? int.Parse(match.Groups[1].Value) : building.FloorAtHeight(bounds.center.y);
+                bool sideWall = !pair.Key.EndsWith("_Arka");
+
+                Vector3 size;
+                float yaw;
+                if (sideWall)
+                {
+                    size = new Vector3(Mathf.Max(0.5f, bounds.size.z * BreachToCrackRatio), Mathf.Max(0.5f, bounds.size.y * BreachToCrackRatio), 0f);
+                    // Sol duvardaki gedik sağa (+X, odanın içi), sağdaki sola baksın.
+                    yaw = bounds.center.x < centerX ? -90f : 90f;
+                }
+                else
+                {
+                    size = new Vector3(Mathf.Max(0.5f, bounds.size.x * BreachToCrackRatio), Mathf.Max(0.5f, bounds.size.y * BreachToCrackRatio), 0f);
+                    yaw = 0f;
+                }
+
+                string side = sideWall ? (bounds.center.x < centerX ? "Sol Duvar" : "Sağ Duvar") : "Arka Duvar";
+                PlankPatch.CreateInEditor($"Duvar Gediği ({floor}. Kat, {side})", PatchKind.WallBreach, bounds.center, size, parent, yaw);
+            }
+
+            wallBreachesAdded = true;
             UnityEditor.EditorUtility.SetDirty(this);
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
         }

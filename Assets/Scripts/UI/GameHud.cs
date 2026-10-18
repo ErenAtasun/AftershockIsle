@@ -84,6 +84,8 @@ namespace AftershockIsle.UI
         Text dayTitle;
         Text dayClock;
         Text daySub;
+        // Zaman düğmeleri (duraklat, 1x, 2x) ve her birinin hızı.
+        readonly List<(Image plate, TimeSpeed speed)> speedButtons = new List<(Image, TimeSpeed)>();
         Image integrityFill;
         Text integrityLabel;
         Text warnings;
@@ -179,6 +181,65 @@ namespace AftershockIsle.UI
                 shadow.effectColor = new Color(0f, 0f, 0f, 0.85f);
                 shadow.effectDistance = new Vector2(1.5f, -1.5f);
             }
+
+            BuildSpeedButtons(parent, new Vector2(x, centerY - 56f));
+        }
+
+        // Gün bilgisinin altında yazısız zaman düğmeleri: Resources/Asset 17 (duraklat), 18 (1x), 19 (2x).
+        static readonly (string resource, TimeSpeed speed)[] SpeedIcons =
+        {
+            ("Asset 17", TimeSpeed.Paused),
+            ("Asset 18", TimeSpeed.Normal),
+            ("Asset 19", TimeSpeed.Fast),
+        };
+        const float SpeedButtonSize = 40f;
+        static readonly Color SpeedIdle = new Color(0.72f, 0.72f, 0.7f, 0.92f);
+
+        void BuildSpeedButtons(Transform parent, Vector2 topLeft)
+        {
+            for (int i = 0; i < SpeedIcons.Length; i++)
+            {
+                var (resource, speed) = SpeedIcons[i];
+                // Simgeler siyah: açık renkli plakanın üstünde durur, seçili hız sarı yanar.
+                var plate = UiFactory.Image(parent, $"Hız_{speed}", UiFactory.Plate, SpeedIdle, true);
+                UiFactory.Place(plate.rectTransform, new Vector2(0f, 1f),
+                    topLeft + new Vector2(i * (SpeedButtonSize + 6f), 0f), new Vector2(SpeedButtonSize, SpeedButtonSize));
+                ((RectTransform)plate.transform).pivot = new Vector2(0f, 1f);
+
+                var texture = Resources.Load<Texture2D>(resource);
+                if (texture != null)
+                {
+                    var sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+                    var icon = UiFactory.Image(plate.transform, "Simge", sprite, Color.white);
+                    icon.type = Image.Type.Simple;
+                    icon.preserveAspect = true;
+                    icon.raycastTarget = false;
+                    UiFactory.Stretch(icon.rectTransform, 9f);
+                }
+
+                var button = plate.gameObject.AddComponent<Button>();
+                button.targetGraphic = plate;
+                var chosen = speed;
+                button.onClick.AddListener(() =>
+                {
+                    if (timeManager != null) timeManager.SetSpeed(chosen);
+                    AftershockIsle.Effects.SoundManager.PlayUiClick();
+                });
+                UiTooltip.Attach(plate.gameObject, () => chosen switch
+                {
+                    TimeSpeed.Paused => "Duraklat",
+                    TimeSpeed.Fast => "2x hız",
+                    _ => "Normal hız",
+                });
+                speedButtons.Add((plate, speed));
+            }
+        }
+
+        void UpdateSpeedButtons()
+        {
+            var current = timeManager != null ? timeManager.Speed : TimeSpeed.Normal;
+            foreach (var (plate, speed) in speedButtons)
+                if (plate != null) plate.color = speed == current ? UiFactory.Accent : SpeedIdle;
         }
 
         // Sol kenar: yarısı ekran dışında kalan gece-gündüz çarkı (Resources/gecegunduz.png: sol yarı ay, sağ yarı güneş).
@@ -481,6 +542,7 @@ namespace AftershockIsle.UI
 
             // Çubuklar her kare, yazılar saniyede on kez (gereksiz metin üretmemek için).
             UpdateBars();
+            UpdateSpeedButtons();
             pausedBanner.SetActive(Planning && !ModalMenu.IsOpen && !PauseMenu.IsOpen);
             hint.gameObject.SetActive(Planning);
 

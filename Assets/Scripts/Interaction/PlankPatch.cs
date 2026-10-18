@@ -131,12 +131,15 @@ namespace AftershockIsle.Interaction
         /// Editörde kalasla kapatılacak bir delik kurar: tıklama kutusu, kalas modeli (kapalı) ve döşeme deliğiyse yürüme
         /// engeli. center: deliğin dünya merkezi (döşemede zemin seviyesi, duvarda gediğin ortası); size: delik ölçüsü.
         /// </summary>
-        public static PlankPatch CreateInEditor(string name, PatchKind kind, Vector3 center, Vector3 size, Transform parent)
+        public static PlankPatch CreateInEditor(string name, PatchKind kind, Vector3 center, Vector3 size, Transform parent,
+            float yaw = 0f)
         {
             var go = new GameObject(name);
             UnityEditor.Undo.RegisterCreatedObjectUndo(go, "Kalasla Kapatılacak Delik");
             if (parent != null) go.transform.SetParent(parent, false);
             go.transform.position = center;
+            // Yan duvardaki gedik: kalaslar odanın içine (yerel -Z) baksın diye döndürülür.
+            go.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
 
             bool floor = kind == PatchKind.FloorHole;
             // Döşeme deliği: zeminde ince tıklama kutusu. Duvar gediği: gediğin önünde ince dikey kutu.

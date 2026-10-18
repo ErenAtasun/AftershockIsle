@@ -136,7 +136,7 @@ namespace AftershockIsle.Crafting
 
             var visualRoot = new GameObject("Visuals").transform;
             visualRoot.SetParent(transform, false);
-            BuildProceduralMesh(visualRoot, Recipe, false);
+            if (!TryBuildModel(visualRoot, Recipe)) BuildProceduralMesh(visualRoot, Recipe, false);
 
             AttachFunctionalComponent();
         }
@@ -182,6 +182,37 @@ namespace AftershockIsle.Crafting
             RecipeId.LightningRod => 2.8f,
             _ => 1.0f
         };
+
+        /// <summary>
+        /// Blender eşya setindeki modeli (Resources/Yapilar/&lt;RecipeId&gt;) kurar; yoksa false döner ve basit parçalı model
+        /// kullanılır. Hayalet önizleme hep basit modeli kullanır. Modelin tabanı yapının kökündedir, ön yüzü kameraya bakar.
+        /// </summary>
+        static bool TryBuildModel(Transform parent, RecipeId recipe)
+        {
+            var prefab = Resources.Load<GameObject>("Yapilar/" + recipe);
+            if (prefab == null) return false;
+
+            var model = Instantiate(prefab, parent);
+            model.transform.localPosition = Vector3.zero;
+            model.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            foreach (var collider in model.GetComponentsInChildren<Collider>()) Destroy(collider);
+            AftershockIsle.Building.ModelManager.ApplyBuildingLook(model);
+
+            if (recipe == RecipeId.ShelterHeater)
+            {
+                // Sobanın kor ışığı: kapağın önünden sıcak, titremeyen ışık.
+                var lightGo = new GameObject("HeaterLight");
+                lightGo.transform.SetParent(parent, false);
+                lightGo.transform.localPosition = new Vector3(0f, 0.5f, -0.45f);
+                var light = lightGo.AddComponent<Light>();
+                light.type = LightType.Point;
+                light.color = new Color(1f, 0.6f, 0.28f);
+                light.range = 6f;
+                light.intensity = 2.2f;
+                light.shadows = LightShadows.Soft;
+            }
+            return true;
+        }
 
         /// <summary>Hem gerçek yapı hem de hayalet önizleme (Ghost Preview) için çok parçalı 3B model kurar.</summary>
         public static void BuildProceduralMesh(Transform parent, RecipeId recipe, bool isGhost)

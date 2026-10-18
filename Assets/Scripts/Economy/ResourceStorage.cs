@@ -41,7 +41,8 @@ namespace AftershockIsle.Economy
             if (Instance == this) Instance = null;
         }
 
-        public int Get(ResourceType type) => counts[(int)type];
+        /// <summary>Depodaki miktar. Depoda tutulmayan kaynaklar (su) için 0.</summary>
+        public int Get(ResourceType type) => type.IsStorable() ? counts[(int)type] : 0;
 
         public bool Has(ResourceAmount cost) => Get(cost.type) >= cost.amount;
 
@@ -81,6 +82,7 @@ namespace AftershockIsle.Economy
 
         void Change(ResourceType type, int delta)
         {
+            if (!type.IsStorable()) return;
             counts[(int)type] += delta;
             EventBus.Publish(new ResourcesChanged(type, counts[(int)type]));
         }

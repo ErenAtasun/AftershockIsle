@@ -16,29 +16,37 @@ namespace AftershockIsle.Expedition
             float length = site.fieldLength;
             float midZ = (minZ + maxZ) * 0.5f;
 
-            var ground = Make(PrimitiveType.Cube, "Zemin", new Color(0.32f, 0.3f, 0.28f), root.transform);
-            ground.position = new Vector3(originX + length * 0.5f, groundY - 0.3f, midZ);
-            ground.localScale = new Vector3(length + 16f, 0.6f, FieldDepth + 10f);
+            // Blender'da tasarlanan dış mekan kiti varsa manzara ondan kurulur; yoksa eski kutu görünümü.
+            bool scenery = BuildScenery(length, midZ);
 
-            // Yürünebilir alanın kenarı: önde alçak kaldırım, arkada yıkık yapılar, sağda duvar.
-            var curb = Make(PrimitiveType.Cube, "Kaldırım", new Color(0.45f, 0.44f, 0.42f), root.transform);
-            curb.position = new Vector3(originX + length * 0.5f, groundY + 0.08f, minZ - 0.5f);
-            curb.localScale = new Vector3(length + 2f, 0.16f, 0.4f);
-
-            for (int i = 0; i < 10; i++)
+            if (!scenery)
             {
-                var ruin = Make(PrimitiveType.Cube, "Harabe", new Color(0.22f, 0.22f, 0.24f), root.transform);
-                float height = Random.Range(2.5f, 7f);
-                ruin.position = new Vector3(originX - 4f + i * (length + 8f) / 9f, groundY + height * 0.5f, maxZ + 1.8f);
-                ruin.localScale = new Vector3(Random.Range(2.5f, 4.5f), height, 2f);
+                var ground = Make(PrimitiveType.Cube, "Zemin", new Color(0.32f, 0.3f, 0.28f), root.transform);
+                ground.position = new Vector3(originX + length * 0.5f, groundY - 0.3f, midZ);
+                ground.localScale = new Vector3(length + 16f, 0.6f, FieldDepth + 10f);
+
+                // Yürünebilir alanın kenarı: önde alçak kaldırım, arkada yıkık yapılar, sağda duvar.
+                var curb = Make(PrimitiveType.Cube, "Kaldırım", new Color(0.45f, 0.44f, 0.42f), root.transform);
+                curb.position = new Vector3(originX + length * 0.5f, groundY + 0.08f, minZ - 0.5f);
+                curb.localScale = new Vector3(length + 2f, 0.16f, 0.4f);
+
+                for (int i = 0; i < 10; i++)
+                {
+                    var ruin = Make(PrimitiveType.Cube, "Harabe", new Color(0.22f, 0.22f, 0.24f), root.transform);
+                    float height = Random.Range(2.5f, 7f);
+                    ruin.position = new Vector3(originX - 4f + i * (length + 8f) / 9f, groundY + height * 0.5f, maxZ + 1.8f);
+                    ruin.localScale = new Vector3(Random.Range(2.5f, 4.5f), height, 2f);
+                }
             }
 
+            // Sağ sınır duvarı: collider kalır; manzara kuruluysa görseli konteynerler verir.
             var wall = Make(PrimitiveType.Cube, "Sınır", new Color(0.18f, 0.18f, 0.2f), root.transform, true);
             wall.position = new Vector3(MaxX + 1f, groundY + 1.5f, midZ);
             wall.localScale = new Vector3(0.6f, 3f, FieldDepth + 2f);
+            if (scenery) Hide(wall);
 
             BuildBounds(length, midZ);
-            BuildStreetBackdrop(length);
+            if (!scenery) BuildStreetBackdrop(length);
 
             exitPoint = new Vector3(originX + 0.6f, groundY, midZ);
             BuildExit(midZ);
@@ -121,6 +129,9 @@ namespace AftershockIsle.Expedition
 
         void BuildExit(float midZ)
         {
+            // Manzara kuruluysa yeşil kapı yerine sokak işaretleri (bariyer, koni, yön tabelası).
+            if (kit != null && BuildExitScenery(midZ)) return;
+
             var color = new Color(0.25f, 0.8f, 0.4f);
             for (int side = -1; side <= 1; side += 2)
             {
@@ -222,21 +233,25 @@ namespace AftershockIsle.Expedition
 
             for (int attempt = 0; attempt < target * 12 && placed < target; attempt++)
             {
-                int kind = Random.Range(0, 4);
+                var outdoor = OutdoorKit.Instance;
+                bool models = outdoor != null && outdoor.HasContent;
+                int kind = Random.Range(0, models ? 5 : 4);
+                int variant = Random.Range(0, 3);   // araba tipi: 0 sedan, 1 minibüs, 2 kamyonet
                 bool turned = Random.value < 0.35f;
                 Vector2 half = kind switch
                 {
-                    0 => new Vector2(1.8f, 0.85f),   // araba
-                    1 => new Vector2(1.1f, 0.35f),   // beton blok
+                    0 => !models ? new Vector2(1.8f, 0.85f) : variant == 1 ? new Vector2(2.3f, 0.95f) : variant == 2 ? new Vector2(2.2f, 0.92f) : new Vector2(1.8f, 0.85f),
+                    1 => models ? new Vector2(1.1f, 0.38f) : new Vector2(1.1f, 0.35f),   // beton blok / kum torbası
                     2 => new Vector2(0.6f, 0.6f),    // kasa yığını
-                    _ => new Vector2(0.8f, 0.65f),   // moloz yığını
+                    3 => new Vector2(0.8f, 0.65f),   // moloz yığını
+                    _ => new Vector2(1.05f, 0.55f),  // çöp konteyneri
                 };
                 if (turned) half = new Vector2(half.y, half.x);
 
                 var center = new Vector2(Random.Range(originX + 5.5f, MaxX - 1.5f), Random.Range(minZ + 0.6f, maxZ - 0.6f));
                 if (!IsFree(center, half, 1.3f)) continue;
 
-                BuildObstacleVisual(kind, center, half, turned);
+                BuildObstacleVisual(kind, center, half, turned, variant);
                 placed++;
             }
         }
@@ -251,8 +266,14 @@ namespace AftershockIsle.Expedition
             return true;
         }
 
-        void BuildObstacleVisual(int kind, Vector2 center, Vector2 half, bool turned)
+        void BuildObstacleVisual(int kind, Vector2 center, Vector2 half, bool turned, int variant = 0)
         {
+            var outdoor = OutdoorKit.Instance;
+            bool models = outdoor != null && outdoor.HasContent;
+            float yaw = turned ? 90f : 0f;
+            var bottom = new Vector3(center.x, groundY, center.y);
+            var footprint = new Vector3(half.x * 2f, 1f, half.y * 2f);
+
             switch (kind)
             {
                 case 0:
@@ -261,10 +282,24 @@ namespace AftershockIsle.Expedition
                     body.position = new Vector3(center.x, groundY + 0.45f, center.y);
                     body.localScale = new Vector3(half.x * 2f, 0.7f, half.y * 2f);
                     var cabin = Make(PrimitiveType.Cube, "Kabin", new Color(0.25f, 0.3f, 0.38f), root.transform, true);
-                    cabin.position = new Vector3(center.x, groundY + 1.05f, center.y);
+                    bool van = models && variant == 1;
+                    cabin.position = new Vector3(center.x, groundY + (van ? 1.3f : 1.05f), center.y);
+                    float cabinHeight = van ? 1.5f : 0.55f;
                     cabin.localScale = turned
-                        ? new Vector3(half.x * 1.8f, 0.55f, half.y * 1.1f)
-                        : new Vector3(half.x * 1.1f, 0.55f, half.y * 1.8f);
+                        ? new Vector3(half.x * 1.8f, cabinHeight, half.y * 1.1f)
+                        : new Vector3(half.x * 1.1f, cabinHeight, half.y * 1.8f);
+
+                    if (models)
+                    {
+                        string prefix = variant == 1 ? "Car_Van" : variant == 2 ? "Car_Pickup" : "Car_Sedan";
+                        if (outdoor.TryPick(variant == 1 ? OutdoorCategory.Van : variant == 2 ? OutdoorCategory.Pickup : OutdoorCategory.Car, out var car, prefix))
+                        {
+                            // Arabanın yönü rastgele (sağa ya da sola bakar); kutular hizalı kalır.
+                            PlaceFitted(car, bottom, footprint, yaw + (Random.value < 0.5f ? 0f : 180f));
+                            Hide(body);
+                            Hide(cabin);
+                        }
+                    }
                     break;
                 }
                 case 1:
@@ -273,6 +308,17 @@ namespace AftershockIsle.Expedition
                     var slab = Make(PrimitiveType.Cube, "Beton Blok", new Color(0.55f, 0.55f, 0.52f), root.transform, true);
                     slab.position = new Vector3(center.x, groundY + height * 0.5f, center.y);
                     slab.localScale = new Vector3(half.x * 2f, height, half.y * 2f);
+
+                    if (models)
+                    {
+                        bool bags = Random.value < 0.4f;
+                        var wanted = bags ? OutdoorCategory.Sandbags : OutdoorCategory.Barrier;
+                        if (outdoor.TryPick(wanted, out var cover))
+                        {
+                            PlaceFitted(cover, bottom, footprint, yaw + (Random.value < 0.5f ? 0f : 180f), false, true);
+                            Hide(slab);
+                        }
+                    }
                     break;
                 }
                 case 2:
@@ -286,13 +332,34 @@ namespace AftershockIsle.Expedition
                     }
                     break;
                 }
-                default:
+                case 3:
                 {
                     // Alçak siper: çömelince korur.
                     var rubble = Make(PrimitiveType.Cube, "Moloz Yığını", new Color(0.45f, 0.42f, 0.38f), root.transform, true);
                     rubble.position = new Vector3(center.x, groundY + 0.5f, center.y);
                     rubble.localScale = new Vector3(half.x * 2f, 1f, half.y * 2f);
-                    Dress(rubble, ArtKey.Rubble, turned ? 90f : 0f);
+                    if (models && outdoor.TryPick(OutdoorCategory.Debris, out var heap, "Prop_Rubble_"))
+                    {
+                        PlaceFitted(heap, bottom, footprint, Random.Range(0f, 360f), true, true);
+                        Hide(rubble);
+                    }
+                    else
+                    {
+                        Dress(rubble, ArtKey.Rubble, turned ? 90f : 0f);
+                    }
+                    break;
+                }
+                default:
+                {
+                    // Çöp konteyneri: ayaktayken üstünden ateş edilir, çömelince arkasına saklanılır.
+                    var bin = Make(PrimitiveType.Cube, "Çöp Konteyneri", new Color(0.2f, 0.4f, 0.25f), root.transform, true);
+                    bin.position = new Vector3(center.x, groundY + 0.65f, center.y);
+                    bin.localScale = new Vector3(half.x * 2f, 1.3f, half.y * 2f);
+                    if (models && outdoor.TryPick(OutdoorCategory.Dumpster, out var dumpster))
+                    {
+                        PlaceFitted(dumpster, bottom, footprint, yaw + (Random.value < 0.5f ? 0f : 180f), false, true);
+                        Hide(bin);
+                    }
                     break;
                 }
             }

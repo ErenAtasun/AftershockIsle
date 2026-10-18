@@ -122,6 +122,7 @@ namespace AftershockIsle.Expedition
             var floor = make(PrimitiveType.Cube, "Bina Zemini", FloorColor, false);
             floor.position = new Vector3((x0 + x1) * 0.5f, groundY + 0.01f, (z0 + z1) * 0.5f);
             floor.localScale = new Vector3(size.x, 0.02f, size.y);
+            OutdoorSkin.Apply(floor, SkinRole.Floor, layout);
 
             // Arka duvar: çatılı yapılarda ortasında pencere.
             float windowWidth = roof ? WindowWidth : 0f;
@@ -135,6 +136,7 @@ namespace AftershockIsle.Expedition
                 var roofSlab = make(PrimitiveType.Cube, "Çatı", RoofColor, false);
                 roofSlab.position = new Vector3((x0 + x1) * 0.5f, groundY + wallHeight + 0.12f, (z0 + z1) * 0.5f);
                 roofSlab.localScale = new Vector3(size.x + 0.3f, 0.25f, size.y + 0.3f);
+                OutdoorSkin.Apply(roofSlab, SkinRole.Roof, layout);
                 cutaway.Add(roofSlab.GetComponent<Renderer>());
             }
 
@@ -317,6 +319,8 @@ namespace AftershockIsle.Expedition
             var wall = make(PrimitiveType.Cube, name, color, true);
             wall.position = new Vector3(center.x, groundY + bottom + size.y * 0.5f, center.z);
             wall.localScale = size;
+            var role = name.StartsWith("Ön Duvar") ? SkinRole.WallOuter : SkinRole.WallInner;
+            OutdoorSkin.Apply(wall, role, Layout);
             if (!hideInside) return;
             cutaway.Add(wall.GetComponent<Renderer>());
 
@@ -325,6 +329,7 @@ namespace AftershockIsle.Expedition
             var stub = make(PrimitiveType.Cube, name + " Taban", color * 0.8f, false);
             stub.position = new Vector3(center.x, groundY + 0.15f, center.z);
             stub.localScale = new Vector3(size.x, 0.3f, size.z);
+            OutdoorSkin.Apply(stub, role, Layout);
         }
     }
 }

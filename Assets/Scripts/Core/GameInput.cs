@@ -19,6 +19,7 @@ namespace AftershockIsle.Core
         static InputAction interact;
         static InputAction dodge;
         static InputAction heal;
+        static InputAction retreat;
 
         static int deviceFrame = -1;
         static bool usingGamepad;
@@ -91,6 +92,9 @@ namespace AftershockIsle.Core
 
         /// <summary>Sahada R / Y (Üçgen): Yaşam Kiti ile ilk yardım.</summary>
         public static bool HealPressed => WasPressed(ref heal);
+
+        /// <summary>Sahada X / sol çubuğa bas (L3): çıkışa otomatik koş (hareket ya da tekrar basmak iptal eder).</summary>
+        public static bool RetreatPressed => FieldControlsActive && WasPressed(ref retreat);
 
         /// <summary>Sahada sol tık / RT: ateş.</summary>
         public static bool FirePressed =>
@@ -412,6 +416,7 @@ namespace AftershockIsle.Core
                 InputPrompt.PlaceClose => pad ? "B" : "B / Sağ tık",
                 InputPrompt.Zoom => pad ? "L3 / R3" : "Tekerlek",
                 InputPrompt.Inventory => pad ? "D-pad ↑" : "I",
+                InputPrompt.Retreat => pad ? "L3" : "X",
                 _ => "?",
             };
         }
@@ -501,11 +506,13 @@ namespace AftershockIsle.Core
             interact = Button("Interact", "<Keyboard>/f", "<Gamepad>/buttonSouth");
             dodge = Button("Dodge", "<Keyboard>/space", "<Gamepad>/buttonEast");
             heal = Button("Heal", "<Keyboard>/r", "<Gamepad>/buttonNorth");
+            retreat = Button("Retreat", "<Keyboard>/x", "<Gamepad>/leftStickPress");
 
             characterMove.Enable();
             interact.Enable();
             dodge.Enable();
             heal.Enable();
+            retreat.Enable();
         }
 
         static InputAction Button(string name, string keyboard, string gamepad)
@@ -523,6 +530,6 @@ namespace AftershockIsle.Core
     {
         Move, Dodge, Interact, Heal, Cancel, Pause, Speed, SwitchCharacter,
         SkillTree, Help, Menu, Confirm, Back, Pump, Aim, Fire, SwitchWeapon, Crouch,
-        Build, PlaceCell, PlaceFloor, PlaceRecipe, PlaceConfirm, PlaceRotate, PlaceStore, PlaceClose, Zoom, Inventory,
+        Build, PlaceCell, PlaceFloor, PlaceRecipe, PlaceConfirm, PlaceRotate, PlaceStore, PlaceClose, Zoom, Inventory, Retreat,
     }
 }

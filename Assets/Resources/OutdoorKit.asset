@@ -1,0 +1,301 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 80f56436f9ad3314e8336aaa59b4e87b, type: 3}
+  m_Name: OutdoorKit
+  m_EditorClassIdentifier: Assembly-CSharp::AftershockIsle.Expedition.OutdoorKit
+  entries:
+  - name: Ground_A
+    category: 0
+    prefab: {fileID: 6292091963300653180, guid: 859a1c28c81d6e64990b0d3d83f438ba, type: 3}
+    size: {x: 6, y: 0.364, z: 12}
+    facade: 0
+  - name: Ground_B
+    category: 0
+    prefab: {fileID: 5297601054409443419, guid: 68e6f5b7a4270b343b6145ab7f6ac7ae, type: 3}
+    size: {x: 6, y: 0.366, z: 12}
+    facade: 0
+  - name: Ground_C
+    category: 0
+    prefab: {fileID: 6116663811478764894, guid: 326acd9265f21054e8442edc2bf27480, type: 3}
+    size: {x: 6, y: 0.53605235, z: 12}
+    facade: 0
+  - name: Curb_Front
+    category: 1
+    prefab: {fileID: 66011553126475949, guid: 825f923d25eff7f4d8388ebd297f9c70, type: 3}
+    size: {x: 6.0000005, y: 1.2522768, z: 3.6254964}
+    facade: 0
+  - name: Ground_Back_A
+    category: 2
+    prefab: {fileID: 4966342258445272460, guid: a2c6dbd32ce29d1418f6a2d92946f15f, type: 3}
+    size: {x: 6.2787695, y: 0.6732701, z: 14.568123}
+    facade: 0
+  - name: Ground_Back_B
+    category: 2
+    prefab: {fileID: 952723437606810961, guid: 35b7b20ae276bbd46a6baff16de17580, type: 3}
+    size: {x: 6.158087, y: 0.6568383, z: 14.039106}
+    facade: 0
+  - name: Car_Sedan_Blue
+    category: 3
+    prefab: {fileID: 5802721551601944310, guid: c9fc0c1eb834f194f8c3ac25a46ad879, type: 3}
+    size: {x: 3.6799998, y: 1.5254, z: 2.0074801}
+    facade: 0
+  - name: Car_Sedan_Red
+    category: 3
+    prefab: {fileID: 2742618839307424909, guid: b4a70011fc6c8f34cb981f2e1d273aec, type: 3}
+    size: {x: 3.6799998, y: 1.5254, z: 2.0074801}
+    facade: 0
+  - name: Car_Sedan_White
+    category: 3
+    prefab: {fileID: 8610088656329493438, guid: 7ad849c85ccc3ba47a4ed5e5240d92c9, type: 3}
+    size: {x: 3.6799998, y: 1.5254, z: 2.0074801}
+    facade: 0
+  - name: Car_Sedan_Grey
+    category: 3
+    prefab: {fileID: 1108434150688164300, guid: 28e5e6433e0e82c4ba4cc07e5e22dc7d, type: 3}
+    size: {x: 3.6799998, y: 1.5254, z: 2.0074801}
+    facade: 0
+  - name: Car_Sedan_Burnt
+    category: 3
+    prefab: {fileID: 7494350680299581099, guid: a145702b92af6014f80faec15b901b9a, type: 3}
+    size: {x: 3.6799998, y: 1.5254, z: 2.0074801}
+    facade: 0
+  - name: Car_Van
+    category: 4
+    prefab: {fileID: 2607343403824598162, guid: 4f3f3bb715176e94a9bf83b340c8cbb8, type: 3}
+    size: {x: 4.68, y: 2.2792, z: 2.28}
+    facade: 0
+  - name: Car_Van_Yellow
+    category: 4
+    prefab: {fileID: 1243158641251211895, guid: 90e14e714fc13584f92e65cf15ce8662, type: 3}
+    size: {x: 4.68, y: 2.2792, z: 2.28}
+    facade: 0
+  - name: Car_Pickup
+    category: 5
+    prefab: {fileID: 8154863631335300995, guid: a35312c2753d0ac40bbf9e5ac9ec11ed, type: 3}
+    size: {x: 4.56, y: 1.6992, z: 2.18}
+    facade: 0
+  - name: Car_Pickup_Grey
+    category: 5
+    prefab: {fileID: 6618419094391252865, guid: 7c8256a1ea7757d4aa3bca34d6efaf6f, type: 3}
+    size: {x: 4.56, y: 1.6992, z: 2.18}
+    facade: 0
+  - name: Barrier_Jersey
+    category: 6
+    prefab: {fileID: 6935004145224397610, guid: eb6c7053cba16634f824c3168d1bccc7, type: 3}
+    size: {x: 2.2, y: 1.012, z: 0.64}
+    facade: 0
+  - name: Barrier_Jersey_Broken
+    category: 6
+    prefab: {fileID: 8104401033319328187, guid: 69a4f7948ec117047b6dc90002479def, type: 3}
+    size: {x: 2.350118, y: 1.012, z: 0.65523964}
+    facade: 0
+  - name: Sandbags
+    category: 7
+    prefab: {fileID: 4194359639574286810, guid: f0b113c950f6fb946be0b8b6ddc2fdab, type: 3}
+    size: {x: 2.62361, y: 0.95, z: 0.7445171}
+    facade: 0
+  - name: Dumpster
+    category: 8
+    prefab: {fileID: 5100355101620286613, guid: eb4d6a557c0909548a3b7a6f0d848bf6, type: 3}
+    size: {x: 2.08, y: 1.7962164, z: 1.1033621}
+    facade: 0
+  - name: Dumpster_Blue
+    category: 8
+    prefab: {fileID: 1040460850470333348, guid: 38e25b00876e03641b9bda7bec90d0ea, type: 3}
+    size: {x: 2.08, y: 1.7962164, z: 1.08}
+    facade: 0
+  - name: Tires
+    category: 12
+    prefab: {fileID: 6601746338909326150, guid: 99ec5681e179d9245aeea91b2046d850, type: 3}
+    size: {x: 1.8469815, y: 0.5996362, z: 1.1906339}
+    facade: 0
+  - name: Cones
+    category: 12
+    prefab: {fileID: 8808229358915835689, guid: c30f9bb82a3050642b9b9fb6bc883d31, type: 3}
+    size: {x: 2.2, y: 0.63, z: 0.80817664}
+    facade: 0
+  - name: Bld_Apartment_A
+    category: 9
+    prefab: {fileID: 4207403778718116792, guid: 1a94cf742aadc734d922cc7fd03c774b, type: 3}
+    size: {x: 12.613338, y: 17.350784, z: 10.030312}
+    facade: 3
+  - name: Bld_Shop_Brick
+    category: 9
+    prefab: {fileID: 3545868385661338976, guid: af1be864b56b0d24698276d170dadfa9, type: 3}
+    size: {x: 10.400001, y: 10.95, z: 7.350001}
+    facade: 3
+  - name: Bld_Office_Tower
+    category: 9
+    prefab: {fileID: 1900853766164042111, guid: 60195d99f777930499d124363e178dbf, type: 3}
+    size: {x: 14.906832, y: 27.035242, z: 11.099964}
+    facade: 3.5
+  - name: Bld_Collapsed_Brick
+    category: 9
+    prefab: {fileID: 5438557795592166820, guid: bfd31891d59a7eb4e99bbe27e91bbac9, type: 3}
+    size: {x: 12.773821, y: 13.945761, z: 10.156795}
+    facade: 3
+  - name: Bld_Warehouse
+    category: 9
+    prefab: {fileID: 5992281099163351496, guid: 5bb1b045bf87a3e4a855b6c9eb181f0e, type: 3}
+    size: {x: 16.4, y: 9.608686, z: 9.350002}
+    facade: 4.5
+  - name: Bld_Burnt_Block
+    category: 9
+    prefab: {fileID: 1395566199745804948, guid: 13e80f9ad642b98428ce6d0971004981, type: 3}
+    size: {x: 10.400001, y: 14.92147, z: 7.350001}
+    facade: 3
+  - name: Bld_Apartment_B
+    category: 9
+    prefab: {fileID: 8710162774037574856, guid: 3e450300b26698047943ef37629be8e8, type: 3}
+    size: {x: 11.400001, y: 21.50282, z: 7.350001}
+    facade: 3
+  - name: Bld_Row_Brick
+    category: 9
+    prefab: {fileID: 5458290408529344117, guid: e291f961ef2163f4ab5ad996ebb1b4f0, type: 3}
+    size: {x: 14.400001, y: 11.408156, z: 7.347364}
+    facade: 3
+  - name: Sky_A
+    category: 10
+    prefab: {fileID: 1813805377293372634, guid: c4474dd5367dd684181f6e1435dd9f2e, type: 3}
+    size: {x: 36, y: 29.412975, z: 3.966312}
+    facade: 0
+  - name: Sky_B
+    category: 10
+    prefab: {fileID: 4606156871401690348, guid: a1db28577d0a59c408189f27352d1941, type: 3}
+    size: {x: 34.395657, y: 41.572712, z: 3.74671}
+    facade: 0
+  - name: Prop_Lamp
+    category: 11
+    prefab: {fileID: 4117437337399469714, guid: 3dafbfc38a9971846be440ef7d7d425e, type: 3}
+    size: {x: 1.72, y: 5.3338957, z: 0.41846487}
+    facade: 0
+  - name: Prop_Lamp_Broken
+    category: 11
+    prefab: {fileID: 5705288986601541752, guid: dc24e2a37d360d94a8d4952a9300e9ff, type: 3}
+    size: {x: 1.9457756, y: 4.132889, z: 0.48775357}
+    facade: 0
+  - name: Prop_TrafficLight
+    category: 11
+    prefab: {fileID: 3255230379089992508, guid: 55acd583f98001442ab195f150af9871, type: 3}
+    size: {x: 2.5382664, y: 4.6853085, z: 0.41498116}
+    facade: 0
+  - name: Prop_Sign_Stop
+    category: 11
+    prefab: {fileID: 3217836663225065898, guid: 1eca176a18164f74e81af736ee4c0609, type: 3}
+    size: {x: 0.8, y: 2.7, z: 0.109641016}
+    facade: 0
+  - name: Prop_Sign_Warn
+    category: 11
+    prefab: {fileID: 3705814034154752304, guid: 2207aef048742624a98e6ca2f674a26e, type: 3}
+    size: {x: 0.9, y: 2.8, z: 0.109641016}
+    facade: 0
+  - name: Prop_Sign_Direction
+    category: 11
+    prefab: {fileID: 8228904386890971141, guid: 9c22eeecc0873364e87426106ba86f82, type: 3}
+    size: {x: 1.448, y: 2.7, z: 0.109641016}
+    facade: 0
+  - name: Prop_PowerPole
+    category: 11
+    prefab: {fileID: 8149539228964663953, guid: 03babff41688c014b94a80ea36fb9b62, type: 3}
+    size: {x: 6.7982187, y: 7.6, z: 0.58000004}
+    facade: 0
+  - name: Prop_Tree_Dead
+    category: 11
+    prefab: {fileID: 3552363157671607704, guid: 86aa3b6fa4ff8bd40bc48123d7fb7f2f, type: 3}
+    size: {x: 5.6462517, y: 5.9913564, z: 1.0372478}
+    facade: 0
+  - name: Prop_Tree_Dead_B
+    category: 11
+    prefab: {fileID: 3112644428690742231, guid: 1a6c8026024dfd54ba21b05129f6d584, type: 3}
+    size: {x: 3.6532416, y: 4.5824056, z: 1.1402423}
+    facade: 0
+  - name: Prop_Bench
+    category: 11
+    prefab: {fileID: 3797615089441317940, guid: 236ea19ce1b3bf64f97cf0deee237f64, type: 3}
+    size: {x: 1.9, y: 0.95, z: 0.56}
+    facade: 0
+  - name: Prop_BusShelter
+    category: 11
+    prefab: {fileID: 3280060242796869610, guid: b5d6e2ed84662164db14579f34d3720f, type: 3}
+    size: {x: 3.3, y: 2.58, z: 1.4}
+    facade: 0
+  - name: Prop_Fence
+    category: 11
+    prefab: {fileID: 4846462142623279491, guid: 5d133be70e2ae5c4b9bee47e56490374, type: 3}
+    size: {x: 3.08, y: 1.9, z: 0.122183345}
+    facade: 0
+  - name: Prop_Fence_Intact
+    category: 11
+    prefab: {fileID: 1979496585625855133, guid: 34ab71c8a327906439f09dc2284c5eb6, type: 3}
+    size: {x: 3.08, y: 1.9, z: 0.09964101}
+    facade: 0
+  - name: Prop_Hydrant
+    category: 11
+    prefab: {fileID: 2357437393661865447, guid: 63a121a1bd256b84b80301a48d730851, type: 3}
+    size: {x: 0.55, y: 0.90000004, z: 0.38}
+    facade: 0
+  - name: Prop_TrashBags
+    category: 12
+    prefab: {fileID: 1580370451790944310, guid: b0fd22cf49adaae4e93bfcf45f119385, type: 3}
+    size: {x: 1.6357467, y: 0.71959496, z: 1.2123072}
+    facade: 0
+  - name: Prop_Pallets
+    category: 12
+    prefab: {fileID: 2845554541282303153, guid: ff391551a1293044ab0abd9329c67f53, type: 3}
+    size: {x: 1.3953457, y: 0.73664373, z: 1.2871318}
+    facade: 0
+  - name: Prop_Rubble_A
+    category: 12
+    prefab: {fileID: 4986626202361080420, guid: 91999f8bc2e14204b8355a64b9752345, type: 3}
+    size: {x: 3.6334338, y: 1.7906302, z: 2.9300036}
+    facade: 0
+  - name: Prop_Rubble_B
+    category: 12
+    prefab: {fileID: 4664895106487631464, guid: af385582cf90bff4b8d137693bb4cfcf, type: 3}
+    size: {x: 3.2662992, y: 1.7198902, z: 2.0784001}
+    facade: 0
+  - name: Prop_Rubble_Big
+    category: 12
+    prefab: {fileID: 961270031833745312, guid: 6f1281f22688a124ea3ba6487daa63e1, type: 3}
+    size: {x: 4.805641, y: 2.3615525, z: 3.6576214}
+    facade: 0
+  - name: Prop_SlabLean
+    category: 12
+    prefab: {fileID: 2066009852027672679, guid: 9d19eebdc73ad854693fc7d07710a0d1, type: 3}
+    size: {x: 3.0020177, y: 2.0229762, z: 1.9389538}
+    facade: 0
+  - name: Prop_Container
+    category: 11
+    prefab: {fileID: 674286324927020918, guid: 6893db1d67a119f44b30f608106c784a, type: 3}
+    size: {x: 6.12, y: 2.65, z: 2.508}
+    facade: 0
+  - name: Prop_Container_Rust
+    category: 11
+    prefab: {fileID: 1853626595944317420, guid: e1f9953fb031038448af063a7849d245, type: 3}
+    size: {x: 6.12, y: 2.65, z: 2.508}
+    facade: 0
+  materials:
+  - name: pal
+    material: {fileID: 2100000, guid: 2e5c7f7ca5fe6b24583d2e7898c2aff2, type: 2}
+  - name: asphalt
+    material: {fileID: 2100000, guid: 21ea2ae90611e0a4198d7edcf4f47a6b, type: 2}
+  - name: sidewalk
+    material: {fileID: 2100000, guid: ef179ac7028693b4ebb3c0bc0fa04d29, type: 2}
+  - name: concrete
+    material: {fileID: 2100000, guid: 9915d682daddeef47a169d755ceb805a, type: 2}
+  - name: brick
+    material: {fileID: 2100000, guid: 92e5e18d1cec84a4a9b47daa5305c494, type: 2}
+  - name: plaster_beige
+    material: {fileID: 2100000, guid: 245478cd384864c42a8c58dc274feb5e, type: 2}
+  - name: plaster_grey
+    material: {fileID: 2100000, guid: 3f829bf380bf4df4a82c6f71f169f124, type: 2}
+  sourceHash: 639279278563157011|62|639279279124314197|v2

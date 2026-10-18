@@ -141,6 +141,15 @@ namespace AftershockIsle.Expedition
         float maxZ;
         Vector3 exitPoint;
 
+        // Çıkış: yürüyerek girilince (2 sn bekleyince) ya da F ile hemen çıkılır; X ile çıkışa otomatik koşulur.
+        const float ExitAutoSeconds = 2f;
+        const float RetreatSpeedFactor = 1.45f;
+        float exitDwell;
+        bool exitArmed;   // başlangıçta çıkış alanındayız; bir kez uzaklaşılınca devreye girer
+        bool retreating;
+        int retreatIndex;
+        readonly List<Vector3> retreatRoute = new List<Vector3>();
+
         Vector3 velocity;
         float dodgeTimer;
         float dodgeCooldown;
@@ -237,6 +246,10 @@ namespace AftershockIsle.Expedition
             searchProgress = 0f;
             healCooldown = 0f;
             message = null;
+            exitDwell = 0f;
+            exitArmed = false;
+            retreating = false;
+            retreatRoute.Clear();
             cam = Camera.main;
 
             originX = building.MaxX + FieldOffset;
@@ -247,7 +260,7 @@ namespace AftershockIsle.Expedition
             BuildField();
             SideViewCamera.SetFieldFocus(avatar);
             Say($"{GameInput.Prompt(InputPrompt.Move)}: yürü.  {GameInput.Prompt(InputPrompt.Interact)}: ara.  " +
-                $"{GameInput.Prompt(InputPrompt.Inventory)}: çanta.  Çanta dolunca soldaki yeşil çıkışa dön.");
+                $"{GameInput.Prompt(InputPrompt.Inventory)}: çanta.  Çıkış solda: yürüyüp 2 sn dur ya da {GameInput.Prompt(InputPrompt.Retreat)} ile çıkışa koş.");
         }
 
         /// <summary>Sahayı temizler ve kamerayı sığınağa döndürür.</summary>
@@ -288,6 +301,8 @@ namespace AftershockIsle.Expedition
             // Sığınağa bakarken kâşif yerinde bekler (karakter kontrolü sadece saha görünümünde).
             bool controlling = SideViewCamera.ViewingField && !ModalMenu.IsOpen;
             Vector2 input = controlling ? GameInput.CharacterMove : Vector2.zero;
+            if (controlling && GameInput.RetreatPressed) ToggleRetreat();
+            if (retreating) input = RetreatInput(input);
 
             fireCooldown -= dt;
             UpdatePosture(controlling, dt);
@@ -308,6 +323,7 @@ namespace AftershockIsle.Expedition
             companion?.Tick(dt);
             UpdateTracers(dt);
             UpdateSearch(input, dt);
+            UpdateExitDwell(controlling, dt);
             UpdateFlash(dt);
             foreach (var spot in spots) spot.Refresh(Tint);
             foreach (var building in buildings) building.UpdateCutaway(avatarRoot.position);
@@ -318,7 +334,8 @@ namespace AftershockIsle.Expedition
 
         void UpdateMovement(Vector2 input, float dt)
         {
-            float speed = WalkSpeed * explorer.Condition.SpeedMultiplier * SkillTree.MoveSpeedBonus * (crouched ? CrouchSpeed : 1f);
+            float speed = WalkSpeed * explorer.Condition.SpeedMultiplier * SkillTree.MoveSpeedBonus * (crouched ? CrouchSpeed : 1f) *
+                          (retreating ? RetreatSpeedFactor : 1f);
 
             if (IsDodging)
             {
@@ -346,6 +363,85 @@ namespace AftershockIsle.Expedition
                 avatarRoot.position = new Vector3(avatarRoot.position.x, groundY, avatarRoot.position.z);
                 controller.enabled = true;
             }
+        }
+
+        // ---------------------------------------------------------------- Çıkış
+
+        /// <summary>Çıkış alanında durmak kâşifi geri götürür; çıkış alanından hiç ayrılmadıysa (başlangıç) sayılmaz.</summary>
+        void UpdateExitDwell(bool controlling, float dt)
+        {
+            float distance = Vector2.Distance(Flat(avatar.position), Flat(exitPoint));
+            if (!exitArmed)
+            {
+                if (distance > ExitRange + 1.2f) exitArmed = true;
+                exitDwell = 0f;
+                return;
+            }
+
+            if (!controlling || searchTarget != null || IsDodging || distance > ExitRange)
+            {
+                exitDwell = 0f;
+                return;
+            }
+
+            exitDwell += dt;
+            if (exitDwell >= ExitAutoSeconds) Outcome = FieldOutcome.Returned;
+        }
+
+        void ToggleRetreat()
+        {
+            if (retreating)
+            {
+                StopRetreat("Çıkışa koşma iptal edildi.");
+                return;
+            }
+
+            if (NearExit)
+            {
+                Outcome = FieldOutcome.Returned;
+                return;
+            }
+
+            CancelSearch(false);
+            FindRoute(avatarRoot.position, exitPoint, retreatRoute);
+            retreatRoute.Add(exitPoint);
+            retreatIndex = 0;
+            retreating = true;
+            Say("Çıkışa koşuyorsun. Yürüyerek ya da kaçış ile iptal edebilirsin.");
+        }
+
+        void StopRetreat(string note)
+        {
+            retreating = false;
+            retreatRoute.Clear();
+            if (note != null) Say(note);
+        }
+
+        // Çıkışa giden yolun köşelerini (engellerin etrafından) sırayla izleyen sanal hareket girdisi.
+        Vector2 RetreatInput(Vector2 manual)
+        {
+            if (manual.sqrMagnitude > 0.25f || IsDodging)
+            {
+                StopRetreat("Çıkışa koşma iptal edildi.");
+                return manual;
+            }
+
+            if (NearExit)
+            {
+                StopRetreat(null);
+                Outcome = FieldOutcome.Returned;
+                return Vector2.zero;
+            }
+
+            var here = Flat(avatarRoot.position);
+            while (retreatIndex < retreatRoute.Count - 1 && Vector2.Distance(here, Flat(retreatRoute[retreatIndex])) < 0.6f) retreatIndex++;
+
+            var target = retreatRoute.Count > 0 ? retreatRoute[Mathf.Min(retreatIndex, retreatRoute.Count - 1)] : exitPoint;
+            var toTarget = Flat(target) - here;
+            if (toTarget.sqrMagnitude < 0.0001f) return Vector2.zero;
+
+            var direction = toTarget.normalized;
+            return new Vector2(direction.x, direction.y / DepthSpeedFactor).normalized;
         }
 
         void TryDodge(Vector2 input)

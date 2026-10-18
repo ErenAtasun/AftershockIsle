@@ -169,8 +169,77 @@ namespace AftershockIsle.Building
                 bypassValvePrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/vana.fbx");
                 if (bypassValvePrefab != null && !Application.isPlaying) UnityEditor.EditorUtility.SetDirty(this);
             }
+            if (handPumpPrefab == null)
+            {
+                handPumpPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(PropModelFolder + "El_Tulumbasi.fbx");
+                if (handPumpPrefab != null && !Application.isPlaying) UnityEditor.EditorUtility.SetDirty(this);
+            }
+            if (propModels == null || propModels.Length == 0)
+            {
+                var list = new List<PropModelSlot>();
+                foreach (var (prop, file, height) in DefaultPropModels)
+                {
+                    list.Add(new PropModelSlot
+                    {
+                        propName = prop,
+                        model = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(PropModelFolder + file + ".fbx"),
+                        height = height,
+                        yaw = 180f,
+                    });
+                }
+                propModels = list.ToArray();
+                if (!Application.isPlaying) UnityEditor.EditorUtility.SetDirty(this);
+            }
+            if (structureModels == null || structureModels.Length == 0)
+            {
+                var list = new List<StructureModelSlot>();
+                foreach (var recipe in DefaultStructureModels)
+                {
+                    list.Add(new StructureModelSlot
+                    {
+                        recipe = recipe,
+                        model = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(StructureModelFolder + recipe + ".fbx"),
+                    });
+                }
+                structureModels = list.ToArray();
+                if (!Application.isPlaying) UnityEditor.EditorUtility.SetDirty(this);
+            }
 #endif
         }
+
+#if UNITY_EDITOR
+        bool editorRefreshQueued;
+
+        // Inspector'da bir model değişince ya da kod derlenince eşya modelleri editörde de sahneye yerleşir (Play gerekmez).
+        void OnValidate()
+        {
+            if (Application.isPlaying || editorRefreshQueued) return;
+            editorRefreshQueued = true;
+            UnityEditor.EditorApplication.delayCall += () =>
+            {
+                editorRefreshQueued = false;
+                if (this == null || Application.isPlaying || UnityEditor.EditorApplication.isPlayingOrWillChangePlaymode) return;
+                RefreshPropModelsInEditor();
+            };
+        }
+
+        /// <summary>
+        /// Editörde yalnızca eşya giydirmeleri yenilenir (bina modeli değil): atanan prefab'lar gri kutuların yerine sahneye
+        /// konur ve sahneyle kaydedilir. Bina dahil her şey için sağ tık → "Modelleri Şimdi Güncelle".
+        /// </summary>
+        [ContextMenu("Eşya Modellerini Sahneye Yerleştir")]
+        public void RefreshPropModelsInEditor()
+        {
+            if (building == null) building = FindFirstObjectByType<BuildingLayout>();
+            if (building == null) return;
+            AssignDefaultModelsInEditor();
+            ApplyGreyboxPropsVisibility();
+            ApplyWorkbench();
+            ApplyWaterTank();
+            ApplyPropModels();
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
+        }
+#endif
 
         // ---------------------------------------------------------------- 1. Bina
 
@@ -523,6 +592,8 @@ namespace AftershockIsle.Building
             foreach (var renderer in instance.GetComponentsInChildren<Renderer>(true))
             {
                 if (renderer.gameObject.name.StartsWith("Window_Amber_Backing")) continue;
+                // Etkileşim konturu kendi malzemesini kullanır.
+                if (renderer.gameObject.name == AftershockIsle.UI.InteractableHighlighter.ShellName) continue;
 
                 var shared = renderer.sharedMaterials;
                 bool changed = false;
@@ -1349,8 +1420,7 @@ namespace AftershockIsle.Building
                 }
                 else
                 {
-                    var tankModel = SkinPropWithCustomPrefab(source.gameObject, waterTankPrefab, 0.95f, 180f);
-                    if (tankModel != null) FixBuildingMaterials(tankModel);
+                    ApplyLookInPlay(SkinPropWithCustomPrefab(source.gameObject, waterTankPrefab, 0.95f, 180f));
                 }
                 break;
             }
@@ -1365,9 +1435,7 @@ namespace AftershockIsle.Building
             if (Mathf.Abs(bottom - floorY) > 0.02f) t.position += Vector3.up * (floorY - bottom);
             pump.RefreshFloorFromPosition();
 
-            var pumpPrefab = Resources.Load<GameObject>(PropModelFolder + "El_Tulumbasi");
-            var model = SkinPropWithCustomPrefab(pump.gameObject, pumpPrefab, 1.27f, 180f);
-            if (model != null) FixBuildingMaterials(model);
+            ApplyLookInPlay(SkinPropWithCustomPrefab(pump.gameObject, handPumpPrefab, 1.27f, 180f));
         }
 
         /// <summary>Depo bidonun katında değilse (örn. bodruma konmuşsa) tabanı bidon kutusunun tabanına gelecek şekilde taşınır.</summary>
@@ -1423,10 +1491,11 @@ namespace AftershockIsle.Building
 
         // ---------------------------------------------------------------- 3b. Gri kutu eşyalara model
 
-        const string PropModelFolder = "Esyalar/";
+        const string PropModelFolder = "Assets/Resources/Esyalar/";
+        const string StructureModelFolder = "Assets/Resources/Yapilar/";
 
-        // Sahne kurucunun kutusu → Resources/Esyalar modeli ve yüksekliği (Blender ölçüsü; model bu boya ölçeklenir).
-        static readonly (string prop, string model, float height)[] PropModels =
+        // Inspector'daki listeler boşsa editörün dolduracağı varsayılanlar: sahne kurucunun kutusu → model dosyası, yükseklik.
+        static readonly (string prop, string model, float height)[] DefaultPropModels =
         {
             ("Ana Şalter Panosu", "Ana_Salter_Panosu", 1.61f),
             ("Eski Radyatör", "Eski_Radyator", 0.99f),
@@ -1436,22 +1505,72 @@ namespace AftershockIsle.Building
             ("Gaz Vanası", "Gaz_Vanasi", 0.46f),
         };
 
+        static readonly RecipeId[] DefaultStructureModels =
+        {
+            RecipeId.ElectricPump, RecipeId.LightningRod, RecipeId.ComfortCorner, RecipeId.ShelterHeater, RecipeId.StorageRack,
+            RecipeId.WaterPurifier, RecipeId.MedStation, RecipeId.FireSuppressor, RecipeId.BackupGenerator,
+        };
+
+        [System.Serializable]
+        public struct PropModelSlot
+        {
+            [Tooltip("Props altındaki gri kutunun adı (örn. Eski Radyatör)")]
+            public string propName;
+            public GameObject model;
+            [Tooltip("Modelin ölçekleneceği yükseklik (m)")]
+            public float height;
+            [Tooltip("Y dönüşü; ön yüz kameraya bakmıyorsa 0 / 180 dene")]
+            public float yaw;
+        }
+
+        [System.Serializable]
+        public struct StructureModelSlot
+        {
+            public RecipeId recipe;
+            public GameObject model;
+        }
+
+        [Header("7. Eşya Modelleri (prefab ata, sahnede hemen görünür)")]
+        [Tooltip("Gri kutu eşyalara giydirilen modeller. Boşsa editör Resources/Esyalar'dakilerle doldurur.")]
+        [SerializeField] PropModelSlot[] propModels;
+        [Tooltip("Bodrumdaki manuel tulumbaya giydirilen model")]
+        [SerializeField] GameObject handPumpPrefab;
+        [Tooltip("Izgarayla yerleştirilen yapıların modelleri (soba, raf, jeneratör...). Boşsa Resources/Yapilar kullanılır.")]
+        [SerializeField] StructureModelSlot[] structureModels;
+
+        /// <summary>Yerleştirilen yapının Inspector'da atanmış modeli (yoksa null).</summary>
+        public GameObject GetStructureModel(RecipeId recipe)
+        {
+            if (structureModels == null) return null;
+            foreach (var slot in structureModels)
+                if (slot.recipe == recipe && slot.model != null) return slot.model;
+            return null;
+        }
+
+        /// <summary>Cel görünümü yalnızca oyunda verilir: editörde çalışma anı malzemeleri sahneye kaydedilemez.</summary>
+        void ApplyLookInPlay(GameObject model)
+        {
+            if (model != null && Application.isPlaying) FixBuildingMaterials(model);
+        }
+
         /// <summary>
-        /// Modeli olmayan gri kutu eşyalara Blender eşya setinden model giydirir; Bypass Vanası'na senin eklediğin
-        /// vana.fbx giyer. Oyun mantığı (collider, Interactable) kutuda kalır.
+        /// Modeli olmayan gri kutu eşyalara Inspector'daki modelleri giydirir; Bypass Vanası'na vana.fbx giyer.
+        /// Oyun mantığı (collider, Interactable) kutuda kalır. Editörde de çalışır, model sahneye kaydedilir.
         /// </summary>
         void ApplyPropModels()
         {
             var propsRoot = building.transform.Find("Props");
             if (propsRoot == null || !useCustomBuilding || buildingPrefab == null) return;
 
-            foreach (var (propName, modelName, height) in PropModels)
+            if (propModels != null)
             {
-                var prop = propsRoot.Find(propName);
-                var prefab = Resources.Load<GameObject>(PropModelFolder + modelName);
-                if (prop == null || prefab == null || !prop.gameObject.activeSelf) continue;
-                var model = SkinPropWithCustomPrefab(prop.gameObject, prefab, height, 180f);
-                if (model != null) FixBuildingMaterials(model);
+                foreach (var slot in propModels)
+                {
+                    if (string.IsNullOrEmpty(slot.propName)) continue;
+                    var prop = propsRoot.Find(slot.propName);
+                    if (prop == null || slot.model == null || !prop.gameObject.activeSelf) continue;
+                    ApplyLookInPlay(SkinPropWithCustomPrefab(prop.gameObject, slot.model, slot.height > 0f ? slot.height : 1f, slot.yaw));
+                }
             }
 
             // Telsizin durum ışığı kutu yerine telsizin üstünde küçük bir lamba olsun.
@@ -1467,8 +1586,7 @@ namespace AftershockIsle.Building
             var bypass = propsRoot.Find("Bypass Vanası");
             if (bypass != null && bypassValvePrefab != null)
             {
-                var model = SkinPropWithCustomPrefab(bypass.gameObject, bypassValvePrefab, 0.45f, 0f);
-                if (model != null) FixBuildingMaterials(model);
+                ApplyLookInPlay(SkinPropWithCustomPrefab(bypass.gameObject, bypassValvePrefab, 0.45f, 0f));
                 // Vana tarifi üretilene kadar gizli kalır: yeni modelin görünürlüğü de buna uysun.
                 if (Application.isPlaying && bypass.TryGetComponent<InstallableVisual>(out var installable)) installable.Refresh();
             }

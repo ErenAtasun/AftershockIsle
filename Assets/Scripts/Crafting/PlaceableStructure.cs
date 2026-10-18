@@ -189,7 +189,11 @@ namespace AftershockIsle.Crafting
         /// </summary>
         static bool TryBuildModel(Transform parent, RecipeId recipe)
         {
-            var prefab = Resources.Load<GameObject>("Yapilar/" + recipe);
+            // Önce [Systems] → ModelManager'da atanan model, yoksa Resources/Yapilar'daki.
+            var prefab = AftershockIsle.Building.ModelManager.Instance != null
+                ? AftershockIsle.Building.ModelManager.Instance.GetStructureModel(recipe)
+                : null;
+            if (prefab == null) prefab = Resources.Load<GameObject>("Yapilar/" + recipe);
             if (prefab == null) return false;
 
             var model = Instantiate(prefab, parent);

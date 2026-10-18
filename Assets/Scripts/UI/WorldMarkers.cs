@@ -12,15 +12,13 @@ using UnityEngine.UI;
 namespace AftershockIsle.UI
 {
     /// <summary>
-    /// Dünya işaretleri (uGUI): nesnelerin üstünde ne yapılabileceğini söyleyen küçük etiketler ve kat adları.
-    /// Kırmızı yanıp sönen = acil (yangın, gaz, patlak boru, kırık kolon, su baskını); amber = önerilen (yolu kapatan moloz,
-    /// güçlendirilecek kolon); gri = isteğe bağlı iş (yalnızca seçili kazazedenin katında); soluk lacivert = istasyon.
-    /// Kat adlarının yanında o kattaki tehlike (yangın, duman, gaz, su) yazar. İşaretler tıklamayı engellemez.
+    /// Dünya işaretleri (uGUI): yalnızca tehlikeli katların adı ve o kattaki tehlike (yangın, duman, gaz, su).
+    /// Eşyaların üstüne yazı konmaz; etkileşilebilir/acil eşyaları InteractableHighlighter'ın beyaz konturu gösterir.
+    /// İşaretler tıklamayı engellemez.
     /// </summary>
     public class WorldMarkers : MonoBehaviour
     {
         const float RebuildSeconds = 0.4f;
-        const float ListSeconds = 1f;
         const int PoolSize = 64;
 
         struct Entry
@@ -47,12 +45,9 @@ namespace AftershockIsle.UI
         RectTransform canvasRect;
         readonly List<Item> pool = new List<Item>();
         readonly List<Entry> entries = new List<Entry>();
-        readonly List<Interactable> things = new List<Interactable>();
         readonly Vector2[] screen = new Vector2[PoolSize];
         float rebuildAt;
-        float listAt;
         int used;
-        bool showAll;
 
         void Start()
         {
@@ -97,41 +92,10 @@ namespace AftershockIsle.UI
 
         void Rebuild()
         {
-            if (Time.unscaledTime >= listAt)
-            {
-                listAt = Time.unscaledTime + ListSeconds;
-                things.Clear();
-                things.AddRange(FindObjectsByType<Interactable>(FindObjectsInactive.Exclude, FindObjectsSortMode.None));
-            }
-
             entries.Clear();
-            var selected = commands != null ? commands.Selected : null;
-            int selectedFloor = selected != null ? selected.Mover.CurrentFloor : -1;
 
-            // Ekran sade kalsın: acil ve önerilen işaretler hep görünür; isteğe bağlı işler, istasyonlar ve kat adları
-            // yalnızca zaman durunca ya da Alt basılıyken (kat adları ayrıca o katta tehlike varsa) gösterilir.
-            showAll = Time.timeScale <= 0f || GameInput.ShowAllMarkersHeld;
-            var hovered = commands != null ? commands.Hovered : null;
-            var nearby = commands != null ? commands.Nearby : null;
-
-            foreach (var thing in things)
-            {
-                if (thing == null || !thing.isActiveAndEnabled || !thing.IsInteractive) continue;
-                // Üstüne gelinen ya da yanındaki nesneyi bilgi kartı ve "[F]" istemi zaten anlatıyor.
-                if (thing == hovered || thing == nearby) continue;
-
-                var guide = InteractableGuide.Of(thing);
-                if (guide.Kind == MarkerKind.None || string.IsNullOrEmpty(guide.Marker)) continue;
-                if ((guide.Kind == MarkerKind.Optional || guide.Kind == MarkerKind.Station) && !showAll) continue;
-                if (guide.Kind == MarkerKind.Optional && thing.Floor != selectedFloor) continue;
-                // Elinde iş olan (başka biri çalışan) nesneye de etiket kalır; çalışan zaten ilerleme çubuğuyla görünür.
-
-                Vector3 world = thing.TryGetFootprint(out var bounds)
-                    ? new Vector3(bounds.center.x, bounds.max.y + 0.25f, bounds.center.z)
-                    : thing.transform.position + Vector3.up * 1.2f;
-                entries.Add(new Entry { World = world, Text = guide.Marker, Kind = guide.Kind });
-            }
-
+            // Eşyaların üstüne yazı (KAZ, KOLONU DİK...) konmaz: etkileşilebilir ve acil eşyaları InteractableHighlighter'ın
+            // beyaz konturu gösterir, açıklamayı üstüne gelince bilgi kartı verir. Burada yalnızca tehlikeli katların adı kalır.
             AddFloorLabels();
             Apply();
         }
@@ -157,8 +121,8 @@ namespace AftershockIsle.UI
                 foreach (var leak in GasLeak.All)
                     if (leak != null && leak.Floor == floor && leak.IsLeaking) { hazards.Add("GAZ KAÇAĞI"); break; }
 
-                // Tehlike yoksa kat adı yalnızca "hepsini göster" modunda yazılır.
-                if (hazards.Count == 0 && !showAll) continue;
+                // Tehlike yoksa kat adı yazılmaz (ekran aynı anda dolmasın).
+                if (hazards.Count == 0) continue;
 
                 int rubble = RubblePile.CountOnFloor(floor);
                 string tail = hazards.Count > 0 ? "  ·  " + string.Join("  ·  ", hazards) : "";

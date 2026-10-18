@@ -448,7 +448,11 @@ namespace AftershockIsle.Expedition
             face.localRotation = Quaternion.identity;
             face.localScale = new Vector3(0.5f, 0.15f, 0.2f);
 
-            if (!dog)
+            if (dog)
+            {
+                DressDog(body, enemyRoot, height);
+            }
+            else
             {
                 var enemyView = DressCharacter(body, enemyRoot, height);
                 if (enemyView != null)
@@ -533,6 +537,21 @@ namespace AftershockIsle.Expedition
             return view;
         }
 
+        /// <summary>Küp gövdeli köpeğin yerine RSG köpek modeli koyar (kütüphanede köpek yoksa küp kalır).</summary>
+        FieldDogView DressDog(Transform body, Transform root, float height)
+        {
+            if (Characters == null || Characters.dogPrefab == null) return null;
+
+            var renderer = body.GetComponent<Renderer>();
+            var view = FieldDogView.Attach(Characters, body, root, height, root.position);
+            if (view == null) return null;
+
+            foreach (var part in body.GetComponentsInChildren<Renderer>())
+                if (!view.Owns(part)) part.enabled = false;
+            dogViews[renderer] = view;
+            return view;
+        }
+
         // Yoldaş kâşifin hemen arkasında doğar.
         void BuildCompanion()
         {
@@ -594,6 +613,12 @@ namespace AftershockIsle.Expedition
             if (views.TryGetValue(target, out var view) && view != null)
             {
                 view.SetTint(color);
+                return;
+            }
+
+            if (dogViews.TryGetValue(target, out var dogView) && dogView != null)
+            {
+                dogView.SetTint(color);
                 return;
             }
 

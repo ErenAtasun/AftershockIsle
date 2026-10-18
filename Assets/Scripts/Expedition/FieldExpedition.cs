@@ -113,6 +113,8 @@ namespace AftershockIsle.Expedition
         FieldArtLibrary art;
         // Kapsül gövdenin yerine geçen karakter modelleri: kapsüle yapılan Tint çağrıları modele yönlenir.
         readonly Dictionary<Renderer, CharacterView> views = new Dictionary<Renderer, CharacterView>();
+        // Küp gövdeli köpek düşmanların yerine geçen 3B köpek modelleri (Tint çağrıları modele yönlenir).
+        readonly Dictionary<Renderer, FieldDogView> dogViews = new Dictionary<Renderer, FieldDogView>();
 
         WeaponKind weapon = WeaponKind.Slingshot;
         float fireCooldown;
@@ -224,6 +226,7 @@ namespace AftershockIsle.Expedition
             enemies.Clear();
             enemyByCollider.Clear();
             views.Clear();
+            dogViews.Clear();
             enemyAimLines.Clear();
             tracers.Clear();
             coverPoints.Clear();
@@ -273,6 +276,7 @@ namespace AftershockIsle.Expedition
             companion = null;
             partner = null;
             views.Clear();
+            dogViews.Clear();
             explorer = null;
             Outcome = FieldOutcome.Idle;
         }

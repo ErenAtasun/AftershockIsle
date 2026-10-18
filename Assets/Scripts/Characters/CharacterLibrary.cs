@@ -67,6 +67,15 @@ namespace AftershockIsle.Characters
         [Header("Silah Modelleri (Low Poly Guns Pack)")]
         public GunVisualEntry[] guns = Array.Empty<GunVisualEntry>();
 
+        [Header("Köpek Görünümü (RSG_DogsPack)")]
+        [Tooltip("Saha düşmanı köpekler için 3B model (P_GermanShepherd).")]
+        public GameObject dogPrefab;
+        public AnimationClip dogIdleClip;
+        public AnimationClip dogWalkClip;
+        public AnimationClip dogRunClip;
+        [Tooltip("Köpek modeli yanlış yöne bakıyorsa buradan döndür.")]
+        public float dogYawOffset = 0f;
+
         public bool TryGetGun(GunModelKind kind, int variant, out GunVisualEntry entry)
         {
             entry = default;

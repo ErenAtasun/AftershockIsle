@@ -145,6 +145,14 @@ namespace AftershockIsle.EditorTools
 
             library.guns = BuildGunEntries();
 
+            // Köpek (RSG_DogsPack): saha düşmanı köpeklerin modeli ve animasyonları.
+            var (dogPrefab, dogIdle, dogWalk, dogRun) = FindDogAssets();
+            library.dogPrefab = dogPrefab;
+            library.dogIdleClip = dogIdle;
+            library.dogWalkClip = dogWalk;
+            library.dogRunClip = dogRun;
+            UpgradeDogMaterialsToUrp();
+
             EditorUtility.SetDirty(library);
             AssetDatabase.SaveAssets();
             Debug.Log($"Karakter kütüphanesi hazır: {mainPath} (koşu: {(library.moveClip != null ? library.moveClip.name : "yok")}, " +
@@ -266,6 +274,77 @@ namespace AftershockIsle.EditorTools
         }
 
         // FBX'in içindeki gerçek klip ("__preview__" önizlemeleri hariç).
+        const string DogsRoot = "Assets/RSG_DogsPack";
+
+        static (GameObject prefab, AnimationClip idle, AnimationClip walk, AnimationClip run) FindDogAssets()
+        {
+            GameObject prefab = null;
+            AnimationClip idle = null, walk = null, run = null;
+            if (!AssetDatabase.IsValidFolder(DogsRoot)) return (null, null, null, null);
+
+            foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { DogsRoot }))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid).Replace('\\', '/');
+                if (!path.Contains("GermanShepherd")) continue;
+                prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                if (prefab != null) break;
+            }
+
+            foreach (string guid in AssetDatabase.FindAssets("t:Model", new[] { DogsRoot }))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid).Replace('\\', '/');
+                if (prefab == null && path.Contains("GermanShepherd")) prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+
+                string name = Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
+                var clip = FirstClip(path);
+                if (clip == null) continue;
+                if (name.Contains("idle") && name.Contains("breath")) idle = clip;
+                else if (name.Contains("idle") && idle == null) idle = clip;
+                else if (name.Contains("walk") && !name.Contains("turn")) walk = clip;
+                else if (name.Contains("run") && name.Contains("loop")) run = clip;
+                else if (name.Contains("run") && run == null && !name.Contains("lean")) run = clip;
+            }
+            return (prefab, idle, walk, run);
+        }
+
+        // Paket HDRP malzemeleriyle gelir (URP'de pembe görünür): URP Lit'e çevrilir, dokular korunur.
+        static void UpgradeDogMaterialsToUrp()
+        {
+            string folder = DogsRoot + "/HDRP/Materials";
+            if (!AssetDatabase.IsValidFolder(folder)) return;
+            var urp = GraphicsSettings.currentRenderPipeline != null ? GraphicsSettings.currentRenderPipeline.defaultShader : Shader.Find("Universal Render Pipeline/Lit");
+            if (urp == null) return;
+
+            foreach (string guid in AssetDatabase.FindAssets("t:Material", new[] { folder }))
+            {
+                var mat = AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(guid));
+                if (mat == null || mat.shader == urp) continue;
+
+                Texture main = mat.HasProperty("_BaseColorMap") ? mat.GetTexture("_BaseColorMap") : null;
+                if (main == null && mat.HasProperty("_BaseMap")) main = mat.GetTexture("_BaseMap");
+                Texture normal = mat.HasProperty("_NormalMap") ? mat.GetTexture("_NormalMap") : null;
+                if (normal == null && mat.HasProperty("_BumpMap")) normal = mat.GetTexture("_BumpMap");
+
+                mat.shader = urp;
+                if (main != null) mat.SetTexture("_BaseMap", main);
+                if (normal != null)
+                {
+                    mat.SetTexture("_BumpMap", normal);
+                    mat.EnableKeyword("_NORMALMAP");
+                }
+                mat.SetColor("_BaseColor", Color.white);
+                mat.SetFloat("_Smoothness", 0.25f);
+                if (mat.name.Contains("Transparent"))
+                {
+                    mat.SetFloat("_AlphaClip", 1f);
+                    mat.SetFloat("_Cutoff", 0.5f);
+                    mat.EnableKeyword("_ALPHATEST_ON");
+                    mat.renderQueue = 2450;
+                }
+                EditorUtility.SetDirty(mat);
+            }
+        }
+
         static AnimationClip FirstClip(string path)
         {
             var clips = new List<AnimationClip>();

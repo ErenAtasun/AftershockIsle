@@ -18,20 +18,31 @@ using UnityEngine.UI;
 namespace AftershockIsle.UI
 {
     /// <summary>
-    /// Gün kartı: oyunun ilk gününde kısa bir giriş, sonraki her gün başında "geçen günün özeti + yeni günün durumu".
-    /// Özet geceyi (yemek, baskın, kayıplar), depo değişimini ve yapılanları verir; yeni gün bölümü havayı, gece için
-    /// gereken Yaşam Kitini, kazazedelerin durumunu ve zafer hedefindeki eksiği gösterir. Kart açıkken zaman durur;
-    /// "Devam" (Enter / A / tık) ile kapanır.
+    /// Sabah ekranı:
+    /// - Normal günlerde: Tam ekran pencere açılmaz; üst kısımda kısa bir "GÜN N" ve özet satırı
+    ///   (yemek, keşif sonucu, depo değişimi) belirir. Zaman akmaya devam eder, oyuncuyu bölmez.
+    /// - Kritik durumlarda (İlk gün veya ölüm / ağır kayıp olduğunda): Büyük kart açılır, zaman durur
+    ///   ve oyuncunun "Devam" onayı beklenir.
     /// </summary>
     public class DayCard : MonoBehaviour
     {
+        const float CompactBannerDuration = 8.5f;
+
         UiWindow window;
         Button continueButton;
         bool open;
         int pendingDay;
         int pendingFrames;
 
-        // Önceki gün başından beri biriken veriler.
+        // Kompakt Sabah Başlığı (Normal Günler)
+        Canvas compactCanvas;
+        GameObject compactRoot;
+        Text compactTitle;
+        Text compactSummary;
+        float compactCloseAt;
+        bool compactVisible;
+
+        // Önceki gün başından beri biriken veriler
         readonly int[] startResources = new int[ResourceTypes.Count];
         int fed;
         int hungry;
@@ -87,7 +98,7 @@ namespace AftershockIsle.UI
             TimeManager.Release(this);
         }
 
-        // ---------------------------------------------------------------- Veri toplama
+        // ---------------------------------------------------------------- Veri Toplama
 
         void OnUpkeep(UpkeepResolved evt)
         {
@@ -101,7 +112,7 @@ namespace AftershockIsle.UI
         void OnRaid(NightRaidResolved evt)
         {
             if (!evt.Happened) raidText = "Gece sakin geçti.";
-            else raidText = evt.Repelled ? "<color=#9be37a>Yağmacı baskını püskürtüldü.</color>" : "<color=#ff8f7a>Yağmacılar sığınağı talan etti.</color>";
+            else raidText = evt.Repelled ? "<color=#9be37a>Yağmacı baskını püskürtüldü.</color>" : "<color=#ff8f7a>Yağmacılar sığınağı talan etti!</color>";
         }
 
         void OnDied(SurvivorDied evt) => deaths.Add($"{evt.Survivor.DisplayName} ({evt.Cause})");
@@ -117,26 +128,25 @@ namespace AftershockIsle.UI
 
         void OnLoaded(GameLoaded evt)
         {
-            // Yüklenen oyunda eski özetin anlamı yok: kartı kapat, sayaçları yeni durumdan başlat.
             pendingDay = 0;
             Dismiss();
+            DismissCompact();
             TakeSnapshot();
         }
 
-        // ---------------------------------------------------------------- Gün başı
+        // ---------------------------------------------------------------- Gün Başı
 
         void OnDayStarted(DayStarted evt)
         {
             if (evt.Day < 1 || SaveManager.PendingLoad || SaveManager.IsApplying) return;
             pendingDay = evt.Day;
-            pendingFrames = 3; // Hava ve diğer sistemler aynı olayda yeni değerlerini alsın.
+            pendingFrames = 3;
         }
 
         void Update()
         {
             if (pendingDay > 0)
             {
-                // Gün geçişi (kararma ve "GÜN N" yazısı) bitince açılır.
                 if (DayTransition.Busy) return;
                 if (--pendingFrames <= 0)
                 {
@@ -145,6 +155,11 @@ namespace AftershockIsle.UI
                     Show(day);
                 }
                 return;
+            }
+
+            if (compactVisible && Time.unscaledTime >= compactCloseAt)
+            {
+                DismissCompact();
             }
 
             if (!open) return;
@@ -159,6 +174,120 @@ namespace AftershockIsle.UI
             var session = FindFirstObjectByType<GameSession>();
             if (session != null && session.Outcome != GameOutcome.None) return;
 
+            // Kritik durum kontrolü: İlk gün başlangıcı VEYA ölüm/kayıp varsa büyük modal açılır.
+            bool isCritical = day <= 1 || deaths.Count > 0 || scoutReports.Exists(r => r.Contains("öldü") || r.Contains("kayıp") || r.Contains("ağır yaralı"));
+
+            if (isCritical)
+            {
+                DismissCompact();
+                ShowCriticalModal(day);
+            }
+            else
+            {
+                Dismiss();
+                ShowCompactBanner(day);
+            }
+
+            TakeSnapshot();
+        }
+
+        // ---------------------------------------------------------------- Kompakt Sabah Başlığı
+
+        void ShowCompactBanner(int day)
+        {
+            EnsureCompactBanner();
+
+            var weather = WeatherSystem.Current;
+            compactTitle.text = $"GÜN {day} BAŞLADI   <size=15><color=#cfcfc8>• Hava: {WeatherSystem.ToDisplayName(weather)}</color></size>";
+            compactSummary.text = BuildCompactSummaryText();
+
+            compactRoot.SetActive(true);
+            compactVisible = true;
+            compactCloseAt = Time.unscaledTime + CompactBannerDuration;
+
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.DayPhaseChange, 0.6f);
+        }
+
+        string BuildCompactSummaryText()
+        {
+            var parts = new List<string>();
+
+            // 1) Yemek & Gece
+            if (fed + hungry > 0)
+            {
+                if (hungry == 0) parts.Add($"<color=#9be37a>{fed} kişi doydu</color>");
+                else parts.Add($"{fed} doydu, <color=#ff8f7a>{hungry} aç kaldı</color>");
+            }
+            if (!string.IsNullOrEmpty(raidText))
+            {
+                parts.Add(raidText);
+            }
+
+            // 2) Keşif Sonucu
+            if (scoutReports.Count > 0)
+            {
+                parts.Add($"Keşif: {string.Join(" • ", scoutReports)}");
+            }
+
+            // 3) Depo Değişimi
+            var storage = ResourceStorage.Instance;
+            if (storage != null)
+            {
+                var changes = new List<string>();
+                foreach (var type in ResourceTypes.All)
+                {
+                    if (!type.IsStorable()) continue;
+                    int delta = storage.Get(type) - startResources[(int)type];
+                    if (delta == 0) continue;
+                    string color = delta > 0 ? "#9be37a" : "#ff8f7a";
+                    changes.Add($"<color={color}>{delta:+#;-#} {type.ToDisplayName()}</color>");
+                }
+                if (changes.Count > 0) parts.Add($"Depo: {string.Join(" ", changes)}");
+            }
+
+            return parts.Count > 0 ? string.Join("   |   ", parts) : "Gece olaysız geçti.";
+        }
+
+        void EnsureCompactBanner()
+        {
+            if (compactRoot != null) return;
+
+            compactCanvas = UiFactory.Canvas("[Sabah Özeti]", 45);
+            compactRoot = UiFactory.Panel(compactCanvas.transform, "CompactCard", new Color(0.10f, 0.12f, 0.16f, 0.96f)).gameObject;
+            var rect = compactRoot.GetComponent<RectTransform>();
+            UiFactory.Place(rect, new Vector2(0.5f, 1f), new Vector2(0f, -48f), new Vector2(960f, 68f));
+
+            // Kenarlık / Vurgu çizgisi
+            var accentLine = UiFactory.Panel(compactRoot.transform, "AccentLine", UiFactory.Accent);
+            UiFactory.Place(accentLine.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, 0f), new Vector2(960f, 3f));
+
+            compactTitle = UiFactory.Label(compactRoot.transform, "", 17, UiFactory.Accent, TextAnchor.UpperLeft);
+            UiFactory.Place(compactTitle.rectTransform, new Vector2(0f, 1f), new Vector2(16f, -8f), new Vector2(860f, 22f));
+
+            compactSummary = UiFactory.Label(compactRoot.transform, "", 14, Color.white, TextAnchor.UpperLeft, FontStyle.Normal, false);
+            UiFactory.Place(compactSummary.rectTransform, new Vector2(0f, 1f), new Vector2(16f, -32f), new Vector2(920f, 28f));
+
+            // Kapatma düğmesi
+            var closeBtn = UiFactory.TextButton(compactRoot.transform, "✕", new Vector2(32f, 32f), DismissCompact, null, 15);
+            UiFactory.Place((RectTransform)closeBtn.transform, new Vector2(1f, 1f), new Vector2(-6f, -6f), new Vector2(32f, 32f));
+
+            // Tıklayınca hemen kapanması için tıklama alanı
+            var clickArea = compactRoot.AddComponent<Button>();
+            clickArea.onClick.AddListener(DismissCompact);
+
+            compactRoot.SetActive(false);
+        }
+
+        void DismissCompact()
+        {
+            compactVisible = false;
+            if (compactRoot != null) compactRoot.SetActive(false);
+        }
+
+        // ---------------------------------------------------------------- Büyük Kritik Modal
+
+        void ShowCriticalModal(int day)
+        {
             if (window == null) window = new UiWindow("Gün Kartı", new Vector2(1000f, 760f), null, true, false);
             window.ClearContent();
             window.ClearFooter();
@@ -170,7 +299,6 @@ namespace AftershockIsle.UI
 
             continueButton = window.FooterButton($"Devam ({GameInput.Prompt(InputPrompt.Confirm)})", Dismiss, UiFactory.Good, 260f);
 
-            TakeSnapshot();
             open = true;
             window.Show(true);
             TimeManager.Hold(this);
@@ -203,8 +331,6 @@ namespace AftershockIsle.UI
             expeditions = 0;
             lootItems = 0;
         }
-
-        // ---------------------------------------------------------------- İçerik
 
         void BuildSummary()
         {
@@ -257,7 +383,7 @@ namespace AftershockIsle.UI
                     UiFactory.Text);
                 Line("İlk görevler: kırık kolonu onar, molozu kaz, zamanı durdurup planını yap.", new Color(0.84f, 0.84f, 0.8f));
                 Line("Çalışma Tezgahı (2. kat): aletler (Kürek, Levye...), silah, mermi, ekipman ve yükseltmeler.   İnşaat Masası (giriş katı): eve kurulan yapılar.   Sandalyeler: dinlenmek için.", new Color(0.84f, 0.84f, 0.8f));
-                Line("Her akşam Akşam Planı açılır: kim sığınakta kalacak, kim nöbet tutacak, kim gece keşfine çıkacak ve kim yiyecek, sen seçersin.", new Color(0.84f, 0.84f, 0.8f));
+                Line("Her akşam Şehir Haritası açılır: kim sığınakta kalacak, kim nöbet tutacak, kim gece keşfine çıkacak ve kim yiyecek, sen seçersin.", new Color(0.84f, 0.84f, 0.8f));
             }
 
             var weather = WeatherSystem.Current;

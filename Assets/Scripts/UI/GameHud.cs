@@ -65,6 +65,10 @@ namespace AftershockIsle.UI
         TimeManager timeManager;
         DayCycle dayCycle;
         Text evacHeading;
+        RectTransform evacChipRect;
+        string lastGoalTitle;
+        float goalChangedAt = -100f;
+        string lastGoalTip = "";
         CommandController commands;
         BuildingLayout building;
         GameSession session;
@@ -126,6 +130,11 @@ namespace AftershockIsle.UI
         void Start()
         {
             UiFactory.EnsureEventSystem();
+            if (FindFirstObjectByType<InventoryWindow>() == null)
+            {
+                var invGo = new GameObject("InventoryWindow");
+                invGo.AddComponent<InventoryWindow>();
+            }
             Build();
         }
 
@@ -313,15 +322,35 @@ namespace AftershockIsle.UI
                 UiTooltip.Attach(holder.gameObject, () => ResourceTip(type));
             }
 
+            // Çanta (Envanter) ve Harita Kısayol Butonları
+            // Kaynak satırının hemen altında, sağa yaslı: bütünlük çubuğu ve uyarılarla çakışmaz.
+            const float navHeight = 40f;
+            var quickNav = UiFactory.Rect("QuickNav", parent);
+            UiFactory.Place(quickNav, new Vector2(1f, 1f), new Vector2(-Margin, -Margin - height - 6f), new Vector2(330f, navHeight));
+
+            var mapBtn = UiFactory.TextButton(quickNav, "HARİTA [M]", new Vector2(160f, navHeight), () =>
+            {
+                ExpeditionWindow.Instance?.OpenInspection();
+            }, UiFactory.SlateLight, 16);
+            UiFactory.Place((RectTransform)mapBtn.transform, new Vector2(1f, 0.5f), Vector2.zero, new Vector2(160f, navHeight));
+            UiTooltip.Attach(mapBtn.gameObject, () => "Şehir Keşif Haritası (M)\nLokasyonları, tehlikeleri ve ganimetleri incele.");
+
+            var bagBtn = UiFactory.TextButton(quickNav, "ÇANTA [I]", new Vector2(160f, navHeight), () =>
+            {
+                InventoryWindow.Instance?.Toggle();
+            }, UiFactory.SlateLight, 16);
+            UiFactory.Place((RectTransform)bagBtn.transform, new Vector2(1f, 0.5f), new Vector2(-170f, 0f), new Vector2(160f, navHeight));
+            UiTooltip.Attach(bagBtn.gameObject, () => "Sığınak Envanteri (I)\nDepodaki malzeme, mermi, alet ve kuruluma hazır yapılar.");
+
             var chip = UiFactory.Panel(parent, "Elektrik Kesik", new Color(0.55f, 0.16f, 0.12f, 0.95f));
-            UiFactory.Place(chip.rectTransform, new Vector2(1f, 1f), new Vector2(-Margin, -Margin - height - 6f), new Vector2(190f, 30f));
+            UiFactory.Place(chip.rectTransform, new Vector2(1f, 1f), new Vector2(-Margin, -Margin - height - 6f - navHeight - 6f), new Vector2(190f, 30f));
             var chipLabel = UiFactory.Label(chip.transform, "ELEKTRİK KESİK", 15, UiFactory.Text);
             UiFactory.Stretch(chipLabel.rectTransform);
             powerChip = chip.gameObject;
 
             // Sefer sürerken: kim, nerede, kalan süre, can ve çanta; sahaya geçme kısayolu.
             var expedition = UiFactory.Panel(parent, "Sefer", UiFactory.Slate);
-            UiFactory.Place(expedition.rectTransform, new Vector2(1f, 1f), new Vector2(-Margin, -Margin - height - 42f), new Vector2(430f, 56f));
+            UiFactory.Place(expedition.rectTransform, new Vector2(1f, 1f), new Vector2(-Margin, -Margin - height - 6f - navHeight - 6f - 36f), new Vector2(430f, 56f));
             expeditionLabel = UiFactory.Label(expedition.transform, "", 15, UiFactory.Text, TextAnchor.MiddleLeft, FontStyle.Normal, false);
             UiFactory.Stretch(expeditionLabel.rectTransform, 12f);
             expeditionChip = expedition.gameObject;
@@ -376,9 +405,11 @@ namespace AftershockIsle.UI
         void BuildEvacuation(Transform parent)
         {
             var chip = UiFactory.Panel(parent, "Tahliye Özeti", UiFactory.Slate);
-            UiFactory.Place(chip.rectTransform, new Vector2(1f, 0f), new Vector2(-Margin, 34f), new Vector2(480f, 86f));
+            UiFactory.Place(chip.rectTransform, new Vector2(1f, 0f), new Vector2(-Margin, 34f), new Vector2(480f, 44f));
             evacChipLabel = UiFactory.Label(chip.transform, "", 17, UiFactory.Text, TextAnchor.UpperLeft, FontStyle.Normal, false);
             UiFactory.Stretch(evacChipLabel.rectTransform, 10f);
+            evacChipRect = chip.rectTransform;
+            UiTooltip.Attach(chip.gameObject, () => lastGoalTip);
             evacChip = chip.gameObject;
 
             var panel = UiFactory.Panel(parent, "Tahliye", UiFactory.Slate);
@@ -395,7 +426,8 @@ namespace AftershockIsle.UI
             for (int i = 0; i < NoticeSlots; i++)
             {
                 var plate = UiFactory.Image(canvas, $"Bildirim {i}", null, new Color(0.08f, 0.08f, 0.1f, 0.85f));
-                UiFactory.Place(plate.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 205f + i * 40f), new Vector2(760f, 34f));
+                // İpucu kartının (altta, ~320 px'e kadar) üstünde dizilir: üst üste binmesin.
+                UiFactory.Place(plate.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 340f + i * 40f), new Vector2(760f, 34f));
                 var label = UiFactory.Label(plate.transform, "", 16, UiFactory.Text, TextAnchor.MiddleCenter, FontStyle.Normal);
                 UiFactory.Stretch(label.rectTransform, 6f);
                 plate.gameObject.SetActive(false);
@@ -638,7 +670,18 @@ namespace AftershockIsle.UI
             var goal = GoalAdvisor.Current(building);
             evacChip.SetActive(true);
             evacPanel.SetActive(radio != null && Planning);
-            evacChipLabel.text = GoalLabel(goal, null);
+
+            // Ayrıntı satırı yalnızca hedef değişince (12 sn), acil durumda ya da zaman durunca açık; aksi halde tek satır.
+            if (goal.Title != lastGoalTitle)
+            {
+                lastGoalTitle = goal.Title;
+                goalChangedAt = Time.unscaledTime;
+            }
+            bool showDetail = Planning || goal.Urgent || Time.unscaledTime - goalChangedAt < 12f;
+            evacChipRect.sizeDelta = new Vector2(480f, showDetail ? 86f : 44f);
+            lastGoalTip = $"<b><color=#ffd75a>{goal.Title}</color></b>\n{goal.Detail}";
+            goalShowDetail = showDetail;
+            evacChipLabel.text = GoalLabel(goal, null, showDetail);
             if (radio == null) return;
 
             var conditions = EvacuationConditions.Evaluate(building, radio);
@@ -650,7 +693,7 @@ namespace AftershockIsle.UI
 
             string signal = radio.SignalComplete ? "ulaştı" : $"%{radio.Signal01 * 100f:0}";
             if (GameMode.IsEndless && radio.SignalComplete) signal = $"Gün {EvacuationSystem.NextDropDay}'de";
-            evacChipLabel.text = GoalLabel(goal, $"{(GameMode.IsEndless ? "Yardım" : "Tahliye")} {count}/{done.Length}  ·  Sinyal {signal}");
+            evacChipLabel.text = GoalLabel(goal, $"{(GameMode.IsEndless ? "Yardım" : "Tahliye")} {count}/{done.Length}  ·  Sinyal {signal}", goalShowDetail);
             if (evacHeading != null) evacHeading.text = GameMode.IsEndless ? "ERZAK YARDIMI ŞARTLARI" : "TAHLİYE ŞARTLARI";
 
             if (!Planning) return;
@@ -664,12 +707,15 @@ namespace AftershockIsle.UI
             checklist.text = text.ToString();
         }
 
-        static string GoalLabel(GoalAdvisor.Goal goal, string progress)
+        bool goalShowDetail;
+
+        static string GoalLabel(GoalAdvisor.Goal goal, string progress, bool showDetail)
         {
             string color = goal.Urgent ? "#ff8f7a" : "#ffd75a";
             string head = goal.Urgent ? "ACİL" : "HEDEF";
-            string tail = string.IsNullOrEmpty(progress) ? "" : $"   <color=#a8a8a0>{progress}</color>";
-            return $"<color={color}><b>{head}: {goal.Title}</b></color>{tail}\n<size=14><color=#d9d9d2>{goal.Detail}</color></size>";
+            string tail = string.IsNullOrEmpty(progress) || !showDetail ? "" : $"   <color=#a8a8a0>{progress}</color>";
+            string title = $"<color={color}><b>{head}: {goal.Title}</b></color>{tail}";
+            return showDetail ? $"{title}\n<size=14><color=#d9d9d2>{goal.Detail}</color></size>" : title;
         }
 
         // ---------------------------------------------------------------- İpucu balonları

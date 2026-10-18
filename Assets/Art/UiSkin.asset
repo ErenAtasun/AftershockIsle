@@ -17,6 +17,10 @@ MonoBehaviour:
   skillTreeBackground: {fileID: 21300000, guid: 2775ca1883129f142a17a82cdef6c708, type: 3}
   settingsPanel: {fileID: 21300000, guid: a94339a4cfd383e46a224d5a4c7a3855, type: 3}
   pausedTitle: {fileID: 21300000, guid: ac90be6241114d94ea9a4d58724747b0, type: 3}
+  cityMap: {fileID: 21300000, guid: 39b7fee17237b014082f82fd7ee2dfef, type: 3}
+  inventorySheet: {fileID: 21300000, guid: 431cf65988ff36f43bd90104adb7af7a, type: 3}
+  pbhLogo: {fileID: 21300000, guid: d709b748287bcbe459510b607566e2cf, type: 3}
+  pbhLogoTransparent: {fileID: 21300000, guid: 023ec615f63355443a3fa707e136ee69, type: 3}
   startButton: {fileID: 21300000, guid: f3214602b092eba46a469f2d0a800fcf, type: 3}
   howToButton: {fileID: 21300000, guid: dc71ec48d40e40146a8cc28b5bb98277, type: 3}
   playButton: {fileID: 21300000, guid: 7aaed453a94108b4687006887320533d, type: 3}

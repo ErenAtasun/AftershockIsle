@@ -52,6 +52,7 @@ namespace AftershockIsle.UI
         float rebuildAt;
         float listAt;
         int used;
+        bool showAll;
 
         void Start()
         {
@@ -107,12 +108,21 @@ namespace AftershockIsle.UI
             var selected = commands != null ? commands.Selected : null;
             int selectedFloor = selected != null ? selected.Mover.CurrentFloor : -1;
 
+            // Ekran sade kalsın: acil ve önerilen işaretler hep görünür; isteğe bağlı işler, istasyonlar ve kat adları
+            // yalnızca zaman durunca ya da Alt basılıyken (kat adları ayrıca o katta tehlike varsa) gösterilir.
+            showAll = Time.timeScale <= 0f || GameInput.ShowAllMarkersHeld;
+            var hovered = commands != null ? commands.Hovered : null;
+            var nearby = commands != null ? commands.Nearby : null;
+
             foreach (var thing in things)
             {
                 if (thing == null || !thing.isActiveAndEnabled || !thing.IsInteractive) continue;
+                // Üstüne gelinen ya da yanındaki nesneyi bilgi kartı ve "[F]" istemi zaten anlatıyor.
+                if (thing == hovered || thing == nearby) continue;
 
                 var guide = InteractableGuide.Of(thing);
                 if (guide.Kind == MarkerKind.None || string.IsNullOrEmpty(guide.Marker)) continue;
+                if ((guide.Kind == MarkerKind.Optional || guide.Kind == MarkerKind.Station) && !showAll) continue;
                 if (guide.Kind == MarkerKind.Optional && thing.Floor != selectedFloor) continue;
                 // Elinde iş olan (başka biri çalışan) nesneye de etiket kalır; çalışan zaten ilerleme çubuğuyla görünür.
 
@@ -146,6 +156,9 @@ namespace AftershockIsle.UI
 
                 foreach (var leak in GasLeak.All)
                     if (leak != null && leak.Floor == floor && leak.IsLeaking) { hazards.Add("GAZ KAÇAĞI"); break; }
+
+                // Tehlike yoksa kat adı yalnızca "hepsini göster" modunda yazılır.
+                if (hazards.Count == 0 && !showAll) continue;
 
                 int rubble = RubblePile.CountOnFloor(floor);
                 string tail = hazards.Count > 0 ? "  ·  " + string.Join("  ·  ", hazards) : "";
@@ -248,8 +261,13 @@ namespace AftershockIsle.UI
                 }
                 if (!item.Rect.gameObject.activeSelf) item.Rect.gameObject.SetActive(true);
 
-                // Kat adları ekran kenarına yapışık kalır (bina kenarı dışarıdaysa da okunur).
-                if (entry.IsFloor) point.x = Mathf.Clamp(point.x, item.Width * 0.5f + 12f, Screen.width - item.Width * 0.5f - 12f);
+                // Bina kenarı ekran dışındaysa kat adı da gizlenir (kenara yapışıp başka arayüzün üstüne binmesin).
+                if (entry.IsFloor && (point.x - item.Width * 0.5f < 4f || point.x + item.Width * 0.5f > Screen.width - 4f))
+                {
+                    item.Rect.gameObject.SetActive(false);
+                    screen[i] = new Vector2(-9999f, -9999f);
+                    continue;
+                }
 
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, point, null, out var local);
                 screen[i] = local;

@@ -19,17 +19,26 @@ namespace AftershockIsle.UI
         GameObject howTo;
         SettingsPanel settings;
         GameObject firstButton;
+        bool splashActive;
 
         void Start()
         {
             Time.timeScale = 1f;
             UiFactory.EnsureEventSystem();
             Build();
-            Select(firstButton);
+
+            // Oyun ilk açıldığında önce stüdyo logosu; bitince menü odağı verilir (logoyu geçen tuş menüye basmasın).
+            splashActive = SplashScreen.TryPlay(transform, () =>
+            {
+                splashActive = false;
+                Select(firstButton);
+            });
+            if (!splashActive) Select(firstButton);
         }
 
         void Update()
         {
+            if (splashActive) return;
             if (settings.ConsumedBack) return;
 
             if (howTo.activeSelf && (GameInput.MenuBackPressed || GameInput.EscapePressed))
@@ -118,6 +127,14 @@ namespace AftershockIsle.UI
             UiFactory.Place((RectTransform)gear.transform, new Vector2(0f, 0.5f), new Vector2(20f, 0f), new Vector2(118f, 118f));
             var quit = UiFactory.SpriteButton(corner, "Çık", skin != null ? skin.closeButton : null, new Vector2(118f, 118f), PauseMenu.QuitGame, "Çık");
             UiFactory.Place((RectTransform)quit.transform, new Vector2(1f, 0.5f), new Vector2(-20f, 0f), new Vector2(118f, 118f));
+
+            // Sol altta küçük stüdyo logosu.
+            if (skin != null && skin.pbhLogo != null)
+            {
+                var badge = UiFactory.Image(canvas, "PBH Logo", skin.pbhLogo, new Color(1f, 1f, 1f, 0.92f));
+                badge.preserveAspect = true;
+                UiFactory.Place(badge.rectTransform, new Vector2(0f, 0f), new Vector2(36f, 36f), new Vector2(132f, 132f));
+            }
 
             howTo = BuildHowTo(canvas, skin);
             settings = SettingsPanel.Create(canvas, () => Select(firstButton));

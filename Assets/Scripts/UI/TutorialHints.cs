@@ -341,6 +341,8 @@ namespace AftershockIsle.UI
             Section("EKRANDAKİ İŞARETLER", "", "");
             Note("Nesne üstündeki etiketler: KIRMIZI yanıp sönen = acil (yangın, gaz, patlak boru, yıkık kolon, su baskını). AMBER = önerilen iş " +
                  "(yolu kapatan moloz, güçlendirilecek kolon). GRİ = isteğe bağlı iş (seçili karakterin katında). SOLUK LACİVERT = istasyon (tezgah, sandık, telsiz, çıkış).");
+            Note("Ekran sade kalsın diye acil ve önerilen işaretler hep görünür; GRİ ve LACİVERT etiketler ile kat adları yalnızca zaman durunca ya da ALT basılıyken " +
+                 "(kat adları ayrıca o katta tehlike varsa) gösterilir. Yakınındaki nesnenin kartı birkaç saniye sonra kapanır.");
             Note("Bir nesnenin üstüne gelince (ya da yanına gidince) bilgi kartı açılır: ne işe yaradığı, süre (alet etkisiyle), kazancı ve şu an yapılamıyorsa nedeni.");
             Note("Karakterin başındaki etiketler: AÇ, GERGİN, YARALI, PANİK ve yaptığı iş. Binanın solundaki kat adlarının yanında o kattaki tehlike yazar.");
             Note("Sağ alttaki HEDEF kutusu sıradaki adımı ve eksik malzemenin nereden bulunacağını söyler. Üst sağdaki kaynak rozetlerinin, açlık ve stres " +

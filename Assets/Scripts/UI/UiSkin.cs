@@ -17,6 +17,12 @@ namespace AftershockIsle.UI
         public Sprite settingsPanel;
         public Sprite pausedTitle;
 
+        [Header("Pencere görselleri ve logo")]
+        public Sprite cityMap;
+        public Sprite inventorySheet;
+        public Sprite pbhLogo;
+        public Sprite pbhLogoTransparent;
+
         [Header("Butonlar")]
         public Sprite startButton;
         public Sprite howToButton;

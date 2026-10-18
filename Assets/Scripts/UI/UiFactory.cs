@@ -149,9 +149,19 @@ namespace AftershockIsle.UI
 
             if (outline)
             {
-                var effect = rect.gameObject.AddComponent<Outline>();
-                effect.effectColor = new Color(0f, 0f, 0f, 0.85f);
-                effect.effectDistance = new Vector2(Mathf.Max(1.5f, size / 18f), -Mathf.Max(1.5f, size / 18f));
+                if (size >= 22)
+                {
+                    var effect = rect.gameObject.AddComponent<Outline>();
+                    effect.effectColor = new Color(0f, 0f, 0f, 0.85f);
+                    effect.effectDistance = new Vector2(Mathf.Max(1.5f, size / 18f), -Mathf.Max(1.5f, size / 18f));
+                }
+                else
+                {
+                    // Küçük yazıda kalın kontur harfleri birbirine karıştırır (bulanık görünür): ince gölge yeter.
+                    var shadow = rect.gameObject.AddComponent<Shadow>();
+                    shadow.effectColor = new Color(0f, 0f, 0f, 0.8f);
+                    shadow.effectDistance = new Vector2(1f, -1f);
+                }
             }
             return label;
         }
@@ -288,6 +298,9 @@ namespace AftershockIsle.UI
         bool pressed;
         Selectable selectable;
 
+        /// <summary>false: düğme büyüyüp küçülmez (harita düğümleri ve envanter slotları: ölçeklenen yazı bulanıklaşır).</summary>
+        public bool ScaleOnHover = true;
+
         void Awake() => selectable = GetComponent<Selectable>();
 
         public void OnPointerEnter(PointerEventData eventData)
@@ -320,6 +333,12 @@ namespace AftershockIsle.UI
 
         void Update()
         {
+            if (!ScaleOnHover)
+            {
+                if (transform.localScale.x != 1f) transform.localScale = Vector3.one;
+                return;
+            }
+
             bool interactable = selectable == null || selectable.IsInteractable();
             float target = !interactable ? 1f : pressed ? 0.94f : hovered || selected ? 1.07f : 1f;
             float scale = Mathf.MoveTowards(transform.localScale.x, target, 1.6f * Time.unscaledDeltaTime);

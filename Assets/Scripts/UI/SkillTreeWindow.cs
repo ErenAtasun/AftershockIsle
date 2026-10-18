@@ -358,7 +358,7 @@ namespace AftershockIsle.UI
                 detailState.text = "<color=#9be37a>BU YETENEK AÇIK</color>";
                 detailUnlockButton.interactable = false;
                 detailUnlockButton.GetComponent<Image>().color = new Color(0.20f, 0.36f, 0.22f, 0.9f);
-                if (detailUnlockLabel != null) detailUnlockLabel.text = "AÇILDI ✓";
+                if (detailUnlockLabel != null) detailUnlockLabel.text = "AÇILDI";
             }
             else if (selCanUnlock)
             {

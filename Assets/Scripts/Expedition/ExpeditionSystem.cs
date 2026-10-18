@@ -191,6 +191,13 @@ namespace AftershockIsle.Expedition
             Companion = index + 1 < candidates.Count ? candidates[index + 1] : null;
         }
 
+        /// <summary>Yoldaşı doğrudan seçer (null: yoldaş yok). Aday değilse yok sayılır.</summary>
+        public void SetCompanion(Survivor survivor)
+        {
+            if (Stage != ExpeditionStage.ChoosingSite) return;
+            if (survivor == null || CompanionCandidates().Contains(survivor)) Companion = survivor;
+        }
+
         public List<Survivor> CompanionCandidates()
         {
             var result = new List<Survivor>();

@@ -30,6 +30,8 @@ namespace AftershockIsle.EditorTools
             if (imported.Concat(deleted).Concat(moved).Concat(movedFrom).Any(path =>
                 {
                     string p = path.Replace('\\', '/');
+                    // Dış mekan kiti kendi kurucusuyla (OutdoorKitBuilder) kurulur; onun içe aktarmaları burayı tetiklemesin.
+                    if (p.StartsWith("Assets/Models/Outdoor/")) return false;
                     return (p.StartsWith(WatchedRoot) || p.StartsWith(WatchedGunsRoot)) && IsLibrarySource(p);
                 }))
             {

@@ -47,7 +47,7 @@ namespace AftershockIsle.UI
         public static Sprite FrameSprite { get { EnsureSprites(); return frameSprite; } }
 
         /// <summary>Düğüm yanıp sönme çarpanı (seçili vurgular için).</summary>
-        public static float Pulse => 0.85f + 0.15f * Mathf.Sin(Time.unscaledTime * 5f);
+        public static float Pulse => 0.92f + 0.08f * Mathf.Sin(Time.unscaledTime * 3f);
 
         public CityMapView(string name, Action onClose, bool closable)
         {
@@ -85,7 +85,8 @@ namespace AftershockIsle.UI
 
             // Harita üstünde ipucu şeridi (ör. "Ali için keşif yeri seç").
             var banner = UiFactory.Panel(MapArea, "İpucu Şeridi", new Color(0.08f, 0.08f, 0.1f, 0.9f));
-            UiFactory.Place(banner.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -8f), new Vector2(760f, 44f));
+            // Görselin kendi başlığı üstte; ipucu şeridi altta durur, başlığı kapatmaz.
+            UiFactory.Place(banner.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 10f), new Vector2(760f, 46f));
             banner.raycastTarget = false;
             bannerText = UiFactory.Label(banner.transform, "", 19, UiFactory.Accent, TextAnchor.MiddleCenter);
             UiFactory.Stretch(bannerText.rectTransform, 6f);
@@ -143,6 +144,9 @@ namespace AftershockIsle.UI
         public void Open()
         {
             Window.Show(true);
+            // Harita oranı ilk karede doğru olsun (sonraki kareye kalırsa açılışta zıplar).
+            Canvas.ForceUpdateCanvases();
+            LayoutRebuilder.ForceRebuildLayoutImmediate(MapArea);
             AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.MapOpen, 0.8f, 0.02f);
         }
         public void Close() => Window.Show(false);
@@ -153,6 +157,7 @@ namespace AftershockIsle.UI
             SidePanel.gameObject.SetActive(visible);
             SidePanel.sizeDelta = new Vector2(width, 0f);
             MapArea.offsetMin = new Vector2(visible ? width + SideGap : 0f, 0f);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(MapArea);
         }
 
         public void ShowDetail(bool visible)
@@ -185,13 +190,28 @@ namespace AftershockIsle.UI
         /// </summary>
         public Button AddNode(string name, Rect norm, Color? plate, out Image highlight, out Text label)
         {
+            var anchorMin = new Vector2(norm.x - norm.width * 0.5f, 1f - norm.y - norm.height * 0.5f);
+            var anchorMax = new Vector2(norm.x + norm.width * 0.5f, 1f - norm.y + norm.height * 0.5f);
+
+            if (plate.HasValue)
+            {
+                // Haritadaki taşlara benzesin: koyu gölge, kalın kenarlı renkli levha, büyük koyu yazı.
+                var shadow = UiFactory.Image(Map, name + " Gölge", null, new Color(0f, 0f, 0f, 0.45f));
+                var shadowRect = shadow.rectTransform;
+                shadowRect.anchorMin = anchorMin;
+                shadowRect.anchorMax = anchorMax;
+                shadowRect.offsetMin = new Vector2(5f, -7f);
+                shadowRect.offsetMax = new Vector2(5f, -7f);
+            }
+
             var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
             go.transform.SetParent(Map, false);
             var rect = (RectTransform)go.transform;
-            rect.anchorMin = new Vector2(norm.x - norm.width * 0.5f, 1f - norm.y - norm.height * 0.5f);
-            rect.anchorMax = new Vector2(norm.x + norm.width * 0.5f, 1f - norm.y + norm.height * 0.5f);
+            rect.anchorMin = anchorMin;
+            rect.anchorMax = anchorMax;
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
+            go.AddComponent<UiHoverFlag>();
 
             var backing = go.GetComponent<Image>();
             backing.color = new Color(1f, 1f, 1f, 0.001f); // Görsel haritada çizili; yalnızca tıklama alanı.
@@ -210,26 +230,29 @@ namespace AftershockIsle.UI
 
             if (plate.HasValue)
             {
-                backing.sprite = frameSprite;
+                backing.sprite = UiFactory.Plate;
                 backing.type = Image.Type.Sliced;
                 backing.color = plate.Value;
                 label.alignment = TextAnchor.MiddleCenter;
-                label.fontSize = 18;
-                label.color = new Color(0.1f, 0.08f, 0.05f);
-                var outline = label.GetComponent<Outline>();
-                if (outline != null) outline.enabled = false;
+                label.fontSize = 22;
+                label.resizeTextForBestFit = true;
+                label.resizeTextMinSize = 12;
+                label.resizeTextMaxSize = 22;
+                label.color = new Color(0.09f, 0.1f, 0.17f);
+                foreach (var effect in label.GetComponents<Shadow>()) effect.enabled = false;
+                UiFactory.Stretch(label.rectTransform, 8f);
             }
 
             var button = go.GetComponent<Button>();
             button.targetGraphic = backing;
-            go.AddComponent<UiPress>();
+            go.AddComponent<UiPress>().ScaleOnHover = false;
             return button;
         }
 
         /// <summary>Düğümün altına isim rozeti (ör. o yere giden kazazedeler). Boş metinde gizlenir.</summary>
-        public static Text AddBadge(Button node, out GameObject plate)
+        public static Text AddBadge(Button node, out GameObject plate, Color? color = null)
         {
-            var image = UiFactory.Image(node.transform, "Rozet", null, new Color(0.12f, 0.26f, 0.45f, 0.95f));
+            var image = UiFactory.Image(node.transform, "Rozet", null, color ?? new Color(0.12f, 0.26f, 0.45f, 0.95f));
             var rect = image.rectTransform;
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
             rect.pivot = new Vector2(0.5f, 1f);
@@ -244,14 +267,15 @@ namespace AftershockIsle.UI
 
         // ---------------------------------------------------------------- Yerleşim (orana bağlı)
 
-        // Eski sabit piksel yerleşimi (570×500 harita) orana çevrildi: x/570, y/500.
-        public static readonly Rect ShelterRect = new Rect(0.513f, 0.629f, 0.219f, 0.25f);
-        static readonly Rect ClinicRect = new Rect(0.283f, 0.395f, 0.298f, 0.19f);
-        static readonly Rect ConstructionRect = new Rect(0.791f, 0.345f, 0.263f, 0.17f);
-        static readonly Rect RubbleRect = new Rect(0.64f, 0.924f, 0.307f, 0.18f);
-        static readonly Rect WorkshopRect = new Rect(0.154f, 0.81f, 0.263f, 0.112f);
-        static readonly Rect MarketRect = new Rect(0.535f, 0.2f, 0.246f, 0.1f);
-        static readonly Rect StationRect = new Rect(0.333f, 0.936f, 0.263f, 0.1f);
+        // city_map.png (1024×898) üzerindeki taşların ölçülmüş yerleri: merkez x, merkez y (üstten), genişlik, yükseklik.
+        public static readonly Rect ShelterRect = new Rect(0.531f, 0.567f, 0.22f, 0.25f);
+        static readonly Rect ClinicRect = new Rect(0.285f, 0.353f, 0.315f, 0.18f);
+        static readonly Rect ConstructionRect = new Rect(0.805f, 0.31f, 0.255f, 0.15f);
+        static readonly Rect RubbleRect = new Rect(0.648f, 0.828f, 0.315f, 0.175f);
+        // Görselde çizimi olmayan yerler parşömenin boş kısımlarına levha olarak konur.
+        static readonly Rect WorkshopRect = new Rect(0.215f, 0.6f, 0.24f, 0.085f);
+        static readonly Rect MarketRect = new Rect(0.55f, 0.2f, 0.24f, 0.085f);
+        static readonly Rect StationRect = new Rect(0.25f, 0.84f, 0.27f, 0.085f);
 
         static readonly Color WorkshopPlate = new Color(0.45f, 0.72f, 0.48f);
         static readonly Color MarketPlate = new Color(0.78f, 0.6f, 0.86f);
@@ -262,7 +286,7 @@ namespace AftershockIsle.UI
         public static Rect SiteLayout(ExpeditionSite site, out Color? plate)
         {
             plate = null;
-            string name = site.name != null ? site.name.ToLowerInvariant() : "";
+            string name = Normalize(site.name);
             if (name.Contains("klinik")) return ClinicRect;
             if (name.Contains("inşaat") || name.Contains("insaat")) return ConstructionRect;
             if (name.Contains("enkaz")) return RubbleRect;
@@ -271,6 +295,13 @@ namespace AftershockIsle.UI
             if (name.Contains("istasyon") || name.Contains("benzin")) { plate = StationPlate; return StationRect; }
             plate = DefaultPlate;
             return new Rect(site.mapPosition.x, site.mapPosition.y, 0.246f, 0.112f);
+        }
+
+        /// <summary>Türkçe büyük İ/I küçültülünce bozulmasın ("İnşaat" → "inşaat"; ToLowerInvariant "i̇nşaat" verir).</summary>
+        static string Normalize(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return "";
+            return value.Replace('İ', 'i').Replace('I', 'ı').ToLowerInvariant().Replace("\u0307", "");
         }
 
         /// <summary>Gece keşfi yerlerinin haritadaki düğümü: Yıkıntılar → Enkaz Alanı, Market → Market, Hastane → Yıkık Klinik.</summary>
@@ -320,5 +351,19 @@ namespace AftershockIsle.UI
                     SpriteMeshType.FullRect, new Vector4(8, 8, 8, 8));
             }
         }
+    }
+
+    /// <summary>Fare üstünde ya da gamepad ile seçili mi (harita düğümü vurgusu için).</summary>
+    public class UiHoverFlag : UnityEngine.MonoBehaviour, UnityEngine.EventSystems.IPointerEnterHandler, UnityEngine.EventSystems.IPointerExitHandler,
+        UnityEngine.EventSystems.ISelectHandler, UnityEngine.EventSystems.IDeselectHandler
+    {
+        bool pointer;
+        bool selected;
+        public bool Hovered => pointer || selected;
+        public void OnPointerEnter(UnityEngine.EventSystems.PointerEventData eventData) => pointer = true;
+        public void OnPointerExit(UnityEngine.EventSystems.PointerEventData eventData) => pointer = false;
+        public void OnSelect(UnityEngine.EventSystems.BaseEventData eventData) => selected = true;
+        public void OnDeselect(UnityEngine.EventSystems.BaseEventData eventData) => selected = false;
+        void OnDisable() => pointer = selected = false;
     }
 }

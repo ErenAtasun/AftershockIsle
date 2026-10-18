@@ -298,4 +298,4 @@ MonoBehaviour:
     material: {fileID: 2100000, guid: 245478cd384864c42a8c58dc274feb5e, type: 2}
   - name: plaster_grey
     material: {fileID: 2100000, guid: 3f829bf380bf4df4a82c6f71f169f124, type: 2}
-  sourceHash: 639279278563157011|62|639279279124314197|v2
+  sourceHash: 639279293466414876|62|639279293466414876|v2

@@ -534,15 +534,20 @@ namespace AftershockIsle.UI
         {
             float pulse = CityMapView.Pulse;
 
+            // Vurgu yalnızca seçili ya da üstüne gelinen düğümde (haritada sürekli kutu görünmesin).
             if (senHighlight != null)
-                senHighlight.color = selectedSen ? new Color(0.35f, 0.65f, 1f, 0.85f * pulse) : new Color(0.2f, 0.5f, 0.9f, 0.15f);
+            {
+                var hover = senButton != null ? senButton.GetComponent<UiHoverFlag>() : null;
+                senHighlight.color = selectedSen ? new Color(0.45f, 0.75f, 1f, pulse)
+                    : hover != null && hover.Hovered ? new Color(1f, 1f, 1f, 0.55f) : new Color(1f, 1f, 1f, 0f);
+            }
 
             foreach (var node in mapNodes)
             {
                 bool isSel = !selectedSen && node.Site == selectedNightSite;
-                node.Highlight.color = isSel
-                    ? new Color(1f, 0.85f, 0.25f, 0.9f * pulse)
-                    : new Color(1f, 1f, 1f, 0.12f);
+                var hover = node.Button != null ? node.Button.GetComponent<UiHoverFlag>() : null;
+                node.Highlight.color = isSel ? new Color(1f, 0.85f, 0.25f, pulse)
+                    : hover != null && hover.Hovered ? new Color(1f, 1f, 1f, 0.55f) : new Color(1f, 1f, 1f, 0f);
             }
         }
 
@@ -566,7 +571,7 @@ namespace AftershockIsle.UI
                 switch (entry.Duty)
                 {
                     case Duty.Guard:
-                        entry.DutyLabel.text = "🛡️ Nöbet Tut";
+                        entry.DutyLabel.text = "Nöbet Tut";
                         entry.DutyPlate.color = new Color(0.6f, 0.44f, 0.15f, 0.98f);
                         entry.EffectLabel.text = $"Savunma gücü: <b>{Mathf.RoundToInt(NightDefenseSystem.DefenseScore(s))}</b> • Sabah +10 stres";
                         break;
@@ -574,14 +579,14 @@ namespace AftershockIsle.UI
                     case Duty.Scout:
                         float risk = NightScavenge.Risk(s, entry.Site, planDay, PartnersAt(entry));
                         string riskColor = risk < 0.2f ? "#9be37a" : risk < 0.35f ? "#ffd75a" : "#ff7a5a";
-                        entry.DutyLabel.text = $"🎒 Keşif: {NightScavenge.SiteName(entry.Site)}";
+                        entry.DutyLabel.text = $"Keşif: {NightScavenge.SiteName(entry.Site)}";
                         entry.DutyPlate.color = new Color(0.2f, 0.35f, 0.6f, 0.98f);
                         entry.EffectLabel.text = $"Risk <color={riskColor}><b>%{Mathf.RoundToInt(risk * 100f)}</b></color> • {NightScavenge.SiteLoot(entry.Site)}";
                         break;
 
                     default:
                         NightScavenge.CanScout(s, out string why);
-                        entry.DutyLabel.text = "🏠 Sığınakta Kal";
+                        entry.DutyLabel.text = "Sığınakta Kal";
                         entry.DutyPlate.color = UiFactory.SlateLight;
                         entry.EffectLabel.text = why != null ? $"Dinlenir (-6 stres) • <color=#a8a8a0>Keşif: {why}</color>" : "Dinlenir (sabah -6 stres)";
                         break;
@@ -614,7 +619,7 @@ namespace AftershockIsle.UI
                 int staying = stayNames.Count;
                 string guardStr = guardNames.Count > 0 ? $" [Nöbet: {guardNames[0]}]" : "";
                 senBadgePlate.SetActive(staying > 0 || guardNames.Count > 0);
-                senBadgeText.text = $"🏠 {staying} kişi sığınakta{guardStr}";
+                senBadgeText.text = $"{staying} kişi sığınakta{guardStr}";
             }
 
             // Gece Bölgeleri Rozetleri
@@ -624,7 +629,7 @@ namespace AftershockIsle.UI
                 if (scouts.Count > 0)
                 {
                     node.BadgePlate.SetActive(true);
-                    node.BadgeText.text = $"🎒 {string.Join(", ", scouts)}";
+                    node.BadgeText.text = $"Keşif: {string.Join(", ", scouts)}";
                 }
                 else
                 {

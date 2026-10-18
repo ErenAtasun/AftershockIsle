@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 using System.Text;
+using AftershockIsle.Characters;
 using AftershockIsle.Core;
 using AftershockIsle.Economy;
 using AftershockIsle.Expedition;
+using AftershockIsle.Skills;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -11,13 +13,15 @@ namespace AftershockIsle.UI
 {
     /// <summary>
     /// Kapıdan sefere çıkarken ya da 'M' ile açılan tam ekran Şehir Haritası (CityMapView üstünde).
-    /// Assets/Models/UI/city_map.png üzerinde Yıkık Klinik, İnşaat Sahası, Enkaz Alanı ve Sığınak taşları etkileşimlidir;
-    /// çizimi olmayan lokasyonlar renkli plaka olarak eklenir. Lokasyona tıklamak seçer ve haritanın üstüne binen detay
-    /// kartını açar (ganimet, risk, süre). Akış: Harita → lokasyon seç → Sefer Hazırlığı (envanter) → Yola Çık.
+    /// Solda EKİP paneli: kim kâşif, kim yoldaş, kim sığınakta kalıyor (yoldaş satırdaki düğmeyle seçilir).
+    /// Haritada Yıkık Klinik, İnşaat Sahası, Enkaz Alanı ve Sığınak taşları etkileşimlidir; çizimi olmayan lokasyonlar
+    /// taş görünümlü levha olarak eklenir. Lokasyona tıklamak seçer ve sağdaki detay kartını açar (ganimet, risk, süre).
+    /// Akış: Harita → lokasyon seç → Sefer Hazırlığı (envanter) → Yola Çık.
     /// </summary>
     public class ExpeditionWindow : MonoBehaviour
     {
         const float InputGraceSeconds = 0.4f;
+        const float RosterWidth = 420f;
 
         class Node
         {
@@ -25,8 +29,23 @@ namespace AftershockIsle.UI
             public Button Button;
             public Image Highlight;
             public Text Label;
-            /// <summary>Haritada hazır çizimi olmayan lokasyonlarda kodla çizilen plakanın yazısı (null: görselde çizili).</summary>
+            public UiHoverFlag Hover;
+            public Color? Plate;
+            public Image Backing;
+            /// <summary>Haritada hazır çizimi olmayan lokasyonlarda kodla çizilen levhanın yazısı (null: görselde çizili).</summary>
             public string PlateName;
+            public Text LockBadge;
+            public GameObject LockPlate;
+        }
+
+        class RosterRow
+        {
+            public Survivor Survivor;
+            public GameObject Root;
+            public Text Info;
+            public Button Role;
+            public Text RoleLabel;
+            public Image RolePlate;
         }
 
         public static ExpeditionWindow Instance { get; private set; }
@@ -36,9 +55,11 @@ namespace AftershockIsle.UI
         readonly List<Node> nodes = new List<Node>();
         Button senButton;
         Image senHighlight;
+        UiHoverFlag senHover;
 
-        Button partner;
-        Text partnerLabel;
+        RectTransform rosterContent;
+        readonly List<RosterRow> rosterRows = new List<RosterRow>();
+        Text rosterFooter;
         Button cancel;
 
         ExpeditionSite selectedSite;
@@ -137,6 +158,7 @@ namespace AftershockIsle.UI
             selectedSite = null;
             selectedSen = false;
             openedAt = Time.unscaledTime;
+            BuildRoster();
             view.ShowDetail(false);
             view.Open();
 
@@ -147,13 +169,14 @@ namespace AftershockIsle.UI
         void Build(ExpeditionSystem expeditions)
         {
             view = new CityMapView("Şehir Haritası", CancelMap, true);
-            view.SetSidePanel(false, 0f);
+            view.SetSidePanel(true, RosterWidth);
+            BuildRosterSkeleton();
             BuildNodes(expeditions);
 
-            partner = view.Window.FooterButton("", () => ExpeditionSystem.Instance?.CycleCompanion(), null, 360f);
-            partnerLabel = partner.GetComponentInChildren<Text>();
-            cancel = view.Window.FooterButton($"Kapat ({GameInput.Prompt(InputPrompt.Back)})", CancelMap, null, 200f);
+            cancel = view.Window.FooterButton($"Kapat ({GameInput.Prompt(InputPrompt.Back)})", CancelMap, null, 220f);
         }
+
+        // ---------------------------------------------------------------- Harita düğümleri
 
         void BuildNodes(ExpeditionSystem expeditions)
         {
@@ -162,6 +185,7 @@ namespace AftershockIsle.UI
             // Sığınak (SEN) taşı.
             senButton = view.AddNode("Sığınak", CityMapView.ShelterRect, null, out senHighlight, out var senLabel);
             senLabel.text = "";
+            senHover = senButton.GetComponent<UiHoverFlag>();
             senButton.onClick.AddListener(() =>
             {
                 if (InGracePeriod) return;
@@ -176,14 +200,194 @@ namespace AftershockIsle.UI
             {
                 var norm = CityMapView.SiteLayout(site, out var plate);
                 var button = view.AddNode(site.name, norm, plate, out var highlight, out var label);
-                string plateName = plate.HasValue ? site.name : null;
+                string plateName = plate.HasValue ? site.name.ToUpperInvariant() : null;
                 label.text = plateName ?? "";
+
+                var lockText = CityMapView.AddBadge(button, out var lockPlate, new Color(0.35f, 0.08f, 0.06f, 0.95f));
+                lockText.color = new Color(1f, 0.82f, 0.7f);
 
                 var current = site;
                 button.onClick.AddListener(() => SelectSite(current));
-                nodes.Add(new Node { Site = current, Button = button, Highlight = highlight, Label = label, PlateName = plateName });
+                nodes.Add(new Node
+                {
+                    Site = current,
+                    Button = button,
+                    Highlight = highlight,
+                    Label = label,
+                    Hover = button.GetComponent<UiHoverFlag>(),
+                    Plate = plate,
+                    Backing = button.GetComponent<Image>(),
+                    PlateName = plateName,
+                    LockBadge = lockText,
+                    LockPlate = lockPlate,
+                });
             }
         }
+
+        // ---------------------------------------------------------------- Ekip paneli
+
+        void BuildRosterSkeleton()
+        {
+            var side = view.SidePanel;
+
+            var header = UiFactory.Label(side, "EKİP", 22, UiFactory.Accent, TextAnchor.UpperLeft);
+            UiFactory.Place(header.rectTransform, new Vector2(0f, 1f), new Vector2(18f, -14f), new Vector2(RosterWidth - 36f, 30f));
+            var sub = UiFactory.Label(side, "Kim sefere çıkıyor, kim sığınakta kalıyor? Yoldaş seçmek için satırdaki düğmeye bas.", 14,
+                new Color(0.8f, 0.8f, 0.76f), TextAnchor.UpperLeft, FontStyle.Normal, false);
+            UiFactory.Place(sub.rectTransform, new Vector2(0f, 1f), new Vector2(18f, -46f), new Vector2(RosterWidth - 36f, 42f));
+
+            var list = UiFactory.Rect("EkipListesi", side);
+            list.anchorMin = new Vector2(0f, 0f);
+            list.anchorMax = new Vector2(1f, 1f);
+            list.offsetMin = new Vector2(12f, 150f);
+            list.offsetMax = new Vector2(-12f, -96f);
+            var layout = list.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.spacing = 8f;
+            layout.childControlWidth = true;
+            layout.childControlHeight = false;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+            layout.childAlignment = TextAnchor.UpperCenter;
+            rosterContent = list;
+
+            var card = UiFactory.Panel(side, "EkipOzeti", new Color(0.06f, 0.07f, 0.09f, 0.98f));
+            UiFactory.Place(card.rectTransform, new Vector2(0f, 0f), new Vector2(12f, 12f), new Vector2(RosterWidth - 24f, 128f));
+            rosterFooter = UiFactory.Label(card.transform, "", 14, new Color(0.88f, 0.88f, 0.84f), TextAnchor.UpperLeft, FontStyle.Normal, false);
+            UiFactory.Stretch(rosterFooter.rectTransform, 12f);
+        }
+
+        void BuildRoster()
+        {
+            foreach (var row in rosterRows)
+                if (row.Root != null) Destroy(row.Root);
+            rosterRows.Clear();
+
+            var people = new List<Survivor>();
+            foreach (var survivor in Survivor.All)
+                if (survivor != null && !survivor.IsDead) people.Add(survivor);
+            if (ExpeditionSystem.AwayExplorer != null && !people.Contains(ExpeditionSystem.AwayExplorer)) people.Add(ExpeditionSystem.AwayExplorer);
+            if (ExpeditionSystem.AwayCompanion != null && !people.Contains(ExpeditionSystem.AwayCompanion)) people.Add(ExpeditionSystem.AwayCompanion);
+
+            foreach (var survivor in people)
+            {
+                var plate = UiFactory.Panel(rosterContent, survivor.DisplayName, new Color(0.15f, 0.17f, 0.22f, 0.98f));
+                var element = plate.gameObject.AddComponent<LayoutElement>();
+                element.preferredHeight = 74f;
+                element.minHeight = 74f;
+
+                var name = UiFactory.Label(plate.transform, survivor.DisplayName, 18, UiFactory.Text, TextAnchor.UpperLeft);
+                name.rectTransform.anchorMin = new Vector2(0f, 1f);
+                name.rectTransform.anchorMax = new Vector2(1f, 1f);
+                name.rectTransform.offsetMin = new Vector2(14f, -34f);
+                name.rectTransform.offsetMax = new Vector2(-160f, -8f);
+
+                var info = UiFactory.Label(plate.transform, "", 13, new Color(0.78f, 0.8f, 0.84f), TextAnchor.UpperLeft, FontStyle.Normal, false);
+                info.rectTransform.anchorMin = new Vector2(0f, 0f);
+                info.rectTransform.anchorMax = new Vector2(1f, 0f);
+                info.rectTransform.offsetMin = new Vector2(14f, 8f);
+                info.rectTransform.offsetMax = new Vector2(-160f, 34f);
+
+                var current = survivor;
+                var role = UiFactory.TextButton(plate.transform, "", new Vector2(140f, 44f), () => OnRoleClicked(current), UiFactory.SlateLight, 15);
+                UiFactory.Place((RectTransform)role.transform, new Vector2(1f, 0.5f), new Vector2(-12f, 0f), new Vector2(140f, 44f));
+                var press = role.GetComponent<UiPress>();
+                if (press != null) press.ScaleOnHover = false;
+
+                rosterRows.Add(new RosterRow
+                {
+                    Survivor = survivor,
+                    Root = plate.gameObject,
+                    Info = info,
+                    Role = role,
+                    RoleLabel = role.GetComponentInChildren<Text>(),
+                    RolePlate = role.GetComponent<Image>(),
+                });
+            }
+        }
+
+        void OnRoleClicked(Survivor survivor)
+        {
+            var expeditions = ExpeditionSystem.Instance;
+            if (InGracePeriod || inspectionMode || expeditions == null || expeditions.Stage != ExpeditionStage.ChoosingSite) return;
+            if (survivor == expeditions.Explorer) return;
+
+            if (expeditions.Companion == survivor) expeditions.SetCompanion(null);
+            else if (expeditions.CompanionCandidates().Contains(survivor)) expeditions.SetCompanion(survivor);
+            else return;
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.UiClick, 0.5f);
+        }
+
+        void RefreshRoster(ExpeditionSystem expeditions)
+        {
+            bool choosing = expeditions != null && expeditions.Stage == ExpeditionStage.ChoosingSite;
+            var candidates = choosing ? expeditions.CompanionCandidates() : null;
+
+            foreach (var row in rosterRows)
+            {
+                var survivor = row.Survivor;
+                if (survivor == null) continue;
+
+                string stress = survivor.Condition.Stress >= 60f ? $"<color=#ff8f7a>Stres {survivor.Condition.Stress:0}</color>" : $"Stres {survivor.Condition.Stress:0}";
+                string health = survivor.Health < survivor.MaxHealth * 0.5f ? $"<color=#ff8f7a>Can {survivor.Health:0}</color>" : $"Can {survivor.Health:0}";
+                row.Info.text = $"{survivor.Branch.ToDisplayName()}  ·  {health}  ·  {stress}";
+
+                string label;
+                Color color;
+                bool interactable = false;
+                bool away = survivor == ExpeditionSystem.AwayExplorer || survivor == ExpeditionSystem.AwayCompanion || !survivor.isActiveAndEnabled;
+
+                if (choosing && survivor == expeditions.Explorer)
+                {
+                    label = "KÂŞİF";
+                    color = new Color(0.85f, 0.62f, 0.15f, 1f);
+                }
+                else if (choosing && survivor == expeditions.Companion)
+                {
+                    label = "YOLDAŞ";
+                    color = UiFactory.Good;
+                    interactable = !inspectionMode;
+                }
+                else if (away)
+                {
+                    label = "SEFERDE";
+                    color = new Color(0.25f, 0.4f, 0.62f, 1f);
+                }
+                else if (choosing && candidates.Contains(survivor))
+                {
+                    label = "Sığınakta";
+                    color = UiFactory.SlateLight;
+                    interactable = !inspectionMode;
+                }
+                else
+                {
+                    label = survivor.IsTrapped ? "Mahsur" : "Sığınakta";
+                    color = new Color(0.2f, 0.21f, 0.25f, 1f);
+                }
+
+                row.RoleLabel.text = label;
+                row.RolePlate.color = color;
+                row.Role.interactable = interactable;
+            }
+
+            var companion = choosing ? expeditions.Companion : null;
+            int capacity = ExpeditionLoadout.Capacity(companion != null);
+            var footer = new StringBuilder();
+            if (choosing)
+            {
+                footer.Append($"Kâşif: <b>{expeditions.Explorer?.DisplayName}</b>");
+                footer.Append(companion != null ? $"   Yoldaş: <b>{companion.DisplayName}</b>" : "   Yoldaş: yok");
+                footer.Append($"\nÇanta kapasitesi: <b>{capacity} kg</b>{(companion == null ? $"  (yoldaşla +{ExpeditionLoadout.CompanionCapacity} kg)" : "")}");
+                footer.Append("\n<color=#a8a8a0>Sığınakta kalanlar işlere devam eder. Gece nöbetçisi akşam planında seçilir.</color>");
+            }
+            else
+            {
+                footer.Append("Harita inceleme: sefere çıkmak için bir kazazedeyi sığınağın kapısına gönder (öğle vakti).");
+                footer.Append("\n<color=#a8a8a0>Gece nöbetçisi ve gece keşfi akşam planında seçilir.</color>");
+            }
+            rosterFooter.text = footer.ToString();
+        }
+
+        // ---------------------------------------------------------------- Envanter / sefer hazırlığı
 
         public void OpenShelterInventory()
         {
@@ -219,6 +423,8 @@ namespace AftershockIsle.UI
 
         void BackToMap()
         {
+            // Geri dönerken seçilen donanım kaybolmasın (sığınak envanteri ve haritaya dönüş).
+            if (loadoutPanel != null && loadoutPanel.Loadout != null) lastLoadout = loadoutPanel.Loadout;
             loadoutPage = false;
             loadoutPanel?.Close();
             if (shelterInventoryMode)
@@ -270,32 +476,51 @@ namespace AftershockIsle.UI
                 EventSystem.current.SetSelectedGameObject(view.DetailAction.gameObject);
         }
 
+        // ---------------------------------------------------------------- Görünüm
+
+        static Color Grey(Color color)
+        {
+            float lum = color.r * 0.3f + color.g * 0.59f + color.b * 0.11f;
+            return new Color(lum * 0.75f, lum * 0.75f, lum * 0.78f, 1f);
+        }
+
         void Refresh(ExpeditionSystem expeditions)
         {
             bool grace = InGracePeriod;
             int currentDay = expeditions != null ? expeditions.Day : 1;
-            string explorerName = expeditions != null && expeditions.Explorer != null ? expeditions.Explorer.DisplayName : "Henüz Seçilmedi";
+            string explorerName = expeditions != null && expeditions.Explorer != null ? expeditions.Explorer.DisplayName : "—";
 
             view.Window.Title.text = inspectionMode
-                ? $"ŞEHİR KEŞİF HARİTASI   <size=16><color=#cfcfc8>(İnceleme · Gün {currentDay} · sefere kapıdan çıkılır)</color></size>"
-                : $"ŞEHİR HARİTASI   <size=17><color=#cfcfc8>kâşif: {explorerName}</color></size>";
+                ? $"ŞEHİR HARİTASI   <size=16><color=#cfcfc8>inceleme · Gün {currentDay}</color></size>"
+                : $"ŞEHİR HARİTASI   <size=16><color=#cfcfc8>kâşif: {explorerName} · Gün {currentDay}</color></size>";
 
             float pulse = CityMapView.Pulse;
+            bool senHovered = senHover != null && senHover.Hovered;
             if (senHighlight != null)
-                senHighlight.color = selectedSen ? new Color(0.35f, 0.65f, 1f, 0.85f * pulse) : new Color(0.2f, 0.5f, 0.9f, 0.15f);
+                senHighlight.color = selectedSen ? new Color(0.45f, 0.75f, 1f, pulse) : senHovered ? new Color(1f, 1f, 1f, 0.55f) : new Color(1f, 1f, 1f, 0f);
 
             foreach (var node in nodes)
             {
                 bool locked = !node.Site.IsUnlocked(currentDay);
                 bool isSel = node.Site == selectedSite && !selectedSen;
-                node.Highlight.color = isSel ? new Color(1f, 0.85f, 0.25f, 0.9f * pulse)
-                    : locked ? new Color(0.1f, 0.1f, 0.1f, 0.5f)
-                    : new Color(1f, 1f, 1f, 0.12f);
+                bool hovered = node.Hover != null && node.Hover.Hovered;
 
-                string lockText = $"Gün {node.Site.unlockDay}";
-                node.Label.text = node.PlateName != null
-                    ? (locked ? $"{node.PlateName}\n<size=13>{lockText}'te açılır</size>" : node.PlateName)
-                    : (locked ? lockText : "");
+                // Vurgu yalnızca seçili ya da üstüne gelinen düğümde görünür (kutular haritada sürekli durmasın).
+                node.Highlight.color = isSel ? new Color(1f, 0.85f, 0.25f, pulse) : hovered ? new Color(1f, 1f, 1f, 0.55f) : new Color(1f, 1f, 1f, 0f);
+
+                string lockText = $"GÜN {node.Site.unlockDay}'DE AÇILIR";
+                if (node.PlateName != null)
+                {
+                    node.Label.text = locked ? $"{node.PlateName}\n<size=12>{lockText}</size>" : node.PlateName;
+                    if (node.Plate.HasValue) node.Backing.color = locked ? Grey(node.Plate.Value) : node.Plate.Value;
+                    if (node.LockPlate.activeSelf) node.LockPlate.SetActive(false);
+                }
+                else
+                {
+                    node.Label.text = "";
+                    if (node.LockPlate.activeSelf != locked) node.LockPlate.SetActive(locked);
+                    if (locked) node.LockBadge.text = lockText;
+                }
                 node.Button.interactable = !grace;
             }
 
@@ -304,15 +529,10 @@ namespace AftershockIsle.UI
             else
             {
                 view.ShowDetail(false);
-                view.SetBanner(inspectionMode ? null : "Sefere çıkmak için haritadan bir bölge seç");
+                view.SetBanner(inspectionMode ? "Lokasyonları incelemek için bir taşa tıkla" : "Sefere çıkmak için haritadan bir bölge seç");
             }
 
-            var companion = expeditions != null ? expeditions.Companion : null;
-            bool anyone = expeditions != null && expeditions.CompanionCandidates().Count > 0;
-            partner.gameObject.SetActive(!inspectionMode);
-            partnerLabel.text = companion != null ? $"Yoldaş: {companion.DisplayName} ({companion.Health:0} HP, +{ExpeditionLoadout.CompanionCapacity} kg)"
-                : anyone ? "Yoldaş: Yok (Değiştir)" : "Yoldaş: Uygun kimse yok";
-            partner.interactable = anyone && !grace;
+            RefreshRoster(expeditions);
             cancel.interactable = !grace;
         }
 
@@ -320,12 +540,12 @@ namespace AftershockIsle.UI
         {
             view.SetBanner(null);
             view.ShowDetail(true);
-            view.DetailTitle.text = "SIĞINAK (MERKEZ)";
+            view.DetailTitle.text = "SIĞINAK";
             view.DetailBadge.text = "GÜVENLİ BÖLGE · ANA ÜS";
             view.DetailText.text =
-                "Tüm kazazedelerin yaşadığı, çöken çok katlı bina. Çatıda telsiz kulesi ve tahliye alanı bulunur.\n\n" +
-                $"• Güncel Gün: <b>{currentDay}. Gün</b>\n• Çıkış Kapısı: Zemin Kat\n\n" +
-                "Sefere çıkmak için haritadaki dış bölgelerden birine tıkla. Dış bölgelerden erzak, hurda ve metal toplayıp sığınağa getir.";
+                "Bütün kazazedelerin yaşadığı, çökmekte olan çok katlı bina. Çatıda telsiz istasyonu ve tahliye alanı var.\n\n" +
+                $"• Gün: <b>{currentDay}</b>\n• Sefere çıkış: zemin kattaki kapı (öğle vakti)\n\n" +
+                "Dış bölgelerden erzak, hurda, metal ve elektronik toplayıp sığınağa getir.";
             view.SetDetailAction(null, null);
         }
 
@@ -335,31 +555,31 @@ namespace AftershockIsle.UI
             view.ShowDetail(true);
             bool locked = !site.IsUnlocked(currentDay);
             view.DetailTitle.text = site.name.ToUpperInvariant();
-            view.DetailBadge.text = locked ? $"<color=#ff7560>KİLİTLİ · GÜN {site.unlockDay}'TE AÇILIR</color>" : "<color=#80e575>AÇIK KEŞİF BÖLGESİ</color>";
+            view.DetailBadge.text = locked ? $"<color=#ff7560>KİLİTLİ · GÜN {site.unlockDay}'DE AÇILIR</color>" : "<color=#80e575>KEŞFE AÇIK</color>";
 
             var sb = new StringBuilder();
             sb.Append(site.description).Append("\n\n");
             int enemies = site.dogs + site.raiders + site.brutes + site.throwers;
-            sb.Append($"• Saha Süresi: <b>{site.duration:0} sn</b>\n");
-            sb.Append($"• Arama Noktası: <b>{site.lootSpots}</b>\n");
-            sb.Append($"• Tahmini Tehdit: <b>{enemies}+ Yağmacı/Köpek</b>\n\n");
+            sb.Append($"• Sahada kalma süresi: <b>{site.duration:0} sn</b>\n");
+            sb.Append($"• Aranacak nokta: <b>{site.lootSpots}</b>\n");
+            sb.Append($"• Tehdit: <b>{(enemies <= 1 ? "az" : enemies <= 3 ? "orta" : "yüksek")}</b> ({enemies} düşman)\n\n");
 
-            sb.Append("<color=#ffe680>Olası Ganimet: ");
+            sb.Append("<color=#ffe680>Olası ganimet: ");
             if (site.loot != null)
                 for (int i = 0; i < site.loot.Length; i++)
                     sb.Append(i > 0 ? ", " : "").Append($"<b>{site.loot[i].type.ToDisplayName()}</b>");
             sb.Append("</color>\n");
 
             if (site.hazard != ExpeditionHazard.None)
-                sb.Append($"\n<color=#ff8073>Tehlike: %{site.hazardChance * 100f:0} ihtimalle {HazardName(site.hazard)} (-{site.hazardDamage * 0.7f:0} HP)</color>");
+                sb.Append($"\n<color=#ff8073>Tehlike: %{site.hazardChance * 100f:0} ihtimalle {HazardName(site.hazard)} (-{site.hazardDamage * 0.7f:0} can)</color>");
             if (site.LockedCrates + site.BuriedCaches > 0)
-                sb.Append($"\n<color=#ff8073>Özel: {site.LockedCrates} Kilitli Kasa (Levye) · {site.BuriedCaches} Gömülü Sandık (Kazma)</color>");
+                sb.Append($"\n<color=#ffb070>Özel: {site.LockedCrates} kilitli kasa (Levye) · {site.BuriedCaches} gömülü sandık (Kazma)</color>");
             view.DetailText.text = sb.ToString();
 
             if (inspectionMode) view.SetDetailAction(null, null);
             else
             {
-                view.SetDetailAction(locked ? "Kilitli" : "Sefer Hazırlığı  →", OpenLoadout);
+                view.SetDetailAction(locked ? "Kilitli" : "Sefer Hazırlığı  >", OpenLoadout);
                 view.DetailAction.interactable = !locked && !grace;
             }
         }

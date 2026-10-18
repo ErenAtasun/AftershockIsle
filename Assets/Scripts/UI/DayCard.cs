@@ -268,7 +268,7 @@ namespace AftershockIsle.UI
             UiFactory.Place(compactSummary.rectTransform, new Vector2(0f, 1f), new Vector2(16f, -32f), new Vector2(920f, 28f));
 
             // Kapatma düğmesi
-            var closeBtn = UiFactory.TextButton(compactRoot.transform, "✕", new Vector2(32f, 32f), DismissCompact, null, 15);
+            var closeBtn = UiFactory.TextButton(compactRoot.transform, "X", new Vector2(32f, 32f), DismissCompact, null, 15);
             UiFactory.Place((RectTransform)closeBtn.transform, new Vector2(1f, 1f), new Vector2(-6f, -6f), new Vector2(32f, 32f));
 
             // Tıklayınca hemen kapanması için tıklama alanı

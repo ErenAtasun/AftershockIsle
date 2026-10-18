@@ -493,6 +493,8 @@ namespace AftershockIsle.Save
                 if (patch == null) continue;
                 data.plankPatches.Add(new PlankPatchSaveData { name = patch.gameObject.name, patched = patch.IsPatched });
             }
+            foreach (var tube in FindObjectsByType<FireExtinguisher>(FindObjectsSortMode.None))
+                data.extinguishers.Add(new ExtinguisherSaveData { name = tube.gameObject.name, charges = tube.Remaining });
 
             // 19. Survivors
             var allSurvivors = new List<Survivor>(Survivor.All);
@@ -825,6 +827,13 @@ namespace AftershockIsle.Save
                 foreach (var p in data.plankPatches) patchDict[p.name] = p.patched;
                 foreach (var patch in PlankPatch.All)
                     if (patch != null && patchDict.TryGetValue(patch.gameObject.name, out bool patched)) patch.RestoreState(patched);
+            }
+            if (data.extinguishers != null && data.extinguishers.Count > 0)
+            {
+                var tubeDict = new Dictionary<string, int>();
+                foreach (var t in data.extinguishers) tubeDict[t.name] = t.charges;
+                foreach (var tube in FindObjectsByType<FireExtinguisher>(FindObjectsSortMode.None))
+                    if (tubeDict.TryGetValue(tube.gameObject.name, out int charges)) tube.RestoreState(charges);
             }
 
             // 19. Survivors

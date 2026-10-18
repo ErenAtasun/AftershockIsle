@@ -59,12 +59,19 @@ namespace AftershockIsle.Effects
         Footstep,
         Ladder,
         Pickup,
+        // Sonradan eklenenler (sayısal değerler kayıtlarla uyumlu kalsın diye sonda).
+        InventoryOpen,
+        MapOpen,
+        Medkit,
+        DoorTransition,
+        Fail,
+        DigMetal,
     }
 
     /// <summary>
-    /// Merkezi ses yöneticisi.
-    /// Assets/Resources/Audio/&lt;SoundId&gt; altında özel ses dosyası (.wav/.ogg/.mp3) varsa onu yükler;
-    /// yoksa çalışma anında katmanlı prosedürel ses dalgaları sentezler. Sahneyi yeniden kurmaya gerek kalmadan
+    /// Merkezi ses yöneticisi. Sesler Assets/Resources/SoundLibrary.asset'e (Ses Kütüphanesi) atanır: her olayın satırına
+    /// ses sürüklenir, müzik ve ortam sesi de oradadır. Satır boşsa Resources/Audio/&lt;SoundId&gt; dosyasına, o da yoksa
+    /// çalışma anında sentezlenen prosedürel sese düşer. Sahneyi yeniden kurmaya gerek kalmadan
     /// açılışta kendini oluşturur ve EventBus olaylarını otomatik dinler.
     /// </summary>
     public class SoundManager : MonoBehaviour
@@ -115,9 +122,101 @@ namespace AftershockIsle.Effects
             BuildClipLibrary();
             gameObject.AddComponent<WorkSounds>();
 
-            var ambientClip = Resources.Load<AudioClip>("Audio/AmbientLoop") ?? SynthesizeAmbientWind(6.0f);
+            library = SoundLibrary.Load();
+            musicSource = CreateSource("Music", true, 0f);
+            for (int i = 0; i < longSources.Length; i++) longSources[i] = CreateSource($"Long_{i}", false, 1f);
+
+            AudioClip ambientClip = library != null ? library.ambientLoop : null;
+            if (ambientClip == null) ambientClip = Resources.Load<AudioClip>("Audio/AmbientLoop") ?? SynthesizeAmbientWind(6.0f);
+            if (library != null) ambientSource.volume = library.ambientVolume;
             ambientSource.clip = ambientClip;
             ambientSource.Play();
+        }
+
+        // ---------------------------------------------------------------- Ses Kütüphanesi
+
+        SoundLibrary library;
+        AudioSource musicSource;
+        // Uzun kayıtlar (maxDuration'lı) ayrı kaynakta çalar ki süresi dolunca kısılıp durdurulabilsin.
+        readonly AudioSource[] longSources = new AudioSource[4];
+        readonly float[] longStopAt = new float[4];
+        int nextLongSource;
+        const float MusicFade = 1.5f;
+
+        /// <summary>Kütüphanedeki satır (atanmış ses varsa), yoksa null.</summary>
+        static SoundLibrary.Slot SlotFor(SoundId id)
+        {
+            var slot = Instance != null && Instance.library != null ? Instance.library.Get(id) : null;
+            return slot != null && slot.HasClip ? slot : null;
+        }
+
+        /// <summary>Döngüde çalınacak (iş/yürüyüş) ses: kütüphanede "Döngü" işaretli ve sesi atanmışsa.</summary>
+        public static bool TryGetLoop(SoundId id, out AudioClip clip, out float volume)
+        {
+            var slot = SlotFor(id);
+            clip = slot != null && slot.loop ? slot.Pick() : null;
+            volume = slot != null ? slot.volume : 1f;
+            return clip != null;
+        }
+
+        /// <summary>Bu ses bu olayın kütüphane satırındaki seslerden biri mi (döngü değişmeden devam etsin diye).</summary>
+        public static bool LoopMatches(SoundId id, AudioClip clip)
+        {
+            var slot = SlotFor(id);
+            if (slot == null) return false;
+            foreach (var candidate in slot.clips)
+                if (candidate == clip) return true;
+            return false;
+        }
+
+        void UpdateMusic(float dt)
+        {
+            AudioClip wanted = null;
+            if (library != null)
+                wanted = AftershockIsle.CameraControl.SideViewCamera.ViewingField && library.fieldMusic != null
+                    ? library.fieldMusic
+                    : library.houseMusic;
+            float targetVolume = library != null ? library.musicVolume : 0f;
+
+            if (musicSource.clip != wanted)
+            {
+                // Önce kısılır, sonra yeni parça başlar.
+                musicSource.volume = Mathf.MoveTowards(musicSource.volume, 0f, dt * targetVolume / MusicFade + dt * 0.2f);
+                if (musicSource.volume > 0.001f && musicSource.isPlaying) return;
+                musicSource.clip = wanted;
+                if (wanted != null) musicSource.Play();
+                return;
+            }
+            if (wanted != null && !musicSource.isPlaying) musicSource.Play();
+            musicSource.volume = Mathf.MoveTowards(musicSource.volume, targetVolume, dt * Mathf.Max(0.05f, targetVolume) / MusicFade);
+        }
+
+        void UpdateLongSources(float dt)
+        {
+            for (int i = 0; i < longSources.Length; i++)
+            {
+                var source = longSources[i];
+                if (source == null || !source.isPlaying || longStopAt[i] <= 0f || Time.unscaledTime < longStopAt[i]) continue;
+                source.volume = Mathf.MoveTowards(source.volume, 0f, dt * 1.5f);
+                if (source.volume <= 0.001f)
+                {
+                    source.Stop();
+                    longStopAt[i] = 0f;
+                }
+            }
+        }
+
+        void PlayLong(AudioClip clip, float volume, float pitch, float maxDuration)
+        {
+            int i = nextLongSource;
+            nextLongSource = (nextLongSource + 1) % longSources.Length;
+            var source = longSources[i];
+            source.Stop();
+            source.clip = clip;
+            source.pitch = pitch;
+            source.volume = Mathf.Clamp01(volume);
+            source.Play();
+            longStopAt[i] = Time.unscaledTime + maxDuration;
         }
 
         AudioSource CreateSource(string label, bool loop, float baseVol)
@@ -190,6 +289,9 @@ namespace AftershockIsle.Effects
 
         void Update()
         {
+            UpdateMusic(Time.unscaledDeltaTime);
+            UpdateLongSources(Time.unscaledDeltaTime);
+
             // Çatıdaki telsiz sinyal gönderirken periyodik mors/telemetri sesi çalar.
             var radio = RadioStation.Instance;
             if (radio != null && radio.IsRepaired && !radio.SignalComplete && radio.Signal01 > 0.005f)
@@ -198,10 +300,12 @@ namespace AftershockIsle.Effects
                 if (radioBeepTimer <= 0f)
                 {
                     radioBeepTimer = 1.6f;
-                    if (clips.TryGetValue(SoundId.RadioSignal, out var clip) && clip != null)
+                    var slot = SlotFor(SoundId.RadioSignal);
+                    var clip = slot != null ? slot.Pick() : clips.TryGetValue(SoundId.RadioSignal, out var synth) ? synth : null;
+                    if (clip != null)
                     {
                         radioLoopSource.pitch = UnityEngine.Random.Range(0.95f, 1.06f);
-                        radioLoopSource.PlayOneShot(clip, 0.45f);
+                        radioLoopSource.PlayOneShot(clip, 0.45f * (slot != null ? slot.volume : 1f));
                     }
                 }
             }
@@ -220,21 +324,22 @@ namespace AftershockIsle.Effects
             if (Instance == null) return;
             if (Time.unscaledTime - Instance.lastHoverTime < 0.045f) return;
             Instance.lastHoverTime = Time.unscaledTime;
-            if (Instance.clips.TryGetValue(SoundId.UiHover, out var clip) && clip != null)
-            {
-                Instance.uiSource.pitch = UnityEngine.Random.Range(0.97f, 1.03f);
-                Instance.uiSource.PlayOneShot(clip, 0.4f);
-            }
+            Instance.PlayUi(SoundId.UiHover, 0.4f, 0.03f);
         }
 
         public static void PlayUiClick()
         {
             if (Instance == null) return;
-            if (Instance.clips.TryGetValue(SoundId.UiClick, out var clip) && clip != null)
-            {
-                Instance.uiSource.pitch = UnityEngine.Random.Range(0.96f, 1.04f);
-                Instance.uiSource.PlayOneShot(clip, 0.65f);
-            }
+            Instance.PlayUi(SoundId.UiClick, 0.65f, 0.04f);
+        }
+
+        void PlayUi(SoundId id, float volume, float pitchJitter)
+        {
+            var slot = SlotFor(id);
+            var clip = slot != null ? slot.Pick() : clips.TryGetValue(id, out var synth) ? synth : null;
+            if (clip == null) return;
+            uiSource.pitch = 1f + UnityEngine.Random.Range(-pitchJitter, pitchJitter);
+            uiSource.PlayOneShot(clip, volume * (slot != null ? slot.volume : 1f));
         }
 
         public static void PlayWeaponFire(WeaponKind kind, float volumeScale = 1f)
@@ -254,8 +359,23 @@ namespace AftershockIsle.Effects
 
         void PlayInternal(SoundId id, float volumeScale, float pitchJitter)
         {
+            float pitch = 1f + UnityEngine.Random.Range(-pitchJitter, pitchJitter);
+            var slot = SlotFor(id);
+            if (slot != null)
+            {
+                var picked = slot.Pick();
+                float volume = volumeScale * slot.volume;
+                if (slot.maxDuration > 0f && picked.length > slot.maxDuration) PlayLong(picked, volume, pitch, slot.maxDuration);
+                else
+                {
+                    sfxSource.pitch = pitch;
+                    sfxSource.PlayOneShot(picked, Mathf.Clamp(volume, 0f, 2f));
+                }
+                return;
+            }
+
             if (!clips.TryGetValue(id, out var clip) || clip == null) return;
-            sfxSource.pitch = 1f + UnityEngine.Random.Range(-pitchJitter, pitchJitter);
+            sfxSource.pitch = pitch;
             sfxSource.PlayOneShot(clip, Mathf.Clamp01(volumeScale));
         }
 
@@ -483,6 +603,7 @@ namespace AftershockIsle.Effects
                     });
 
                 case SoundId.Hammer:
+                case SoundId.DigMetal:
                     // Metal üstüne metal: keskin vuruş ve kısa çınlama.
                     return MakeClip("Hammer", 0.26f, (t, u) =>
                     {
@@ -548,6 +669,9 @@ namespace AftershockIsle.Effects
                     });
 
                 case SoundId.Pickup:
+                case SoundId.InventoryOpen:
+                case SoundId.MapOpen:
+                case SoundId.Medkit:
                     // Küçük iki notalı onay: malzeme depoya girdi.
                     return MakeClip("Pickup", 0.24f, (t, u) =>
                         Pulse(t, 0f, 0.11f) * Sin(t, 880f) * 0.26f + Pulse(t, 0.08f, 0.15f) * Sin(t, 1318.5f) * 0.24f);

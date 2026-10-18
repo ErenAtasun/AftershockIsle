@@ -45,8 +45,10 @@ namespace AftershockIsle.Characters
         public bool Frozen { get; set; }
         public BuildingLayout Building => building;
         public int CurrentFloor { get; private set; }
-        public bool IsMoving => pathIndex < path.Count;
-        public bool IsClimbing => IsMoving && path[pathIndex].IsClimb;
+        public bool IsMoving => pathIndex < path.Count || (manualClimb && Mathf.Abs(climbAxis) > 0.05f);
+        public bool IsClimbing => manualClimb || (pathIndex < path.Count && path[pathIndex].IsClimb);
+        /// <summary>Oyuncu merdivende W/S ile kendisi çıkıp iniyor (bırakınca merdivende durur).</summary>
+        public bool IsManualClimbing => manualClimb;
         public bool IsSteering => steerInput.sqrMagnitude > SteerDeadZone * SteerDeadZone;
 
         void Awake()
@@ -70,6 +72,8 @@ namespace AftershockIsle.Characters
         /// </summary>
         public bool MoveTo(int floor, float x, float? z = null)
         {
+            // Elle tırmanırken yol emri gelirse (fare, iş) karakter yakın uca iner ve yoldan devam eder.
+            if (manualClimb) EndManualClimb(climbT >= 0.5f);
             targetFloor = floor;
             targetX = x;
             targetZ = z;
@@ -169,7 +173,8 @@ namespace AftershockIsle.Characters
         /// <summary>Yolu iptal eder. Merdivendeyse en yakın kata oturtulur.</summary>
         public void Halt()
         {
-            if (IsClimbing)
+            if (manualClimb) EndManualClimb(climbT >= 0.5f);
+            else if (IsClimbing)
             {
                 float y = transform.position.y + building.FloorHeight * 0.5f;
                 CurrentFloor = building.FloorAtHeight(y);
@@ -188,6 +193,12 @@ namespace AftershockIsle.Characters
         {
             float dt = Time.deltaTime;
             if (dt <= 0f || Frozen) return;
+
+            if (manualClimb)
+            {
+                UpdateManualClimb(dt);
+                return;
+            }
 
             if (!IsMoving)
             {
@@ -227,6 +238,98 @@ namespace AftershockIsle.Characters
                 path.Clear();
                 pathIndex = 0;
             }
+        }
+
+        // ---------------------------------------------------------------- Elle tırmanma
+
+        bool manualClimb;
+        bool climbIsStair;
+        int climbLowerFloor;
+        Vector3 climbLower;
+        Vector3 climbUpper;
+        // 0 = alt uç, 1 = üst uç.
+        float climbT;
+        float climbStartT;
+        // Merdivene binerken karakterin uçtan ne kadar uzakta durduğu: tırmanışın ilk çeyreğinde yavaşça kapanır.
+        Vector3 climbEntryOffset;
+        float climbAxis;
+        int climbAxisFrame;
+
+        /// <summary>
+        /// Oyuncunun kendi sürdüğü tırmanış: karakter bulunduğu kattaki uçtan merdivene biner, ClimbInput ile (+1 yukarı,
+        /// -1 aşağı) eğim / el merdiveni boyunca ilerler; bırakınca merdivende durur, uca ulaşınca o kata iner.
+        /// </summary>
+        public void BeginManualClimb(LadderDef ladder)
+        {
+            if (building == null) return;
+            ladder = building.WithProfile(ladder);
+            float x = building.transform.position.x + ladder.x;
+            int upperFloor = ladder.lowerFloor + 1;
+
+            path.Clear();
+            pathIndex = 0;
+            steerInput = Vector2.zero;
+            steerVelocity = Vector3.zero;
+
+            climbLowerFloor = ladder.lowerFloor;
+            climbIsStair = ladder.stair;
+            climbLower = new Vector3(x, building.FloorY(ladder.lowerFloor), building.LadderStandZ(ladder, ladder.lowerFloor));
+            climbUpper = new Vector3(x, building.FloorY(upperFloor), building.LadderStandZ(ladder, upperFloor));
+            climbT = CurrentFloor > ladder.lowerFloor ? 1f : 0f;
+            climbStartT = climbT;
+            climbEntryOffset = transform.position - (climbT > 0.5f ? climbUpper : climbLower);
+            climbEntryOffset.y = 0f;
+            climbAxis = 0f;
+            manualClimb = true;
+        }
+
+        /// <summary>Elle tırmanışın girdisi (her kare): +1 yukarı, -1 aşağı, 0 dur.</summary>
+        public void ClimbInput(float axis)
+        {
+            climbAxis = Mathf.Clamp(axis, -1f, 1f);
+            climbAxisFrame = Time.frameCount;
+        }
+
+        void UpdateManualClimb(float dt)
+        {
+            // Girdi gelmiyorsa (karakter seçimden çıktı) merdivende bekler.
+            if (Time.frameCount - climbAxisFrame > 1) climbAxis = 0f;
+            if (Mathf.Abs(climbAxis) < 0.05f) return;
+
+            float length = Mathf.Max(0.1f, Vector3.Distance(climbLower, climbUpper));
+            float speed = (climbIsStair ? walkSpeed * StairSpeedFactor : climbSpeed) * SpeedMultiplier;
+            climbT += climbAxis * speed * dt / length;
+
+            if (climbT >= 1f)
+            {
+                EndManualClimb(true);
+                return;
+            }
+            if (climbT <= 0f)
+            {
+                EndManualClimb(false);
+                return;
+            }
+
+            float fade = 1f - Mathf.Clamp01(Mathf.Abs(climbT - climbStartT) / 0.25f);
+            var next = Vector3.Lerp(climbLower, climbUpper, climbT) + climbEntryOffset * fade;
+            var moved = next - transform.position;
+            transform.position = next;
+
+            // Basamaklı merdivende gidilen yöne, el merdiveninde duvara bakar.
+            Face(climbIsStair ? moved : Vector3.forward, dt);
+        }
+
+        void EndManualClimb(bool atUpper)
+        {
+            manualClimb = false;
+            climbAxis = 0f;
+            CurrentFloor = atUpper ? climbLowerFloor + 1 : climbLowerFloor;
+            var end = atUpper ? climbUpper : climbLower;
+            // Bindiği uçtan geri inerse bindiği yere döner.
+            if ((atUpper ? 1f : 0f) == climbStartT) end += climbEntryOffset;
+            end.y = building.FloorY(CurrentFloor);
+            transform.position = end;
         }
 
         void UpdateSteering(float dt)

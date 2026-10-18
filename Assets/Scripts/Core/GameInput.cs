@@ -340,16 +340,23 @@ namespace AftershockIsle.Core
 
         // ---------------------------------------------------------------- Test
 
-        public static bool DebugGasPressed => Keys != null && Keys.f3Key.wasPressedThisFrame;
-        public static bool DebugSpawnSurvivorPressed => Keys != null && Keys.f12Key.wasPressedThisFrame;
-        public static bool DebugFirePressed => Keys != null && Keys.f6Key.wasPressedThisFrame;
-        public static bool DebugFloodPressed => Keys != null && Keys.f7Key.wasPressedThisFrame;
-        public static bool DebugQuakePressed => Keys != null && Keys.f8Key.wasPressedThisFrame;
-        public static bool DebugDamagePressed => Keys != null && Keys.f9Key.wasPressedThisFrame;
-        public static bool DebugCrackPressed => Keys != null && Keys.f10Key.wasPressedThisFrame;
+        // Test eylemleri tuşla değil, F1 test panelindeki butonlarla tetiklenir (DebugHUD → TriggerDebug).
+        // Buton OnGUI'de basılır; eylem bir sonraki karenin Update'inde tek kare için "basıldı" okunur.
+        static readonly int[] debugFrames = new int[System.Enum.GetValues(typeof(DebugAction)).Length];
+
+        public static void TriggerDebug(DebugAction action) => debugFrames[(int)action] = Time.frameCount + 1;
+        static bool DebugTriggered(DebugAction action) => debugFrames[(int)action] == Time.frameCount;
+
+        public static bool DebugGasPressed => DebugTriggered(DebugAction.Gas);
+        public static bool DebugSpawnSurvivorPressed => DebugTriggered(DebugAction.SpawnSurvivor);
+        public static bool DebugFirePressed => DebugTriggered(DebugAction.Fire);
+        public static bool DebugFloodPressed => DebugTriggered(DebugAction.Flood);
+        public static bool DebugQuakePressed => DebugTriggered(DebugAction.Quake);
+        public static bool DebugDamagePressed => DebugTriggered(DebugAction.Damage);
+        public static bool DebugCrackPressed => DebugTriggered(DebugAction.Crack);
         /// <summary>Test: kamera eğimini 15/20/25/30 derece arasında değiştirir.</summary>
-        public static bool DebugCameraPitchPressed => Keys != null && Keys.f5Key.wasPressedThisFrame;
-        public static bool DebugResourcesPressed => Keys != null && Keys.f11Key.wasPressedThisFrame;
+        public static bool DebugCameraPitchPressed => DebugTriggered(DebugAction.CameraPitch);
+        public static bool DebugResourcesPressed => DebugTriggered(DebugAction.Resources);
 
         // ---------------------------------------------------------------- Titreşim
 
@@ -518,6 +525,9 @@ namespace AftershockIsle.Core
 
         static float Axis(bool positive, bool negative) => (positive ? 1f : 0f) - (negative ? 1f : 0f);
     }
+
+    /// <summary>F1 test panelindeki butonların tetiklediği test eylemleri.</summary>
+    public enum DebugAction { Gas, Fire, Flood, Quake, Damage, Crack, CameraPitch, Resources, SpawnSurvivor }
 
     public enum InputPrompt
     {

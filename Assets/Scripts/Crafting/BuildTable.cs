@@ -3,7 +3,6 @@ using AftershockIsle.Characters;
 using AftershockIsle.Core;
 using AftershockIsle.Interaction;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace AftershockIsle.Crafting
 {
@@ -92,18 +91,13 @@ namespace AftershockIsle.Crafting
 
         // ---------------------------------------------------------------- Kendini kurma
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        static void Register()
+        /// <summary>
+        /// Sahnede İnşaat Masası yoksa tezgahın yanına koyar. Oyun açılışında çalışmaz (oyun yalnızca sahnedekini kullanır);
+        /// ModelManager sahneyi ilk kurarken editörde bir kez çağırır, masa sahneyle kaydedilir.
+        /// </summary>
+        public static void AddIfMissing(BuildingLayout building)
         {
-            SceneManager.sceneLoaded -= OnSceneLoaded;
-            SceneManager.sceneLoaded += OnSceneLoaded;
-        }
-
-        // Sahne yeniden kurulmadan da gelsin: sahnede İnşaat Masası yoksa tezgahın yanına koyulur.
-        static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-        {
-            var building = FindFirstObjectByType<BuildingLayout>();
-            if (building == null || FindFirstObjectByType<BuildTable>() != null) return;
+            if (building == null || FindFirstObjectByType<BuildTable>(FindObjectsInactive.Include) != null) return;
 
             var workbench = FindFirstObjectByType<Workbench>();
             float z = workbench != null ? workbench.transform.position.z : building.WalkPlaneZ + building.Depth * 0.25f;
@@ -142,7 +136,11 @@ namespace AftershockIsle.Crafting
         {
             var go = GameObject.CreatePrimitive(type);
             var collider = go.GetComponent<Collider>();
-            if (collider != null) Destroy(collider);
+            if (collider != null)
+            {
+                if (Application.isPlaying) Destroy(collider);
+                else DestroyImmediate(collider);
+            }
             go.transform.SetParent(parent, false);
             go.transform.localPosition = localPosition;
             go.transform.localScale = localScale;

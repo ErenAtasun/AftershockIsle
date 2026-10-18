@@ -10,11 +10,12 @@ namespace AftershockIsle.Effects
     {
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
-        Light shaftLight;
-        Renderer beam;
-        float baseIntensity;
-        Color baseColor;
-        Color beamColor;
+        // Sahneyle kaydedilir: ModelManager editörde bir kez kurar, oyun bu değerlerle çalışır.
+        [SerializeField] Light shaftLight;
+        [SerializeField] Renderer beam;
+        [SerializeField] float baseIntensity;
+        [SerializeField] Color baseColor = Color.white;
+        [SerializeField] Color beamColor;
         MaterialPropertyBlock block;
 
         public void Setup(Light light, Renderer beamRenderer, Color beamTint)
@@ -46,6 +47,7 @@ namespace AftershockIsle.Effects
             {
                 var c = beamColor * tint;
                 c.a = beamColor.a * Mathf.Clamp01(day);
+                block ??= new MaterialPropertyBlock();
                 beam.GetPropertyBlock(block);
                 block.SetColor(BaseColorId, c);
                 beam.SetPropertyBlock(block);

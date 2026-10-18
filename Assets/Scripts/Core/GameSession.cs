@@ -81,6 +81,7 @@ namespace AftershockIsle.Core
             Outcome = outcome;
             EndReason = reason;
             TimeManager.Hold(this);
+            if (outcome == GameOutcome.Defeat) AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.Fail, 1f, 0f);
             EventBus.Publish(new GameEnded(outcome, reason));
         }
     }

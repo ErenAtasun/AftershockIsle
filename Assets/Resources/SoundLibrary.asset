@@ -1,0 +1,321 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e83c0794fcac76949b5f54ff9c54cd80, type: 3}
+  m_Name: SoundLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::AftershockIsle.Effects.SoundLibrary
+  houseMusic: {fileID: 8300000, guid: d9064806c2b79a541ae402ea7883a0b2, type: 3}
+  fieldMusic: {fileID: 8300000, guid: e037804dde736664f9de641ca685cd05, type: 3}
+  musicVolume: 0.3
+  ambientLoop: {fileID: 0}
+  ambientVolume: 0.11
+  sounds:
+  - name: "UiHover  (bo\u015F: kod sesi)"
+    id: 0
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "UiClick  (bo\u015F: kod sesi)"
+    id: 1
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "SlingFire  (bo\u015F: kod sesi)"
+    id: 2
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "PistolFire  (bo\u015F: kod sesi)"
+    id: 3
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "ShotgunFire  (bo\u015F: kod sesi)"
+    id: 4
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "SmgFire  (bo\u015F: kod sesi)"
+    id: 5
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "AssaultRifleFire  (bo\u015F: kod sesi)"
+    id: 6
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "SniperRifleFire  (bo\u015F: kod sesi)"
+    id: 7
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "Reload  (bo\u015F: kod sesi)"
+    id: 8
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "EmptyClick  (bo\u015F: kod sesi)"
+    id: 9
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "BulletHit  (bo\u015F: kod sesi)"
+    id: 10
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "PlayerHurt  (bo\u015F: kod sesi)"
+    id: 11
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "Dodge  (bo\u015F: kod sesi)"
+    id: 12
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "MeleeSwing  (bo\u015F: kod sesi)"
+    id: 13
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: AftershockWarning
+    id: 14
+    clips:
+    - {fileID: 8300000, guid: 0e9e383001f51434a8e663bfc1ace680, type: 3}
+    volume: 1
+    loop: 0
+    maxDuration: 8
+  - name: AftershockImpact
+    id: 15
+    clips:
+    - {fileID: 8300000, guid: dbdff03a94400f348884336ebfb53849, type: 3}
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "ColumnBroken  (bo\u015F: kod sesi)"
+    id: 16
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "ColumnRepaired  (bo\u015F: kod sesi)"
+    id: 17
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "CeilingCollapsed  (bo\u015F: kod sesi)"
+    id: 18
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "RubbleCleared  (bo\u015F: kod sesi)"
+    id: 19
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "PipeBurst  (bo\u015F: kod sesi)"
+    id: 20
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "Electrocution  (bo\u015F: kod sesi)"
+    id: 21
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "FireStarted  (bo\u015F: kod sesi)"
+    id: 22
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "FireExtinguished  (bo\u015F: kod sesi)"
+    id: 23
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "GasLeak  (bo\u015F: kod sesi)"
+    id: 24
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "GasExplosion  (bo\u015F: kod sesi)"
+    id: 25
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "BreakerToggle  (bo\u015F: kod sesi)"
+    id: 26
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "CraftSuccess  (bo\u015F: kod sesi)"
+    id: 27
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "PlaceStructure  (bo\u015F: kod sesi)"
+    id: 28
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "DoorKnock  (bo\u015F: kod sesi)"
+    id: 29
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "RadioSignal  (bo\u015F: kod sesi)"
+    id: 30
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "HelicopterInbound  (bo\u015F: kod sesi)"
+    id: 31
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "DayPhaseChange  (bo\u015F: kod sesi)"
+    id: 32
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: Dig
+    id: 33
+    clips:
+    - {fileID: 8300000, guid: 13230b45a3f518748979c2e0ae26d6df, type: 3}
+    - {fileID: 8300000, guid: 6a2d8c4349d2acc459358ee5c4e50f04, type: 3}
+    volume: 1
+    loop: 1
+    maxDuration: 0
+  - name: "Hammer  (bo\u015F: kod sesi)"
+    id: 34
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "Search  (bo\u015F: kod sesi)"
+    id: 35
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "CraftTap  (bo\u015F: kod sesi)"
+    id: 36
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "PumpStroke  (bo\u015F: kod sesi)"
+    id: 37
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: "WaterFill  (bo\u015F: kod sesi)"
+    id: 38
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: Footstep
+    id: 39
+    clips:
+    - {fileID: 8300000, guid: 3946cc6521c445b48aad50c57f91f288, type: 3}
+    volume: 1
+    loop: 1
+    maxDuration: 0
+  - name: "Ladder  (bo\u015F: kod sesi)"
+    id: 40
+    clips: []
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: Pickup
+    id: 41
+    clips:
+    - {fileID: 8300000, guid: 2b1e88dbc693a2e4ebacbc1087534735, type: 3}
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: InventoryOpen
+    id: 42
+    clips:
+    - {fileID: 8300000, guid: c025b6bcd02663d43974a7c2208fe368, type: 3}
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: MapOpen
+    id: 43
+    clips:
+    - {fileID: 8300000, guid: bcd53079a24f5d44099720fa91926e7c, type: 3}
+    - {fileID: 8300000, guid: 59f002d237166444e86805995607487a, type: 3}
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: Medkit
+    id: 44
+    clips:
+    - {fileID: 8300000, guid: 0979c1252c32b3f4bb86c70b807859ee, type: 3}
+    volume: 1
+    loop: 0
+    maxDuration: 3
+  - name: DoorTransition
+    id: 45
+    clips:
+    - {fileID: 8300000, guid: cb42c693919da7a499bcbc9ca62d95eb, type: 3}
+    volume: 1
+    loop: 0
+    maxDuration: 4
+  - name: Fail
+    id: 46
+    clips:
+    - {fileID: 8300000, guid: 0ac20115d3538144da4cafeca044abb8, type: 3}
+    volume: 1
+    loop: 0
+    maxDuration: 0
+  - name: DigMetal
+    id: 47
+    clips:
+    - {fileID: 8300000, guid: 1baa372d49ec6634ab63d92dc3a1e641, type: 3}
+    volume: 1
+    loop: 1
+    maxDuration: 0

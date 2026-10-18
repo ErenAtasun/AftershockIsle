@@ -14,7 +14,7 @@ namespace AftershockIsle.Player
     /// <summary>
     /// Sığınak kontrolü. İki yol aynı anda çalışır:
     /// Doğrudan (klavye / gamepad, sahayla aynı): seçili karakter WASD / sol çubukla kat içinde X-Z'de serbest yürür
-    /// (odanın içine / dışına), F / A en yakın nesneye iş verir ya da merdivenden çıkar/iner, X / B durdurur,
+    /// (odanın içine / dışına), merdivenin ucunda merdivenin yönüne yürüyünce çıkar/iner, F / A en yakın nesneye iş verir, X / B durdurur,
     /// Tab / LB-RB karakter değiştirir (seferdeki kâşif de sıradadır; ona gelince saha görünümü açılır).
     /// Fare: sol tık seç, sağ tık nesneye iş ver (Shift ile sıraya ekle) ya da boşluğa yürü.
     /// Duraklatmada da emir verilebilir; karakter zaman akınca harekete geçer.
@@ -45,7 +45,7 @@ namespace AftershockIsle.Player
         public Survivor Selected { get; private set; }
         public Interactable Hovered { get; private set; }
 
-        /// <summary>F / A'nın şu an etkileşeceği nesne (seçili karakterin katında, en yakın). Merdiven daha yakınsa null.</summary>
+        /// <summary>F / A'nın şu an etkileşeceği nesne (seçili karakterin katında, en yakın).</summary>
         public Interactable Nearby { get; private set; }
 
         struct LadderTarget
@@ -55,7 +55,18 @@ namespace AftershockIsle.Player
             public float X;
             // Merdivenin bu kattaki ucu (basamaklı merdivende alt uç önde, üst uç arkada).
             public float Z;
+            // Merdivene girmek için yürünecek derinlik yönü (+1 odanın içine / arkaya, -1 öne).
+            public float EntryDirection;
+            public float Distance;
+            public LadderDef Def;
         }
+
+        // Merdiven ucuna bu kadar yakınken merdivenin yönüne yürümek çıkışı/inişi başlatır.
+        const float StairEntryReach = 0.75f;
+        // Girdinin ne kadarı merdivenin yönünde olmalı (yan yürürken yanlışlıkla binilmesin).
+        const float StairEntryAlignment = 0.55f;
+        // Merdiven ucu bu mesafeye kadar izlenir (istem ve binme için).
+        const float StairReleaseDistance = 1.1f;
 
         void Awake()
         {
@@ -71,8 +82,9 @@ namespace AftershockIsle.Player
             hitCount = Physics.RaycastNonAlloc(PointerRay(), hits, maxRayDistance);
             Hovered = Closest<Interactable>();
 
-            // Ölen ya da sefere çıkan (sahnede pasif) kazazedenin seçimi kalkar.
+            // Her zaman bir karakter seçili kalır: ölen ya da sefere çıkan (sahnede pasif) kazazedenin yerine sıradaki seçilir.
             if (Selected != null && (Selected.IsDead || !Selected.isActiveAndEnabled)) Select(null);
+            if (Selected == null) SelectFirst();
 
             bool menuOpen = ModalMenu.IsOpen;
             // Yerleşim modunda LB/RB (ve Tab) kat / yapı seçer; karakter değiştirmez.
@@ -98,8 +110,9 @@ namespace AftershockIsle.Player
 
             if (GameInput.SelectPressed)
             {
+                // Boşluğa tıklamak seçimi kaldırmaz; başka karaktere tıklamak (ya da Tab) ona geçer.
                 var clicked = Closest<Survivor>();
-                Select(clicked != null && !clicked.IsDead ? clicked : null);
+                if (clicked != null && !clicked.IsDead) Select(clicked);
             }
 
             if (GameInput.CommandPressed && Selected != null) IssueMouseOrder();
@@ -173,13 +186,26 @@ namespace AftershockIsle.Player
                 if (!survivor.Mover.IsClimbing) survivor.Mover.Halt();
             }
 
-            if (GameInput.InteractPressed && CanCommand(survivor))
+            if (GameInput.InteractPressed && CanCommand(survivor) && Nearby != null)
             {
-                if (Nearby != null) Nearby.HandleCommand(survivor, GameInput.QueueModifierHeld);
-                else if (nearbyLadder.Valid) Climb(survivor, nearbyLadder);
+                // F ile verilen iş durulan yerden yapılır (nesnenin çalışma noktasına, üstüne yürünmez).
+                survivor.Tasks.PreferInPlace = true;
+                Nearby.HandleCommand(survivor, GameInput.QueueModifierHeld);
+                survivor.Tasks.PreferInPlace = false;
             }
 
             Vector2 move = GameInput.CharacterMove;
+
+            // Merdivende oyuncu kendisi çıkar/iner: W yukarı, S aşağı; bırakınca karakter merdivende durur.
+            if (survivor.Mover.IsManualClimbing)
+            {
+                steering = false;
+                survivor.Mover.ClimbInput(Mathf.Abs(move.y) > StickDeadZone ? move.y : 0f);
+                return;
+            }
+
+            if (TryWalkOntoStair(survivor, move)) return;
+
             if (move.sqrMagnitude > StickDeadZone * StickDeadZone)
             {
                 if (!steering && !CanCommand(survivor)) return;
@@ -196,6 +222,29 @@ namespace AftershockIsle.Player
             }
         }
 
+        /// <summary>
+        /// Merdivenin ucunda W (alt uçta) ya da S (üst uçta) basınca karakter merdivene biner; sonrasını oyuncu W/S ile
+        /// kendisi sürer (CharacterMover.ClimbInput). F gerekmez.
+        /// </summary>
+        bool TryWalkOntoStair(Survivor survivor, Vector2 move)
+        {
+            if (!nearbyLadder.Valid || nearbyLadder.Distance > StairEntryReach) return false;
+            if (move.sqrMagnitude <= StickDeadZone * StickDeadZone) return false;
+            if (move.normalized.y * nearbyLadder.EntryDirection < StairEntryAlignment) return false;
+            if (!CanCommand(survivor)) return false;
+            if (FireSpot.IsSmokeBlocked(nearbyLadder.TargetFloor))
+            {
+                Notice(survivor, $"Duman yüzünden {building.GetFloorName(nearbyLadder.TargetFloor)} katına girilemiyor.");
+                return false;
+            }
+
+            survivor.Tasks.CancelAll();
+            StopSteering();
+            survivor.Mover.BeginManualClimb(nearbyLadder.Def);
+            survivor.Mover.ClimbInput(move.y);
+            return true;
+        }
+
         void StopSteering()
         {
             if (!steering) return;
@@ -203,16 +252,17 @@ namespace AftershockIsle.Player
             if (Selected != null) Selected.Mover.Steer(Vector2.zero);
         }
 
-        void Climb(Survivor survivor, LadderTarget ladder)
+        bool Climb(Survivor survivor, LadderTarget ladder)
         {
             if (FireSpot.IsSmokeBlocked(ladder.TargetFloor))
             {
                 Notice(survivor, $"Duman yüzünden {building.GetFloorName(ladder.TargetFloor)} katına girilemiyor.");
-                return;
+                return false;
             }
 
             survivor.Tasks.CancelAll();
             survivor.Mover.MoveTo(ladder.TargetFloor, ladder.X);
+            return true;
         }
 
         bool CanCommand(Survivor survivor)
@@ -265,8 +315,11 @@ namespace AftershockIsle.Player
                 bestDistance = distance;
             }
 
-            foreach (var ladder in building.Ladders)
+            // Merdivenler F ile değil yürüyerek kullanılır: nesnelerle yarışmaz, en yakın ucu ayrıca tutulur.
+            float bestLadder = StairReleaseDistance + 0.5f;
+            foreach (var raw in building.Ladders)
             {
+                var ladder = building.WithProfile(raw);
                 int target;
                 if (ladder.lowerFloor == floor) target = floor + 1;
                 else if (ladder.lowerFloor == floor - 1) target = floor - 1;
@@ -275,11 +328,12 @@ namespace AftershockIsle.Player
                 float x = building.transform.position.x + ladder.x;
                 float z = building.LadderStandZ(ladder, floor);
                 float distance = Vector2.Distance(here, new Vector2(x, z));
-                if (distance >= bestDistance) continue;
+                if (distance >= bestLadder) continue;
 
-                Nearby = null;
-                nearbyLadder = new LadderTarget { Valid = true, TargetFloor = target, X = x, Z = z };
-                bestDistance = distance;
+                // W yukarı, S aşağı: alt uçta W ile binilir, üst uçta S ile.
+                float entry = target > floor ? 1f : -1f;
+                nearbyLadder = new LadderTarget { Valid = true, TargetFloor = target, X = x, Z = z, EntryDirection = entry, Distance = distance, Def = ladder };
+                bestLadder = distance;
             }
         }
 
@@ -374,7 +428,8 @@ namespace AftershockIsle.Player
             hintStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 14, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
 
             if (Selected != null && Nearby != null) DrawNearbyPrompt();
-            else if (Selected != null && nearbyLadder.Valid) DrawLadderPrompt();
+            else if (Selected != null && nearbyLadder.Valid && nearbyLadder.Distance <= StairEntryReach && !Selected.Mover.IsManualClimbing)
+                DrawLadderPrompt();
         }
 
         void DrawNearbyPrompt()
@@ -399,7 +454,10 @@ namespace AftershockIsle.Player
             if (screen.z < 0f) return;
 
             string direction = nearbyLadder.TargetFloor > Selected.Mover.CurrentFloor ? "Yukarı çık" : "Aşağı in";
-            string text = $"[{GameInput.Prompt(InputPrompt.Interact)}] {direction}: {building.GetFloorName(nearbyLadder.TargetFloor)}";
+            // F yok: merdivenin yönüne yürümek yeter (ok o yönü gösterir).
+            string arrow = nearbyLadder.EntryDirection > 0f ? "▲" : "▼";
+            string key = nearbyLadder.EntryDirection > 0f ? "W" : "S";
+            string text = $"{arrow} [{key}] {direction}: {building.GetFloorName(nearbyLadder.TargetFloor)}";
             float width = Mathf.Max(160f, promptStyle.CalcSize(new GUIContent(text)).x + 16f);
             var at = UiTheme.ToGui(screen);
             GUI.Box(new Rect(at.x - width * 0.5f, at.y - 13f, width, 26f), text, promptStyle);

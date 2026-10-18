@@ -140,7 +140,11 @@ namespace AftershockIsle.UI
 
         // ---------------------------------------------------------------- Görünüm
 
-        public void Open() => Window.Show(true);
+        public void Open()
+        {
+            Window.Show(true);
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.MapOpen, 0.8f, 0.02f);
+        }
         public void Close() => Window.Show(false);
 
         /// <summary>Sol paneli açar/kapatır; harita kalan alana sığdırılır.</summary>

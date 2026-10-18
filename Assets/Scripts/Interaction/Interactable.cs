@@ -55,6 +55,40 @@ namespace AftershockIsle.Interaction
             if (BlocksMovement) FloorObstacles.Invalidate();
         }
 
+#if UNITY_EDITOR
+        // Script bir modele elle eklenince tıklama ve yürüme engeli için modelin boyunda bir kutu collider kendiliğinden gelsin.
+        protected virtual void Reset()
+        {
+            if (GetComponentInChildren<Collider>(true) == null) FitColliderToModel();
+        }
+
+        /// <summary>Kökteki BoxCollider'ı (yoksa ekler) altındaki görünen modelin sınırına oturtur.</summary>
+        [ContextMenu("Collider'ı Modele Oturt")]
+        public void FitColliderToModel()
+        {
+            var renderers = GetComponentsInChildren<Renderer>(true);
+            if (renderers.Length == 0) return;
+
+            var bounds = renderers[0].bounds;
+            for (int i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
+
+            if (!TryGetComponent<BoxCollider>(out var box)) box = UnityEditor.Undo.AddComponent<BoxCollider>(gameObject);
+            UnityEditor.Undo.RecordObject(box, "Collider'ı Modele Oturt");
+            // Kök döndürülmüş olabilir: dünya sınırının köşelerini yerele çevirip yerel kutuyu çıkar.
+            var local = new Bounds(transform.InverseTransformPoint(bounds.center), Vector3.zero);
+            var min = bounds.min;
+            var max = bounds.max;
+            for (int i = 0; i < 8; i++)
+            {
+                var corner = new Vector3((i & 1) == 0 ? min.x : max.x, (i & 2) == 0 ? min.y : max.y, (i & 4) == 0 ? min.z : max.z);
+                local.Encapsulate(transform.InverseTransformPoint(corner));
+            }
+            box.center = local.center;
+            box.size = local.size;
+            UnityEditor.EditorUtility.SetDirty(box);
+        }
+#endif
+
         public void ConfigureRuntime(string name, float duration)
         {
             displayName = name;

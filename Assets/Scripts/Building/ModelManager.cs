@@ -23,6 +23,16 @@ namespace AftershockIsle.Building
         [Header("Hedef Bina Sistemi")]
         [SerializeField] BuildingLayout building;
 
+        [Header("0. Sahne Kurulumu")]
+        [Tooltip("Bina modeli, eşya modelleri, lambalar ve pencere ışıkları sahneye kuruldu mu. Kurulduktan sonra ModelManager " +
+                 "sahneye kendiliğinden dokunmaz: sildiğin, kapattığın, taşıdığın şey öyle kalır ve oyun sahnedekini kullanır. " +
+                 "Yeniden kurmak için Inspector'daki 'Sahneyi Yeniden Kur' düğmesi.")]
+        [SerializeField] bool sceneBuilt;
+        [Tooltip("Eskiden oyun açılışında eklenen kat içeriği (bodrum kazanı, 3. kat eşyaları, çatı) ve İnşaat Masası sahneye bir kez eklendi mi")]
+        [SerializeField, HideInInspector] bool runtimeContentMoved;
+        [Tooltip("Bina modelindeki döşeme delikleri sahneye kalasla kapatılabilir delik olarak bir kez konuldu mu")]
+        [SerializeField, HideInInspector] bool plankPatchesAdded;
+
         [Header("1. Bina Modeli")]
         [Tooltip("İşaretliyken eski gri kutu binayı gizler ve yeni bina modelini gösterir")]
         [SerializeField] bool useCustomBuilding = true;
@@ -119,7 +129,11 @@ namespace AftershockIsle.Building
         {
             Instance = this;
             if (building == null) building = FindFirstObjectByType<BuildingLayout>();
-            if (Application.isPlaying) RefreshAll();
+            if (!Application.isPlaying) return;
+
+            // Oyun sahnede ne varsa onu kullanır; hiç kurulmamış eski bir sahnede bir kereliğine burada kurulur.
+            if (sceneBuilt) PrepareRuntime();
+            else RefreshAll();
         }
 
         void OnEnable()
@@ -127,12 +141,65 @@ namespace AftershockIsle.Building
             Instance = this;
             if (building == null) building = FindFirstObjectByType<BuildingLayout>();
 #if UNITY_EDITOR
-            // Sahne açılınca, kod derlenince ve Play'den dönünce her şey editörde de kurulsun (Play gerekmez).
-            if (!Application.isPlaying) ScheduleEditorRefresh();
+            // Sahne ilk kez açıldığında bir kez kurulur; sonra yalnızca kaydedilmeyen ekran efektleri (vinyet) önizlenir.
+            if (!Application.isPlaying) ScheduleEditorRefresh(!sceneBuilt);
 #endif
         }
 
-        [ContextMenu("Modelleri Şimdi Güncelle")]
+        /// <summary>
+        /// Sahneye kurulmuş görselleri oyuna bağlar; hiçbir şeyi silmez, taşımaz ya da yeniden yaratmaz:
+        /// ekran efektleri (kaydedilmeyen Volume'lar), ek lambaların şaltere bağlanması, arka plan sisinin havaya bağlanması,
+        /// sonradan sahneye konan eşyaların çizim görünümü ve kolonların seviye modeli.
+        /// </summary>
+        void PrepareRuntime()
+        {
+            if (building == null) return;
+            runtimeMaterials.Clear();
+
+            Step("Ekran efektleri", () =>
+            {
+                if (!enableDarkTheme) return;
+                ApplyPostProcessing(Camera.main);
+                ApplyScreenVignette();
+            });
+            Step("Lamba bağlantıları", () =>
+            {
+                var holder = building.transform.Find(BuildingHolderName);
+                if (holder == null) return;
+                foreach (var light in holder.GetComponentsInChildren<Light>(true))
+                    if (light.name.StartsWith(LampPrefix + "Isik_")) PowerGrid.RegisterLight(light);
+            });
+            Step("Arka plan sisi", AttachBackdropAtmosphere);
+            Step(nameof(ApplySketchPropMaterials), ApplySketchPropMaterials);
+            Step("Kolon modelleri", () =>
+            {
+                foreach (var column in FindObjectsByType<SupportColumn>(FindObjectsSortMode.None)) column.ApplyVisual();
+            });
+            Step("Bypass vanası", () =>
+            {
+                var bypass = building.transform.Find("Props/Bypass Vanası");
+                if (bypass != null && bypass.TryGetComponent<InstallableVisual>(out var installable)) installable.Refresh();
+            });
+
+            var lighting = FindFirstObjectByType<AftershockIsle.Effects.LightingController>();
+            if (lighting != null) lighting.Rebase();
+        }
+
+        void AttachBackdropAtmosphere()
+        {
+            var root = building.transform.Find(BackdropName);
+            if (root == null || root.GetComponent<BackdropAtmosphere>() != null) return;
+            var hazeTransform = root.Find("Sis");
+            var haze = hazeTransform != null ? hazeTransform.GetComponent<SpriteRenderer>() : null;
+            if (haze == null) return;
+            root.gameObject.AddComponent<BackdropAtmosphere>().Init(haze, root.GetComponentsInChildren<SpriteRenderer>(),
+                hazeColor, hazeDensity, backdropTint);
+        }
+
+        /// <summary>
+        /// Bina, eşya modelleri, lambalar, güneş ve yürüme engellerini baştan kurar (öncekileri silip). Editörde yalnızca
+        /// sahne ilk açıldığında ve "Sahneyi Yeniden Kur" düğmesiyle çalışır; kurulmuş sahnede oyunda hiç çalışmaz.
+        /// </summary>
         public void RefreshAll()
         {
             if (building == null) building = FindFirstObjectByType<BuildingLayout>();
@@ -157,9 +224,31 @@ namespace AftershockIsle.Building
             Step(nameof(ApplyColumns), ApplyColumns);
 #if UNITY_EDITOR
             // Bina malzeme dosyalarını yenilemede bir kez güncelle; oyun sırasında asset yazma.
-            if (!Application.isPlaying) Step(nameof(UpgradeExtractedBuildingMaterialsInEditor), UpgradeExtractedBuildingMaterialsInEditor);
+            if (!Application.isPlaying)
+            {
+                Step(nameof(UpgradeExtractedBuildingMaterialsInEditor), UpgradeExtractedBuildingMaterialsInEditor);
+                Step(nameof(MoveRuntimeContentIntoScene), MoveRuntimeContentIntoScene);
+                Step(nameof(ConvertFloorHolesToPlankPatches), ConvertFloorHolesToPlankPatches);
+                sceneBuilt = true;
+                UnityEditor.EditorUtility.SetDirty(this);
+                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
+            }
 #endif
         }
+
+#if UNITY_EDITOR
+        /// <summary>
+        /// Eskiden her oyun açılışında kodla eklenen kat içeriği (bodrum kazanı ve kömürlük, 3. kat eşyaları, çatı) ve
+        /// İnşaat Masası sahneye bir kez gerçek obje olarak eklenir. Sonrası tamamen sahnenin: silinen geri gelmez.
+        /// </summary>
+        void MoveRuntimeContentIntoScene()
+        {
+            if (runtimeContentMoved) return;
+            FloorContent.AddMissing(building);
+            BuildTable.AddIfMissing(building);
+            runtimeContentMoved = true;
+        }
+#endif
 
         void Step(string name, System.Action action)
         {
@@ -228,30 +317,53 @@ namespace AftershockIsle.Building
 
 #if UNITY_EDITOR
         bool editorRefreshQueued;
+        bool editorFullRefreshQueued;
 
-        // Inspector'da bir değer (model, ışık, renk) değişince sahne editörde hemen güncellenir.
+        // Inspector'da değer değişince yalnızca ekran efektleri (vinyet, atmosfer) önizlenir; sahne objelerine dokunulmaz.
         void OnValidate()
         {
-            if (!Application.isPlaying) ScheduleEditorRefresh();
+            if (!Application.isPlaying) ScheduleEditorRefresh(false);
         }
 
         /// <summary>
-        /// Editörde bir sonraki boş anda her şeyi kurar (bina, eşya modelleri, lambalar, pencere ışıkları); aynı karede gelen
-        /// istekler tek seferde birleşir. Play'e geçilirken çalışmaz (oyun kendi Awake'inde kurar).
+        /// Editörde bir sonraki boş anda çalışır; aynı karede gelen istekler birleşir. full: sahne hiç kurulmamışsa
+        /// baştan kurar; değilse yalnızca kaydedilmeyen ekran efektlerini yeniler.
         /// </summary>
-        void ScheduleEditorRefresh()
+        void ScheduleEditorRefresh(bool full)
         {
+            editorFullRefreshQueued |= full;
             if (editorRefreshQueued) return;
             editorRefreshQueued = true;
             UnityEditor.EditorApplication.delayCall += () =>
             {
                 editorRefreshQueued = false;
+                bool doFull = editorFullRefreshQueued;
+                editorFullRefreshQueued = false;
                 if (this == null || !isActiveAndEnabled || Application.isPlaying ||
                     UnityEditor.EditorApplication.isPlayingOrWillChangePlaymode || UnityEditor.EditorApplication.isCompiling) return;
-                RefreshAll();
-                // Kurulan modeller sahneyle kaydedilsin.
-                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
+                if (building == null) building = FindFirstObjectByType<BuildingLayout>();
+                if (building == null) return;
+
+                if (doFull && !sceneBuilt) RefreshAll();
+                else
+                {
+                    // Kurulmuş sahneye sonradan gelen tek seferlik eklemeler (kendi bayraklarıyla, bir daha çalışmaz).
+                    Step(nameof(ConvertFloorHolesToPlankPatches), ConvertFloorHolesToPlankPatches);
+                    if (enableDarkTheme)
+                    {
+                        ApplyPostProcessing(Camera.main);
+                        ApplyScreenVignette();
+                    }
+                }
             };
+        }
+
+        /// <summary>Inspector düğmesi: sahneyi baştan kurar (kodun kurduğu objeleri silip yeniden yaratır).</summary>
+        [ContextMenu("Sahneyi Yeniden Kur")]
+        public void RebuildSceneInEditor()
+        {
+            if (Application.isPlaying) return;
+            RefreshAll();
         }
 
         /// <summary>
@@ -301,7 +413,7 @@ namespace AftershockIsle.Building
             if (old != null) DestroySafe(old.gameObject);
             if (!useCustomBuilding || buildingPrefab == null) return;
 
-            var root = new GameObject(WalkBlockersName) { hideFlags = HideFlags.DontSave }.transform;
+            var root = new GameObject(WalkBlockersName).transform;
             root.SetParent(building.transform, false);
 
             const float doorHalf = 0.6f;
@@ -314,18 +426,51 @@ namespace AftershockIsle.Building
                 AddWalkBlocker(root, $"Bölme_{floor}_{x:0.#}_Ön", new Vector3(x, y + h * 0.5f, -doorHalf - segment * 0.5f), new Vector3(0.2f, h, segment));
                 AddWalkBlocker(root, $"Bölme_{floor}_{x:0.#}_Arka", new Vector3(x, y + h * 0.5f, doorHalf + segment * 0.5f), new Vector3(0.2f, h, segment));
             }
+            // Döşeme delikleri burada değil: sahnedeki "Kalasla Kapatılacaklar" altında PlankPatch'tir (kapatılınca yürünür).
+        }
 
+#if UNITY_EDITOR
+        const string PlankPatchRootName = "Kalasla Kapatılacaklar";
+
+        /// <summary>
+        /// Bina modelindeki döşeme deliklerini bir kez sahneye kalasla kapatılabilir delik (PlankPatch) olarak koyar ve eski
+        /// sabit delik engellerini kaldırır. Sonrası sahnenin: yerini, ölçüsünü, maliyetini Inspector'dan değiştir.
+        /// </summary>
+        void ConvertFloorHolesToPlankPatches()
+        {
+            if (plankPatchesAdded || !useCustomBuilding || buildingPrefab == null) return;
+
+            var blockers = building.transform.Find(WalkBlockersName);
+            if (blockers != null)
+                for (int i = blockers.childCount - 1; i >= 0; i--)
+                    if (blockers.GetChild(i).name.StartsWith("Delik_")) DestroySafe(blockers.GetChild(i).gameObject);
+
+            Transform parent = null;
+            foreach (var go in gameObject.scene.GetRootGameObjects())
+                if (go.name == PlankPatchRootName) parent = go.transform;
+            if (parent == null)
+            {
+                parent = new GameObject(PlankPatchRootName).transform;
+                UnityEditor.SceneManagement.EditorSceneManager.MoveGameObjectToScene(parent.gameObject, gameObject.scene);
+            }
+
+            float h = building.FloorHeight;
             foreach (var (floor, minX, maxX, minZ, maxZ) in ModelFloorHoles)
             {
-                AddWalkBlocker(root, $"Delik_{floor}",
-                    new Vector3((minX + maxX) * 0.5f, floor * h + 0.5f, (minZ + maxZ) * 0.5f),
-                    new Vector3(maxX - minX, 1f, maxZ - minZ));
+                var center = building.transform.TransformPoint(new Vector3((minX + maxX) * 0.5f, floor * h, (minZ + maxZ) * 0.5f));
+                PlankPatch.CreateInEditor($"Döşeme Deliği ({floor}. Kat)", PatchKind.FloorHole, center,
+                    new Vector3(maxX - minX, 0f, maxZ - minZ), parent);
             }
+
+            plankPatchesAdded = true;
+            UnityEditor.EditorUtility.SetDirty(this);
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
         }
+#endif
 
         static void AddWalkBlocker(Transform root, string name, Vector3 center, Vector3 size)
         {
-            var go = new GameObject(name) { hideFlags = HideFlags.DontSave };
+            var go = new GameObject(name);
             go.transform.SetParent(root, false);
             go.AddComponent<WalkBlocker>().Configure(center, size, false);
         }
@@ -344,8 +489,12 @@ namespace AftershockIsle.Building
                 {
                     if (renderer == null) continue;
                     bool isEarth = renderer.name.StartsWith("Earth_");
-                    renderer.enabled = showGreybox || isEarth;
-                    if (!isEarth) continue;
+                    // Toprak bloklarının (Earth_L/R/Below) açık/kapalı durumunu sahnede sen belirlersin; kod açmaz.
+                    if (!isEarth)
+                    {
+                        renderer.enabled = showGreybox;
+                        continue;
+                    }
 
                     // Toprak giriş katı seviyesinde ufka kadar uzar; ön yüzü (kesit) yerinde kalır, arkası arka plana değer.
                     float frontZ = -earthDepth * 0.5f;
@@ -415,9 +564,10 @@ namespace AftershockIsle.Building
         /// Uzaklaştıkça küçülmesin diye boyutu mesafeyle orantılı büyür; altı zemin seviyesindedir (giriş katı),
         /// önünde ufka doğru yoğunlaşan bir sis perdesi durur.
         /// </summary>
+        const string BackdropName = "WorldBackdrop";
+
         void ApplyWorldBackdrop()
         {
-            const string BackdropName = "WorldBackdrop";
             var oldCam = Camera.main != null ? Camera.main.transform.Find("Genel Arka Plan") : null;
             if (oldCam != null) DestroySafe(oldCam.gameObject);
 
@@ -632,7 +782,7 @@ namespace AftershockIsle.Building
                 for (int i = 0; i < shared.Length; i++)
                 {
                     var mat = shared[i];
-                    if (mat == null) continue;
+                    if (mat == null || IsConvertedMaterial(mat)) continue;
 
                     if (mat.name.StartsWith("Cizim_Dis_Hat") || mat.name.Contains("Outline"))
                     {
@@ -655,6 +805,11 @@ namespace AftershockIsle.Building
                 if (changed) renderer.sharedMaterials = shared;
             }
         }
+
+        /// <summary>Sahne kurulurken binanın görünümüne zaten çevrilmiş malzeme: ikinci kez çevrilmez.</summary>
+        static bool IsConvertedMaterial(Material mat) =>
+            mat == outlineMaterial || mat.name.EndsWith("_Cel") || mat.name.EndsWith("_Decal") ||
+            (mat.shader != null && mat.shader.name == "Aftershock/CelBuilding");
 
         static Material GetOutlineMaterial()
         {
@@ -1006,7 +1161,7 @@ namespace AftershockIsle.Building
             if (old != null) DestroySafe(old.gameObject);
             if (!useCustomBuilding || buildingPrefab == null) return;
 
-            var root = new GameObject(SunShaftsName) { hideFlags = HideFlags.DontSave }.transform;
+            var root = new GameObject(SunShaftsName).transform;
             root.SetParent(building.transform, false);
 
             var dir = SunRotation * Vector3.forward;              // bina yereli: arkadan öne ve aşağı
@@ -1578,10 +1733,10 @@ namespace AftershockIsle.Building
             return null;
         }
 
-        /// <summary>Cel görünümü yalnızca oyunda verilir: editörde çalışma anı malzemeleri sahneye kaydedilemez.</summary>
+        /// <summary>Modele binanın Cel görünümünü verir; editörde de yapılır ve malzemeler sahneyle kaydedilir (editörde ne görüyorsan oyunda o).</summary>
         void ApplyLookInPlay(GameObject model)
         {
-            if (model != null && Application.isPlaying) FixBuildingMaterials(model);
+            if (model != null) FixBuildingMaterials(model);
         }
 
         /// <summary>
@@ -1631,17 +1786,20 @@ namespace AftershockIsle.Building
 
         /// <summary>
         /// Sahneye elle konan Blender çizim stili eşyalara (Su_Deposu.fbx gibi, "Cizim_" malzemeli) binayla aynı Cel
-        /// görünümünü verir. Yalnızca oyunda: editörde yapılırsa sahneye kaydedilemeyen geçici malzemeler yazılırdı.
+        /// görünümünü verir. Sahne kurulurken editörde, sonradan konan eşyalar için oyun açılışında da çalışır
+        /// (çevrilmiş malzemelere dokunmaz).
         /// </summary>
         void ApplySketchPropMaterials()
         {
-            if (!Application.isPlaying) return;
+            // Kutudan dönüştürülen eşyalar, giydirilmiş kutular gibi bütün malzemeleriyle binanın görünümünü alır.
+            foreach (var prop in FindObjectsByType<SceneProp>(FindObjectsSortMode.None)) FixBuildingMaterials(prop.gameObject);
+
             foreach (var renderer in FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
             {
                 if (renderer.transform.IsChildOf(building.transform)) continue;
                 foreach (var mat in renderer.sharedMaterials)
                 {
-                    if (mat == null || !(mat.name.StartsWith("Cizim_") || mat.name.StartsWith("Esya_"))) continue;
+                    if (mat == null || IsConvertedMaterial(mat) || !(mat.name.StartsWith("Cizim_") || mat.name.StartsWith("Esya_"))) continue;
                     FixBuildingMaterials(renderer.gameObject);
                     break;
                 }
@@ -1835,6 +1993,12 @@ namespace AftershockIsle.Building
             {
                 if (item.GetType() != greybox.GetType()) continue;
                 if (singleton) return true;
+                // Kutudan dönüştürülen eşya yalnızca kendi eski kutusunun (aynı obje adı) yerini tutar; diğer sandalyeleri gizlemez.
+                if (item.TryGetComponent<SceneProp>(out _))
+                {
+                    if (item.name == greybox.name) return true;
+                    continue;
+                }
 
                 string other = item.DisplayName ?? string.Empty;
                 if (other.Length > 0 && name.Length > 0 && (name.StartsWith(other) || other.StartsWith(name))) return true;

@@ -6,7 +6,8 @@ using UnityEngine;
 namespace AftershockIsle.Building
 {
     /// <summary>
-    /// Blender binasındaki kapı kanadı. Pivotu menteşede; karakter yanındayken F (ya da sağ tık) ile açılır/kapanır.
+    /// Blender binasındaki kapı kanadı. Pivotu menteşede; bir kazazede kapı aralığına yaklaşınca kendiliğinden açılır,
+    /// kimse kalmayınca kısa süre sonra kapanır. F ya da tıklamayla etkileşimi yoktur (autoOpen kapatılırsa eski usul F ile).
     /// Building.fbx import edilirken BuildingDoorImporter tarafından eklenir; açılma açısı Blender'daki
     /// "kapi_acik_aci" özelliğinden gelir. Başlangıçta kapalıdır.
     /// </summary>
@@ -19,6 +20,13 @@ namespace AftershockIsle.Building
         [Tooltip("Açılma/kapanma süresi (saniye)")]
         [SerializeField] float swingDuration = 0.45f;
         [SerializeField] bool startOpen;
+        [Tooltip("Kazazede yaklaşınca kendiliğinden açılır, uzaklaşınca kapanır; F ile açma kapanır")]
+        [SerializeField] bool autoOpen = true;
+        [Tooltip("Kapı aralığına bu kadar (metre) yaklaşan kazazede kapıyı açar")]
+        [SerializeField, Range(0.3f, 3f)] float openReach = 1.1f;
+        [Tooltip("Aralıkta kimse kalmadıktan kaç saniye sonra kapansın (başta açık olan kapı hep açık kalır)")]
+        [SerializeField, Range(0.2f, 5f)] float closeDelay = 1.2f;
+        float emptyTime;
 
         Quaternion closedRotation;
         float openAmount;
@@ -35,6 +43,8 @@ namespace AftershockIsle.Building
         public override bool AllowedInSmoke => true;
         // Kanadın kendisi engel değildir (açılırken savrulur); kapalıyken kapı aralığını WalkBlocker kapatır.
         public override bool BlocksMovement => false;
+        // Kendiliğinden açılan kapı seçilmez: F istemi, bilgi kartı ve kontur çıkmaz.
+        public override bool IsInteractive => !autoOpen;
 
         void OnEnable() => all.Add(this);
         void OnDisable() => all.Remove(this);
@@ -165,11 +175,46 @@ namespace AftershockIsle.Building
 
         void Update()
         {
+            if (autoOpen) UpdateAutoOpen(Time.deltaTime);
+
             float target = open ? 1f : 0f;
             if (Mathf.Approximately(openAmount, target)) return;
 
             openAmount = Mathf.MoveTowards(openAmount, target, Time.deltaTime / Mathf.Max(0.01f, swingDuration));
             ApplyRotation();
+        }
+
+        void UpdateAutoOpen(float dt)
+        {
+            if (doorway == null) return;
+
+            // Açıkken biraz daha geniş bakılır: eşikte duran kişinin önünde kapı kapanıp açılmasın.
+            if (AnyoneNear(open ? openReach + 0.4f : openReach))
+            {
+                emptyTime = 0f;
+                if (!open) SetOpen(true);
+            }
+            else if (open && !startOpen)
+            {
+                emptyTime += dt;
+                if (emptyTime >= closeDelay) SetOpen(false);
+            }
+        }
+
+        bool AnyoneNear(float reach)
+        {
+            var bounds = doorway.WorldBounds;
+            foreach (var survivor in Survivor.All)
+            {
+                if (survivor == null || survivor.IsDead || !survivor.isActiveAndEnabled) continue;
+                var position = survivor.transform.position;
+                if (position.y < bounds.min.y - 0.5f || position.y > bounds.max.y) continue;
+
+                var closest = bounds.ClosestPoint(new Vector3(position.x, bounds.center.y, position.z));
+                closest.y = position.y;
+                if ((closest - position).sqrMagnitude <= reach * reach) return true;
+            }
+            return false;
         }
 
         void ApplyRotation()

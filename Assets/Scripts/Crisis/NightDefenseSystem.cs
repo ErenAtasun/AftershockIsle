@@ -168,6 +168,9 @@ namespace AftershockIsle.Crisis
             var body = new StringBuilder();
             body.Append("Gece çöktü. Kapıda nöbet tutacak birini seçin; nöbetçi uyumaz ve sabah yorgun uyanır (+10 Stres).\n\n");
             body.Append($"Silah: {WeaponSummary()}   •   Barikat: {(HasBarricade ? "Çelik Kapı var" : "yok")}\n");
+            int breaches = AftershockIsle.Interaction.PlankPatch.OpenWallBreachCount;
+            if (breaches > 0)
+                body.Append($"Duvarda kalasla kapatılmamış {breaches} gedik var: savunma -{AftershockIsle.Interaction.PlankPatch.OpenBreachDefensePenalty:0}\n");
             body.Append($"Tehdit: {ThreatLabel(RaidChance(day))}");
             var storage = AftershockIsle.Economy.ResourceStorage.Instance;
             int kits = storage != null ? storage.Get(AftershockIsle.Economy.ResourceType.Supplies) : 0;
@@ -295,7 +298,9 @@ namespace AftershockIsle.Crisis
                 score += HasGun ? WeaponPower(FieldWeapons.Best()) : 5f;
             }
             if (HasBarricade) score += 40f;
-            return score;
+            // Kalasla kapatılmamış duvar gedikleri yağmacılara ikinci bir giriş verir.
+            score -= AftershockIsle.Interaction.PlankPatch.OpenBreachDefensePenalty;
+            return Mathf.Max(0f, score);
         }
 
         public float RaidChance(int day)

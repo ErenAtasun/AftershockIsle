@@ -2,14 +2,13 @@ using System.Collections.Generic;
 using AftershockIsle.Economy;
 using AftershockIsle.Interaction;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace AftershockIsle.Building
 {
     /// <summary>
     /// Boş kalan katların içeriği (3. kat harap daireler, çatıda yağmur toplayıcı ve anten, bodrumda kazan ve raf).
-    /// Tek liste hem sahne kurucuda (modellerle) hem çalışma anında kullanılır: sahne yeniden kurulmamışsa eksik olanlar
-    /// açılışta düz kutularla eklenir. İsimler benzersizdir (kayıt nesneleri ismiyle eşleştirir).
+    /// Tek liste hem sahne kurucuda (modellerle) hem ModelManager'ın ilk kurulumunda kullanılır: sahnede eksik olanlar
+    /// editörde bir kez düz kutularla eklenir. İsimler benzersizdir (kayıt nesneleri ismiyle eşleştirir).
     /// </summary>
     public static class FloorContent
     {
@@ -138,17 +137,12 @@ namespace AftershockIsle.Building
 
         // ---------------------------------------------------------------- Çalışma anı
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        static void Register()
+        /// <summary>
+        /// Sahnede olmayan içeriği düz kutularla ekler. Oyun açılışında çalışmaz (oyun yalnızca sahnedekini kullanır);
+        /// ModelManager sahneyi ilk kurarken editörde bir kez çağırır, eklenenler sahneyle kaydedilir.
+        /// </summary>
+        public static void AddMissing(BuildingLayout layout)
         {
-            SceneManager.sceneLoaded -= OnSceneLoaded;
-            SceneManager.sceneLoaded += OnSceneLoaded;
-        }
-
-        // Sahne yeniden kurulmadıysa eksik içerik düz kutularla eklenir.
-        static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-        {
-            var layout = Object.FindFirstObjectByType<BuildingLayout>();
             if (layout == null || layout.FloorCount < 5) return;
 
             var existing = new HashSet<string>();

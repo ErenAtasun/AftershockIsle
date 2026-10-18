@@ -80,11 +80,11 @@ namespace AftershockIsle.UI
                     break;
 
                 case RubblePile rubble:
-                    info.Why = rubble.BlocksPath
+                    info.Why = rubble.BlocksWholeFloor
                         ? "Moloz yolu kapatıyor; kazılana kadar geçilemez."
                         : "Kazdıkça Hurda (bazen Metal) verir. Hurda ve Metal tezgah işleri için gerekli.";
                     info.Reward = "Her kazıda depoya malzeme girer.";
-                    Mark(ref info, rubble.BlocksPath ? MarkerKind.Important : MarkerKind.Optional, "KAZ");
+                    Mark(ref info, rubble.BlocksWholeFloor ? MarkerKind.Important : MarkerKind.Optional, "KAZ");
                     break;
 
                 case Furniture furniture:

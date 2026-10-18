@@ -29,6 +29,7 @@ namespace AftershockIsle.Save
         public List<GasLeakSaveData> gasLeaks = new List<GasLeakSaveData>();
         public List<FurnitureSaveData> furnitures = new List<FurnitureSaveData>();
         public List<RubbleSaveData> rubbles = new List<RubbleSaveData>();
+        public List<PlankPatchSaveData> plankPatches = new List<PlankPatchSaveData>();
         public List<SurvivorSaveData> survivors = new List<SurvivorSaveData>();
         public List<PlacedStructureSaveData> placedStructures = new List<PlacedStructureSaveData>();
 
@@ -163,6 +164,13 @@ namespace AftershockIsle.Save
     {
         public int floor;
         public bool isBroken;
+    }
+
+    [Serializable]
+    public struct PlankPatchSaveData
+    {
+        public string name;
+        public bool patched;
     }
 
     [Serializable]

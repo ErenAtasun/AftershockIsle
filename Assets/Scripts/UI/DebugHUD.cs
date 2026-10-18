@@ -22,6 +22,11 @@ namespace AftershockIsle.UI
             if (dayCycle != null) dayCycle.JumpToPhase(phase);
         }
 
+        static void DebugButton(string label, DebugAction action)
+        {
+            if (GUILayout.Button(label, GUILayout.Height(26f))) GameInput.TriggerDebug(action);
+        }
+
         void Update()
         {
             if (Keyboard.current != null && Keyboard.current.f1Key.wasPressedThisFrame) open = !open;
@@ -38,13 +43,34 @@ namespace AftershockIsle.UI
                 return;
             }
 
-            var rect = new Rect(16f, top, 360f, 312f);
+            var rect = new Rect(16f, top, 360f, 452f);
             UIBlocker.Add(rect);
             GUILayout.BeginArea(rect, GUI.skin.box);
             GUILayout.Label("TEST PANELİ (F1)");
             GUILayout.Label($"Zaman: {Time.timeScale:0.##}x — {Core.TimeManager.Describe()}");
-            GUILayout.Label("F3 gaz  F5 kamera  F6 yangın  F7 boru  F8 sarsıntı");
-            GUILayout.Label("F9 hasar  F10 kolon  F11 kaynak+puan  F12 kazazede");
+
+            // Afetler
+            GUILayout.BeginHorizontal();
+            DebugButton("Artçı Sarsıntı", DebugAction.Quake);
+            DebugButton("Yangın", DebugAction.Fire);
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            DebugButton("Gaz Kaçağı", DebugAction.Gas);
+            DebugButton("Boru Patlat", DebugAction.Flood);
+            GUILayout.EndHorizontal();
+
+            // Bina
+            GUILayout.BeginHorizontal();
+            DebugButton("Bütünlük -10", DebugAction.Damage);
+            DebugButton("Kolon Çatlat", DebugAction.Crack);
+            GUILayout.EndHorizontal();
+
+            // Kaynak, kazazede, kamera
+            GUILayout.BeginHorizontal();
+            DebugButton("Kaynak +5, Puan +1", DebugAction.Resources);
+            DebugButton("Kazazede Ekle", DebugAction.SpawnSurvivor);
+            GUILayout.EndHorizontal();
+            DebugButton("Kamera Eğimini Değiştir", DebugAction.CameraPitch);
 
             if (GUILayout.Button(PlacementController.IsPlacementActive ? "Yerleşim Modunu Kapat [B]" : "Yerleşim / Izgara Modu [B]", GUILayout.Height(26f))
                 && PlacementController.Instance != null)

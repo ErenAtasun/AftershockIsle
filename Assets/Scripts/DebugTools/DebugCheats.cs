@@ -10,9 +10,9 @@ using UnityEngine;
 namespace AftershockIsle.DebugTools
 {
     /// <summary>
-    /// Afet sistemleri gelene kadar test kısayolları. Yalnızca editörde ve development build'de çalışır.
-    /// F3: gaz kaçağı   F6: yangın   F7: boru patlat   F8: artçı sarsıntı   F9: bütünlük -10   F10: rastgele sağlam kolonu çatlat
-    /// F11: her kaynaktan +5 ve +1 yetenek puanı   F12: eksik dalın uzmanı bir test kazazedesi ekle
+    /// Test eylemleri; F1 test panelindeki butonlarla tetiklenir. Yalnızca editörde ve development build'de çalışır.
+    /// Gaz kaçağı, yangın, boru patlat, artçı sarsıntı, bütünlük -10, rastgele sağlam kolonu çatlat,
+    /// her kaynaktan +5 ve +1 yetenek puanı, eksik dalın uzmanı bir test kazazedesi ekle.
     /// </summary>
     public class DebugCheats : MonoBehaviour
     {

@@ -1069,7 +1069,6 @@ namespace AftershockIsle.EditorTools
             if (manager != null)
             {
                 manager.ConfigureCandleLightOnObject(go);
-                manager.RefreshAll();
             }
             else
             {
@@ -1097,16 +1096,24 @@ namespace AftershockIsle.EditorTools
     {
         public override void OnInspectorGUI()
         {
-            EditorGUI.BeginChangeCheck();
             DrawDefaultInspector();
-            bool changed = EditorGUI.EndChangeCheck();
 
+            // Sahne bir kez kurulur ve sonra senindir: Inspector'da değer değiştirmek sahneyi yeniden kurmaz.
             GUILayout.Space(8);
-            if (changed || GUILayout.Button("Modelleri Sahneye Uygula / Güncelle", GUILayout.Height(28)))
+            EditorGUILayout.HelpBox(
+                "Sahne kuruldu; oyun sahnede ne görüyorsan onu kullanır. Sildiğin / kapattığın / taşıdığın objeler öyle kalır.\n" +
+                "Model slotunu değiştirdiysen 'Sahneyi Yeniden Kur': kodun kurduğu bina modeli, lambalar, güneş ışıkları ve " +
+                "eşya giydirmeleri silinip baştan kurulur (onlarda yaptığın elle değişiklikler gider).", MessageType.Info);
+            using (new EditorGUI.DisabledScope(Application.isPlaying))
             {
-                var manager = (ModelManager)target;
-                manager.RefreshAll();
-                if (!Application.isPlaying) EditorSceneManager.MarkSceneDirty(manager.gameObject.scene);
+                if (GUILayout.Button("Sahneyi Yeniden Kur", GUILayout.Height(28)) &&
+                    EditorUtility.DisplayDialog("Sahneyi Yeniden Kur",
+                        "Bina modeli, lambalar, güneş ışıkları, yürüme engelleri ve eşya giydirmeleri silinip baştan kurulacak. " +
+                        "Bunlarda elle yaptığın değişiklikler kaybolur (Ctrl+Z ile geri alamazsın). Devam edilsin mi?",
+                        "Yeniden Kur", "Vazgeç"))
+                {
+                    ((ModelManager)target).RebuildSceneInEditor();
+                }
             }
         }
     }

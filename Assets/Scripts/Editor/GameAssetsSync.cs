@@ -104,8 +104,6 @@ namespace AftershockIsle.EditorTools
 
             EditorUtility.SetDirty(assets);
             AssetDatabase.SaveAssets();
-            if (AftershockIsle.Building.ModelManager.Instance != null)
-                AftershockIsle.Building.ModelManager.Instance.RefreshAll();
             Debug.Log("[Varlıklar] GameAssets güncellendi: karakter, saha modelleri ve arayüz görselleri. Sahneyi yeniden kurmak gerekmez.");
             return assets;
         }

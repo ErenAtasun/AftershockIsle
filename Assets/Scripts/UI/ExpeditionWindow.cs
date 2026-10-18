@@ -201,6 +201,7 @@ namespace AftershockIsle.UI
             loadoutPage = true;
             if (view != null && view.IsOpen) view.Close();
             loadoutPanel.Open(null, lastLoadout);
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.InventoryOpen, 0.8f, 0.02f);
         }
 
         void OpenLoadout()

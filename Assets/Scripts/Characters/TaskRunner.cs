@@ -49,7 +49,12 @@ namespace AftershockIsle.Characters
             public Interactable Target;
             /// <summary>True ise ardındaki iş için araya girmiştir; başarısız olursa o iş de düşer.</summary>
             public bool IsPrerequisite;
+            /// <summary>True ise karakter nesnenin yanında durduğu yerden çalışır (F ile verilen iş), çalışma noktasına yürümez.</summary>
+            public bool InPlace;
         }
+
+        // Yerinde çalışma için nesnenin kenarına en fazla bu kadar uzak olunabilir; uzaksa çalışma noktasına yürünür.
+        const float InPlaceReach = 1.4f;
 
         const int MaxResolveSteps = 16;
 
@@ -60,12 +65,18 @@ namespace AftershockIsle.Characters
         CharacterMover mover;
         float progress;
         float workX;
+        bool workedInPlace;
 
         /// <summary>Yetenekler ve tükenmişlik bu çarpanı değiştirir.</summary>
         public float WorkSpeedMultiplier { get; set; } = 1f;
         public Interactable Current { get; private set; }
         public TaskState State { get; private set; }
         public int QueuedCount => queue.Count;
+        /// <summary>
+        /// Bir sonraki Assign'ı "durduğun yerden" yapar (doğrudan kontrolde F). CommandController HandleCommand'dan önce
+        /// açar, sonra kapatır; tezgah gibi menü açan nesneler Assign çağırmazsa etkisi olmaz.
+        /// </summary>
+        public bool PreferInPlace { get; set; }
         public float Progress01 =>
             State == TaskState.Working && Current != null ? Mathf.Clamp01(progress / Current.WorkDuration) : 0f;
 
@@ -79,7 +90,7 @@ namespace AftershockIsle.Characters
         {
             if (!append) CancelAll();
             if (target == Current || queue.Exists(q => q.Target == target)) return;
-            queue.Add(new QueuedTask { Target = target });
+            queue.Add(new QueuedTask { Target = target, InPlace = PreferInPlace && !(target is Seat) });
         }
 
         public void CancelAll()
@@ -159,6 +170,20 @@ namespace AftershockIsle.Characters
                 }
 
                 Current = target;
+
+                // F ile verilen iş: yanındaysa olduğu yerden başlar (nesnenin üstüne/içine yürümez).
+                if (queue[0].InPlace && CanWorkInPlace(target))
+                {
+                    queue.RemoveAt(0);
+                    mover.Halt();
+                    workX = transform.position.x;
+                    State = TaskState.Working;
+                    progress = 0f;
+                    workedInPlace = true;
+                    return;
+                }
+                workedInPlace = false;
+
                 workX = mover.Building.ClampX(target.GetWorkX(mover.CurrentFloor, transform.position.x));
                 if (!mover.MoveTo(target.Floor, workX, target.GetWorkZ()))
                 {
@@ -171,6 +196,17 @@ namespace AftershockIsle.Characters
                 State = TaskState.Moving;
                 return;
             }
+        }
+
+        bool CanWorkInPlace(Interactable target)
+        {
+            if (mover.IsClimbing || mover.CurrentFloor != target.Floor) return false;
+            var here = transform.position;
+            if (!target.TryGetFootprint(out var bounds))
+                return Vector2.Distance(new Vector2(here.x, here.z), new Vector2(target.transform.position.x, target.transform.position.z)) <= InPlaceReach;
+            float dx = Mathf.Max(0f, Mathf.Max(bounds.min.x - here.x, here.x - bounds.max.x));
+            float dz = Mathf.Max(0f, Mathf.Max(bounds.min.z - here.z, here.z - bounds.max.z));
+            return dx * dx + dz * dz <= InPlaceReach * InPlaceReach;
         }
 
         Interactable ResolvePrerequisite(Interactable target)
@@ -244,8 +280,9 @@ namespace AftershockIsle.Characters
 
             // Tekrarlı işin ön koşulları (taşıma, kova) sıradaki çözümlemede yeniden araya girer.
             var chest = StorageChest.FindNearest(survivor);
+            // Yerinde başlanan tekrarlı iş (kazı) yine yerinde sürer.
             if (done.RepeatAfterComplete)
-                queue.Insert(0, new QueuedTask { Target = done });
+                queue.Insert(0, new QueuedTask { Target = done, InPlace = workedInPlace });
             else if (survivor.IsCarrying && survivor.Carried.type.IsStorable() && chest != null && done != chest)
                 queue.Insert(0, new QueuedTask { Target = chest });
         }

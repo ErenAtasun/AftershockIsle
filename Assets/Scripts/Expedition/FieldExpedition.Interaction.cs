@@ -269,7 +269,7 @@ namespace AftershockIsle.Expedition
             float amount = explorer.Branch == SkillBranch.Engineering ? HealAmount * 1.5f : HealAmount;
             explorer.Heal(amount);
             healCooldown = HealCooldown;
-            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.CraftSuccess, 0.65f);
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.Medkit, 0.8f, 0.02f);
             Float($"+{amount:0}", avatar.position + Vector3.up * 1.6f, new Color(0.5f, 1f, 0.5f));
         }
 

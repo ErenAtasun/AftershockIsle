@@ -47,7 +47,7 @@ namespace AftershockIsle.Interaction
         public override bool RequiresEmptyHands => true;
         public override bool RepeatAfterComplete => remaining > 0;
         public override string StatusText =>
-            $"Kalan kazı: {remaining}/{digCount}  (+{yieldPerDig}){(blocksPath ? "  — yolu kapatıyor" : "")}";
+            $"Kalan kazı: {remaining}/{digCount}  (+{yieldPerDig}){(BlocksWholeFloor ? "  — yolu kapatıyor" : "")}";
 
         protected override void Awake()
         {
@@ -55,12 +55,41 @@ namespace AftershockIsle.Interaction
             remaining = digCount;
             fullScale = transform.localScale;
             baseY = transform.position.y - transform.lossyScale.y * 0.5f;
+            RegisterBlocker();
+        }
 
-            if (blocksPath)
+        // Yığının kapladığı alan katın yürünebilir derinliğini bu kadar payla kaplıyorsa yolu tamamen keser.
+        const float FullDepthTolerance = 0.35f;
+        bool spansDepth;
+
+        /// <summary>
+        /// Katın bütün derinliğini (önden arkaya) kaplayan yığın yolu tamamen keser: temizlenmeden geçilmez. Kaplamıyorsa
+        /// mobilya gibi yalnızca kendi alanı engeldir, açık kalan yerinden etrafından dolaşılır.
+        /// </summary>
+        public bool BlocksWholeFloor => blocksPath && spansDepth;
+
+        void RegisterBlocker()
+        {
+            spansDepth = false;
+            if (!blocksPath || Building == null) return;
+
+            float minX, maxX;
+            if (TryGetFootprint(out var bounds))
             {
-                float x = transform.position.x;
-                Building.AddBlocker(this, Floor, x - HalfWidth, x + HalfWidth);
+                spansDepth = bounds.min.z <= Building.MinZ + FullDepthTolerance &&
+                             bounds.max.z >= Building.MaxZ - FullDepthTolerance;
+                minX = bounds.min.x;
+                maxX = bounds.max.x;
             }
+            else
+            {
+                // Collider'ı yoksa eski davranış: yolu keser.
+                spansDepth = true;
+                minX = transform.position.x - HalfWidth;
+                maxX = transform.position.x + HalfWidth;
+            }
+
+            if (spansDepth) Building.AddBlocker(this, Floor, minX, maxX);
         }
 
         void OnDestroy()
@@ -70,7 +99,7 @@ namespace AftershockIsle.Interaction
 
         public override float GetWorkX(int fromFloor, float fromX)
         {
-            if (!blocksPath) return transform.position.x;
+            if (!BlocksWholeFloor) return transform.position.x;
 
             // Yolu kapatan yığın içinden kazılamaz; karakterin geldiği taraftaki kenarda durulur.
             float x = transform.position.x;
@@ -80,7 +109,7 @@ namespace AftershockIsle.Interaction
         }
 
         // Yolu kapatan yığının yanında, yürüme çizgisinde durulur.
-        public override float GetWorkZ() => blocksPath ? Building.WalkPlaneZ : base.GetWorkZ();
+        public override float GetWorkZ() => BlocksWholeFloor ? Building.WalkPlaneZ : base.GetWorkZ();
 
         public override bool CanStart(Survivor worker, out string reason)
         {

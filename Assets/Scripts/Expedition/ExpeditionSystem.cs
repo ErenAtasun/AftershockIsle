@@ -219,6 +219,7 @@ namespace AftershockIsle.Expedition
                 StartCoroutine(WalkThroughDoor(Companion, building.MaxX, OutsideX));
             }
             Stage = ExpeditionStage.Departing;
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.DoorTransition, 0.9f, 0.02f);
             TimeManager.Release(this);
             EventBus.Publish(new ExpeditionStarted(Explorer, site));
             Debug.Log($"[Sefer] {Explorer.DisplayName} → {site.name} (saha süresi {site.duration:0} sn" +
@@ -332,6 +333,7 @@ namespace AftershockIsle.Expedition
             BringCompanionHome();
 
             Stage = ExpeditionStage.Returning;
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.DoorTransition, 0.9f, 0.02f);
             Explorer = null;
             CurrentSite = null;
 

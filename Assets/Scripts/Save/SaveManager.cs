@@ -487,6 +487,13 @@ namespace AftershockIsle.Save
                 });
             }
 
+            // 18b. Kalasla kapatılan delikler
+            foreach (var patch in PlankPatch.All)
+            {
+                if (patch == null) continue;
+                data.plankPatches.Add(new PlankPatchSaveData { name = patch.gameObject.name, patched = patch.IsPatched });
+            }
+
             // 19. Survivors
             var allSurvivors = new List<Survivor>(Survivor.All);
             var away = ExpeditionSystem.AwayExplorer;
@@ -809,6 +816,15 @@ namespace AftershockIsle.Save
                     }
                     SpawnSavedRubble(rData);
                 }
+            }
+
+            // 18b. Kalasla kapatılan delikler (kayıtta olmayan yeni delik sahnedeki başlangıç durumunda kalır)
+            if (data.plankPatches != null && data.plankPatches.Count > 0)
+            {
+                var patchDict = new Dictionary<string, bool>();
+                foreach (var p in data.plankPatches) patchDict[p.name] = p.patched;
+                foreach (var patch in PlankPatch.All)
+                    if (patch != null && patchDict.TryGetValue(patch.gameObject.name, out bool patched)) patch.RestoreState(patched);
             }
 
             // 19. Survivors

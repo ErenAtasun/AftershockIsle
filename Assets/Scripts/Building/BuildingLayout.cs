@@ -294,7 +294,7 @@ namespace AftershockIsle.Building
         }
 
         /// <summary>Eğim bilgisi kaydedilmemiş (eski sahne) merdivene Blender binasındaki ölçüleri verir.</summary>
-        LadderDef WithProfile(LadderDef ladder)
+        public LadderDef WithProfile(LadderDef ladder)
         {
             if (ladder.HasProfile) return ladder;
             bool wallLadder = ladder.lowerFloor >= FloorCount - 2;

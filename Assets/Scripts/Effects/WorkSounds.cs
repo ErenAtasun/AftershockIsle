@@ -27,6 +27,12 @@ namespace AftershockIsle.Effects
         CommandController commands;
         float lastPlayed;
 
+        // Kütüphanede "Döngü" işaretli uzun kayıtlar: iş/yürüyüş sürdükçe kişi başına bir kaynakta döner.
+        readonly Dictionary<Survivor, AudioSource> workLoops = new Dictionary<Survivor, AudioSource>();
+        readonly Dictionary<Survivor, AudioSource> stepLoops = new Dictionary<Survivor, AudioSource>();
+        readonly HashSet<AudioSource> activeLoops = new HashSet<AudioSource>();
+        readonly List<AudioSource> loopBuffer = new List<AudioSource>();
+
         void OnEnable() => EventBus.Subscribe<TaskFinished>(OnTaskFinished);
         void OnDisable() => EventBus.Unsubscribe<TaskFinished>(OnTaskFinished);
 
@@ -39,7 +45,14 @@ namespace AftershockIsle.Effects
         void Update()
         {
             float dt = Time.deltaTime;
-            if (dt <= 0f) return;
+            // Zaman durunca döngüdeki sesler de duraklar.
+            if (dt <= 0f)
+            {
+                SetLoopsPaused(true);
+                return;
+            }
+            SetLoopsPaused(false);
+            activeLoops.Clear();
 
             if (commands == null) commands = FindFirstObjectByType<CommandController>();
             var selected = commands != null ? commands.Selected : null;
@@ -57,11 +70,78 @@ namespace AftershockIsle.Effects
 
                 if (survivor == selected) TickMovement(survivor);
             }
+
+            StopInactiveLoops(workLoops);
+            StopInactiveLoops(stepLoops);
+        }
+
+        /// <summary>Sesin kütüphanede döngü kaydı varsa o kişinin kaynağında döndürür (true); yoksa false (darbe sesi çalar).</summary>
+        bool KeepLooping(Dictionary<Survivor, AudioSource> map, Survivor survivor, SoundId id, float volume)
+        {
+            if (!SoundManager.TryGetLoop(id, out var clip, out float slotVolume)) return false;
+
+            if (!map.TryGetValue(survivor, out var source) || source == null)
+            {
+                var go = new GameObject($"Loop_{survivor.name}");
+                go.transform.SetParent(transform, false);
+                source = go.AddComponent<AudioSource>();
+                source.playOnAwake = false;
+                source.loop = true;
+                source.spatialBlend = 0f;
+                map[survivor] = source;
+            }
+
+            activeLoops.Add(source);
+            source.volume = Mathf.Clamp01(volume * slotVolume);
+            // Aynı iş sürüyorsa aynı parça devam eder; iş değişince (kazı → tamir) yeni parça başlar.
+            if (source.isPlaying && source.clip != null && SoundManager.LoopMatches(id, source.clip)) return true;
+            source.clip = clip;
+            source.pitch = Random.Range(0.96f, 1.04f);
+            // Uzun kaydın hep başı duyulmasın.
+            source.time = clip.length > 2f ? Random.Range(0f, clip.length * 0.5f) : 0f;
+            source.Play();
+            return true;
+        }
+
+        void StopInactiveLoops(Dictionary<Survivor, AudioSource> map)
+        {
+            loopBuffer.Clear();
+            foreach (var pair in map)
+            {
+                if (pair.Value == null) continue;
+                if (pair.Key == null || pair.Key.IsDead) loopBuffer.Add(pair.Value);
+                else if (!activeLoops.Contains(pair.Value) && pair.Value.isPlaying) pair.Value.Stop();
+            }
+            foreach (var source in loopBuffer)
+            {
+                source.Stop();
+                Destroy(source.gameObject);
+            }
+            if (loopBuffer.Count > 0)
+            {
+                stale.Clear();
+                foreach (var pair in map) if (pair.Key == null || pair.Key.IsDead) stale.Add(pair.Key);
+                foreach (var key in stale) map.Remove(key);
+            }
+        }
+
+        void SetLoopsPaused(bool paused)
+        {
+            foreach (var source in workLoops.Values) PauseSource(source, paused);
+            foreach (var source in stepLoops.Values) PauseSource(source, paused);
+        }
+
+        static void PauseSource(AudioSource source, bool paused)
+        {
+            if (source == null || source.clip == null) return;
+            if (paused) source.Pause();
+            else source.UnPause();
         }
 
         void TickWork(Survivor survivor, Interactable target)
         {
             if (!WorkSoundFor(target, out var id, out float interval)) return;
+            if (KeepLooping(workLoops, survivor, id, WorkVolume)) return;
 
             nextWork.TryGetValue(survivor, out float next);
             if (Time.time < next) return;
@@ -81,6 +161,7 @@ namespace AftershockIsle.Effects
             bool climbing = mover.IsClimbing;
             bool walking = mover.IsMoving || mover.IsSteering;
             if (!walking) return;
+            if (KeepLooping(stepLoops, survivor, climbing ? SoundId.Ladder : SoundId.Footstep, climbing ? 0.45f : StepVolume)) return;
 
             nextStep.TryGetValue(survivor, out float next);
             if (Time.time < next) return;
@@ -135,9 +216,12 @@ namespace AftershockIsle.Effects
             switch (target.Category)
             {
                 case WorkCategory.Repair:
-                case WorkCategory.Dismantle:
                     id = SoundId.Hammer;
                     interval = 0.55f;
+                    return true;
+                case WorkCategory.Dismantle:
+                    id = SoundId.DigMetal;
+                    interval = 0.6f;
                     return true;
                 case WorkCategory.Dig:
                     id = SoundId.Dig;

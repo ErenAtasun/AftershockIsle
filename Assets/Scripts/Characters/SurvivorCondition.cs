@@ -70,6 +70,9 @@ namespace AftershockIsle.Characters
             if (tasks.State == TaskState.Working && !isLit)
             {
                 float coldFactor = hasHeater ? 1f : WeatherSystem.ColdDarkStressMultiplier;
+                // Kalasla kapatılmamış duvar gediğinden ayaz içeri girer.
+                if (!hasHeater && WeatherSystem.Current == WeatherType.ColdWave &&
+                    AftershockIsle.Interaction.PlankPatch.HasOpenBreach(floor)) coldFactor *= 1.3f;
                 float claustroFactor = survivor.HasTrait(TraitId.Claustrophobic) ? 1.8f : 1f;
                 float lampFactor = ToolKit.HasHeadLamp ? ToolKit.HeadLampDarkStress : 1f;
                 AddStress(darkWorkStressPerSecond * coldFactor * claustroFactor * lampFactor * dt);

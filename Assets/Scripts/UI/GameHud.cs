@@ -269,18 +269,22 @@ namespace AftershockIsle.UI
             }
         }
 
-        // Sağ üst: dört küçük rozet; elektrik yalnızca kesikken uyarı olarak görünür.
+        // Sağ üst: üç küçük rozet (Kalas & Hurda, Metal, Elektronik), sağ kenara yaslı. Yaşam Kiti sayacı burada yok.
         void BuildResources(Transform parent)
         {
             const float width = 128f;
             const float height = 63f;
             const float gap = 6f;
 
+            var shown = new List<ResourceType>();
+            foreach (var type in ResourceTypes.All)
+                if (type != ResourceType.Supplies) shown.Add(type);
+
             var row = UiFactory.Rect("Kaynaklar", parent);
-            UiFactory.Place(row, new Vector2(1f, 1f), new Vector2(-Margin, -Margin), new Vector2(4 * (width + gap) - gap, height));
+            UiFactory.Place(row, new Vector2(1f, 1f), new Vector2(-Margin, -Margin), new Vector2(shown.Count * (width + gap) - gap, height));
 
             float x = 0f;
-            foreach (var type in ResourceTypes.All)
+            foreach (var type in shown)
             {
                 Sprite badge = skin == null ? null : type switch
                 {
@@ -675,7 +679,7 @@ namespace AftershockIsle.UI
 
             var chatter = selected.GetComponent<SurvivorChatter>();
             if (chatter != null) chatter.Say("İlaç ve yemek çok iyi geldi... Teşekkürler!", 3.5f, Color.green);
-            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.CraftSuccess, 0.6f);
+            AftershockIsle.Effects.SoundManager.Play(AftershockIsle.Effects.SoundId.Medkit, 0.8f, 0.02f);
             UpdateCard();
         }
 
